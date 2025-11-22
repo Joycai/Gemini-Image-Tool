@@ -327,9 +327,34 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     btn_send.click(handle_generation_and_save, gen_inputs, gen_outputs)
     btn_retry.click(handle_generation_and_save, gen_inputs, gen_outputs)
 
-    demo.load(load_images_from_dir, dir_input, [state_current_dir_images, info_box]).then(lambda x: x,
-                                                                                          state_current_dir_images,
-                                                                                          gallery_source)
+    # ⬇️ 新增：页面加载时的初始化函数
+    def init_app_data():
+        """
+        每次页面刷新时执行：从数据库拉取最新的配置
+        """
+        fresh_settings = db.get_all_settings()
+        logger_utils.log("🔄 正在恢复上次的用户会话配置...")
+        # 返回: (最新目录路径, 最新API Key)
+        return fresh_settings["last_dir"], fresh_settings["api_key"]
+
+    # ⬇️ 修改后的启动逻辑：
+    # 1. 先从 DB 读取最新配置 -> 更新 dir_input 和 state_api_key
+    # 2. 然后用更新后的 dir_input 去加载图片
+    # 3. 最后刷新画廊
+
+    demo.load(
+        init_app_data,
+        inputs=None,
+        outputs=[dir_input, state_api_key]
+    ).then(
+        load_images_from_dir,
+        inputs=[dir_input],
+        outputs=[state_current_dir_images, info_box]
+    ).then(
+        lambda x: x,
+        inputs=[state_current_dir_images],
+        outputs=[gallery_source]
+    )
 
 if __name__ == "__main__":
     import platform
