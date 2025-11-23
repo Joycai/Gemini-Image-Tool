@@ -26,7 +26,11 @@ def render(state_api_key, gallery_output_history):
 
             info_box = gr.Markdown(i18n.get("ready"))
 
-            gr.Markdown(f"#### {i18n.get('header_output_gallery', '📤 历史输出')}")
+            with gr.Row():
+                gr.Markdown(f"#### {i18n.get('header_output_gallery', '📤 歷史輸出')}")
+                # scale=0 表示按鈕不自動拉伸，size="sm" 讓按鈕小一點
+                btn_open_out_dir = gr.Button(i18n.get("btn_open_dir"), scale=0, size="sm")
+
             gallery_output_history.render()
 
             # === 右侧 ===
@@ -98,5 +102,6 @@ def render(state_api_key, gallery_output_history):
         "result_image": result_image,
         # "download_html": download_html, # 刪除舊的
         "btn_download": btn_download,     # 新增新的
+        "btn_open_out_dir": btn_open_out_dir,  # [新增] 別忘了返回這個按鈕對象
         "state_selected_images": state_selected_images
     }

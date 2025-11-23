@@ -76,5 +76,6 @@
     "tab_settings": "Settings",
     "err_no_parts": "API Response Error: No 'parts' attribute",
     "err_text_response": "Text response received: {text}",
-    "err_no_valid_image": "No valid image data found"
+    "err_no_valid_image": "No valid image data found",
+    "btn_open_dir": "📂 Open Folder"
 }

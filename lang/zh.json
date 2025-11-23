@@ -76,5 +76,6 @@
     "tab_settings": "系统设置",
     "err_no_parts": "API 响应异常: 缺少 'parts' 属性",
     "err_text_response": "API 返回了文本而非图片: {text}",
-    "err_no_valid_image": "未找到有效的图片数据"
+    "err_no_valid_image": "未找到有效的图片数据",
+    "btn_open_dir": "📂 打開文件夾"
 }

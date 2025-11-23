@@ -179,6 +179,13 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
                                                                                                  state_current_dir_images,
                                                                                                  main_ui[
                                                                                                      "gallery_source"])
+    # [新增] 綁定打開文件夾按鈕
+    main_ui["btn_open_out_dir"].click(
+        fn=app_logic.open_output_folder,
+        inputs=None,
+        outputs=None
+    )
+
     main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])
 
     # --- 主页: 图片选择与移除 ---

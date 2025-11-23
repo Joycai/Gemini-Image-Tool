@@ -13,6 +13,8 @@ import database as db
 import api_client
 import logger_utils
 import i18n
+import platform     # [新增]
+import subprocess   # [新增]
 
 # --- 全局任务状态管理 ---
 TASK_STATE = {
@@ -273,6 +275,37 @@ def save_cfg_wrapper(key, path, prefix, lang):
     gr.Info(i18n.get("info_conf_saved"))
     return key, load_output_gallery()
 
+
+# [新增] 打開輸出目錄的函數
+def open_output_folder():
+    """打開當前配置的輸出目錄"""
+    path = db.get_setting("save_path", "outputs")
+
+    # 確保目錄存在，不存在則創建
+    if not os.path.exists(path):
+        try:
+            os.makedirs(path, exist_ok=True)
+        except Exception as e:
+            gr.Warning(f"無法創建目錄: {e}")
+            return
+
+    # 獲取絕對路徑
+    abs_path = os.path.abspath(path)
+    logger_utils.log(f"嘗試打開目錄: {abs_path}")
+
+    try:
+        system_platform = platform.system()
+        if system_platform == "Windows":
+            os.startfile(abs_path)
+        elif system_platform == "Darwin":  # macOS
+            subprocess.run(["open", abs_path])
+        else:  # Linux
+            subprocess.run(["xdg-open", abs_path])
+
+    except Exception as e:
+        err_msg = f"打開文件夾失敗: {str(e)}"
+        logger_utils.log(err_msg)
+        gr.Warning(err_msg)
 
 # ⬇️ 初始化函数
 def init_app_data():
