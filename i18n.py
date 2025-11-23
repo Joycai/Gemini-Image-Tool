@@ -1,11 +1,28 @@
 import json
 import os
+import sys
 import database as db
 
 # 全局变量存储翻译字典
 _TRANSLATIONS = {}
 CURRENT_LANG = "zh"
 
+
+# ⬇️ 新增：获取资源绝对路径的通用函数
+def get_resource_path(relative_path):
+    """
+    获取资源的绝对路径
+    兼容开发环境 (Dev) 和 PyInstaller 打包后的环境 (Frozen)
+    """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller 打包后的临时目录
+        base_path = sys._MEIPASS
+    else:
+        # 开发环境：当前文件所在目录的上一级（即项目根目录）
+        # 假设 i18n.py 在根目录，如果不是，请调整这里的逻辑
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_path, relative_path)
 
 def load_language():
     """
@@ -18,8 +35,9 @@ def load_language():
     CURRENT_LANG = lang_code
 
     # 2. 确定文件路径
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(base_dir, "lang", f"{lang_code}.json")
+    # ⬇️ 修改点：使用新的路径获取函数
+    # 之前是: file_path = os.path.join(base_dir, "lang", f"{lang_code}.json")
+    file_path = get_resource_path(os.path.join("lang", f"{lang_code}.json"))
 
     # 3. 加载 JSON
     try:
