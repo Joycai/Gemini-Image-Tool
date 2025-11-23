@@ -1,7 +1,7 @@
 import os
 import time
 import sys
-from urllib.parse import quote
+import base64  # ⬇️ 新增
 import threading
 import tkinter as tk
 from tkinter import filedialog
@@ -76,33 +76,42 @@ def get_disabled_download_html(text_key="btn_download_placeholder"):
     """
 
 
-# ⬇️ 新增：统一生成下载链接的函数 (修复 URL 编码问题)
+# ⬇️ 修改：使用 Base64 嵌入图片数据，实现无视路径的下载
 def _generate_download_html(full_path):
     if not full_path or not os.path.exists(full_path):
         return get_disabled_download_html()
 
     filename = os.path.basename(full_path)
 
-    # 1. 统一路径分隔符
-    normalized_path = full_path.replace("\\", "/")
+    try:
+        # 1. 读取文件二进制数据
+        with open(full_path, "rb") as f:
+            image_data = f.read()
 
-    # 2. URL 编码 (解决中文、空格、特殊符号问题)
-    # quote 会把 "C:/图片/1.png" 变成 "C%3A/%E5%9B%BE..."
-    encoded_path = quote(normalized_path)
+        # 2. 转为 Base64 字符串
+        b64_str = base64.b64encode(image_data).decode('utf-8')
 
-    # 3. 拼接 Gradio 文件接口
-    download_url = f"/file={encoded_path}"
+        # 3. 确定 MIME 类型
+        ext = os.path.splitext(filename)[1].lower().replace(".", "")
+        if ext == "jpg": ext = "jpeg"
+        mime_type = f"image/{ext}"
 
-    btn_text = i18n.get("btn_download_ready") + f" ({filename})"
+        # 4. 构造 Data URI (这就是把图片变成了巨长的一行字)
+        href = f"data:{mime_type};base64,{b64_str}"
 
-    return f"""
-    <div style="text-align: center; margin-top: 10px;">
-        <a href="{download_url}" download="{filename}"
-           style="display: inline-block; background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer;">
-           {btn_text}
-        </a>
-    </div>
-    """
+        btn_text = i18n.get("btn_download_ready") + f" ({filename})"
+
+        return f"""
+        <div style="text-align: center; margin-top: 10px;">
+            <a href="{href}" download="{filename}"
+               style="display: inline-block; background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer;">
+               {btn_text}
+            </a>
+        </div>
+        """
+    except Exception as e:
+        logger_utils.log(f"❌ HTML 生成失败: {e}")
+        return get_disabled_download_html()
 
 
 # --- 核心：后台任务线程函数 ---
@@ -167,7 +176,7 @@ def poll_task_status():
         if TASK_STATE["status"] == "success":
             TASK_STATE["ui_updated"] = True
 
-            # ⬇️ 使用修复后的 HTML 生成函数
+            # 使用 Base64 生成下载链接
             html_content = _generate_download_html(TASK_STATE["result_path"])
 
             return TASK_STATE["result_image"], html_content, load_output_gallery()
@@ -180,7 +189,7 @@ def poll_task_status():
     return gr.skip(), gr.skip(), gr.skip()
 
 
-# ... Prompt, Restart, Config 函数保持不变 ...
+# ... (以下函数保持不变) ...
 def refresh_prompt_dropdown():
     titles = db.get_all_prompt_titles()
     return gr.Dropdown(choices=titles, value="---")
@@ -250,7 +259,7 @@ def save_cfg_wrapper(key, path, prefix, lang):
     return key, load_output_gallery()
 
 
-# ⬇️ 初始化函数 (也使用修复后的 HTML 生成逻辑)
+# ⬇️ 初始化函数
 def init_app_data():
     fresh_settings = db.get_all_settings()
     logger_utils.log("🔄 正在恢复用户会话...")
@@ -263,7 +272,7 @@ def init_app_data():
     if TASK_STATE["status"] == "success" and TASK_STATE["result_path"] and TASK_STATE["result_image"]:
         logger_utils.log("♻️ 检测到后台已完成的任务，正在恢复显示...")
         restored_image = TASK_STATE["result_image"]
-        # 使用统一的函数生成 HTML
+        # 使用 Base64 生成下载链接
         current_html = _generate_download_html(TASK_STATE["result_path"])
 
     return (

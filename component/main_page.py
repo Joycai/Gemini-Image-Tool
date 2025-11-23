@@ -58,7 +58,7 @@ def render(state_api_key, gallery_output_history):
                 model_selector = gr.Dropdown(["gemini-2.5-flash-image", "gemini-3-pro-image-preview"],
                                              value="gemini-3-pro-image-preview", label=i18n.get("label_model"),
                                              scale=2, allow_custom_value=True)
-                ar_selector = gr.Dropdown(["1:1", "3:4", "4:3", "16:9"], value="1:1", label=i18n.get("label_ratio"),
+                ar_selector = gr.Dropdown(["1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"], value="1:1", label=i18n.get("label_ratio"),
                                           scale=1)
                 res_selector = gr.Dropdown(["1K", "2K", "4K"], value="2K", label=i18n.get("label_res"), scale=1)
 

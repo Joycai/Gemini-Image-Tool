@@ -245,6 +245,28 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
 if __name__ == "__main__":
     import platform
+    import sys
+
+
+    # ================= 🚑 PyInstaller noconsole 修复补丁 =================
+    # 当使用 --noconsole 打包时，sys.stdout 和 sys.stderr 是 None
+    # 这会导致 uvicorn 日志初始化失败。我们需要给它一个假的流对象。
+
+    class NullWriter:
+        def write(self, data): pass
+
+        def flush(self): pass
+
+        def isatty(self): return False  # 这就是 uvicorn 需要的方法
+
+        def fileno(self): return -1
+
+
+    if sys.stdout is None:
+        sys.stdout = NullWriter()
+    if sys.stderr is None:
+        sys.stderr = NullWriter()
+    # =====================================================================
 
     allowed_paths = []
     if platform.system() == "Windows":
