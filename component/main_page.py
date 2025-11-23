@@ -28,7 +28,7 @@ def render(state_api_key, gallery_output_history):
                     btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
                     btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
                 size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
-                gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False)
+                gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False, object_fit="contain")
                 info_box = gr.Markdown(i18n.get("ready"))
 
             # --- 区域 2: 输出浏览 ---
@@ -53,7 +53,7 @@ def render(state_api_key, gallery_output_history):
                     gr.Markdown(i18n.get("selected_imgs"))
                     btn_clear = gr.Button("🗑️", size="sm", scale=0)
                 gr.Markdown(i18n.get("tip_remove"))
-                gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="cover", allow_preview=False, interactive=False)
+                gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="contain", allow_preview=False, interactive=False)
                 state_selected_images = gr.State(value=[])
 
                 # Prompt
@@ -84,6 +84,7 @@ def render(state_api_key, gallery_output_history):
 
             # --- 区域 4: 结果预览 ---
             with gr.Group():
+                gr.Markdown(f"### {i18n.get('section_preview')}")
                 result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
                 btn_download = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
 

@@ -1,6 +1,9 @@
 .right-panel { border-left: 1px solid #e5e7eb; padding-left: 20px; }
 .tool-sidebar { background-color: #f9fafb; padding: 10px; border-left: 1px solid #e5e7eb; }
+
+/* Gallery 修复 */
 #fixed_gallery .grid-wrap { grid-template-columns: repeat(6, 1fr) !important; }
+#fixed_gallery .grid-item { height: 100%; } /* 强制子项高度与容器一致，防止单图拉伸 */
 
 /* 顶部工具栏样式 */
 .top-toolbar {

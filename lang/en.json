@@ -93,5 +93,6 @@
     "log_delete_failed": "Delete failed: {error}",
     "warn_delete_failed": "Delete failed: {error}",
     "log_resuming_session": "🔄 Resuming user session...",
-    "section_control_panel": "⚙️ Control & Prompt"
+    "section_control_panel": "⚙️ Control & Prompt",
+    "section_preview": "🖼️ Preview"
 }

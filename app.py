@@ -41,7 +41,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # 预创建输出历史组件 (供 main_page 使用)
     gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=520, allow_preview=True, interactive=False,
-                                        render=False)
+                                        object_fit="contain", render=False)
 
     # 2. Tab 容器
     with gr.Tabs() as main_tabs:
