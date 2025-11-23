@@ -94,5 +94,7 @@
     "warn_delete_failed": "删除失败: {error}",
     "log_resuming_session": "🔄 正在恢复用户会话...",
     "section_control_panel": "⚙️ 控制和提示词",
-    "section_preview": "🖼️ 结果预览"
+    "section_preview": "🖼️ 结果预览",
+    "btn_add_to_prompt": "➡️ 发送到已选",
+    "btn_remove_from_prompt": "🗑️ 移除选中"
 }

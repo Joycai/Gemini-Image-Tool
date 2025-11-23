@@ -124,12 +124,38 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])
 
-    # --- 主页: 图片选择与移除 ---
-    main_ui["gallery_source"].select(app_logic.select_img, [state_current_dir_images, main_ui["state_selected_images"]],
-                                     [main_ui["state_selected_images"], main_ui["gallery_selected"]])
-    main_ui["gallery_selected"].select(app_logic.remove_selected_img, [main_ui["state_selected_images"]],
-                                       [main_ui["state_selected_images"], main_ui["gallery_selected"]])
-    main_ui["btn_clear"].click(lambda: ([], []), None, [main_ui["state_selected_images"], main_ui["gallery_selected"]])
+    # --- 主页: 图片选择与移除 (新逻辑) ---
+    main_ui["gallery_source"].select(
+        app_logic.mark_for_add,
+        None,
+        main_ui["state_marked_for_add"]
+    )
+    main_ui["gallery_selected"].select(
+        app_logic.mark_for_remove,
+        None,
+        main_ui["state_marked_for_remove"]
+    )
+
+    main_ui["btn_add_to_selected"].click(
+        app_logic.add_marked_to_selected,
+        [main_ui["state_marked_for_add"], main_ui["state_selected_images"]],
+        main_ui["state_selected_images"]
+    ).then(
+        lambda x: x,
+        main_ui["state_selected_images"],
+        main_ui["gallery_selected"]
+    )
+
+    main_ui["btn_remove_from_selected"].click(
+        app_logic.remove_marked_from_selected,
+        [main_ui["state_marked_for_remove"], main_ui["state_selected_images"]],
+        main_ui["state_selected_images"]
+    ).then(
+        lambda x: x,
+        main_ui["state_selected_images"],
+        main_ui["gallery_selected"]
+    )
+
 
     # --- 主页: 生成 (异步模式) ---
     gen_inputs = [

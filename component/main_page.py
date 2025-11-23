@@ -28,8 +28,10 @@ def render(state_api_key, gallery_output_history):
                     btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
                     btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
                 size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
+                btn_add_to_selected = gr.Button(i18n.get("btn_add_to_prompt"), variant="primary")
                 gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False, object_fit="contain")
                 info_box = gr.Markdown(i18n.get("ready"))
+                state_marked_for_add = gr.State(None)
 
             # --- 区域 2: 输出浏览 ---
             with gr.Group():
@@ -49,12 +51,10 @@ def render(state_api_key, gallery_output_history):
                 gr.Markdown(f"### {i18n.get('section_control_panel')}")
                 
                 # 已选参考图
-                with gr.Row():
-                    gr.Markdown(i18n.get("selected_imgs"))
-                    btn_clear = gr.Button("🗑️", size="sm", scale=0)
-                gr.Markdown(i18n.get("tip_remove"))
+                btn_remove_from_selected = gr.Button(i18n.get("btn_remove_from_prompt"), variant="stop")
                 gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="contain", allow_preview=False, interactive=False)
                 state_selected_images = gr.State(value=[])
+                state_marked_for_remove = gr.State(None)
 
                 # Prompt
                 gr.Markdown(i18n.get("section_prompt"))
@@ -95,7 +95,6 @@ def render(state_api_key, gallery_output_history):
         "size_slider": size_slider,
         "gallery_source": gallery_source,
         "info_box": info_box,
-        "btn_clear": btn_clear,
         "gallery_selected": gallery_selected,
         "prompt_dropdown": prompt_dropdown,
         "btn_load_prompt": btn_load_prompt,
@@ -115,5 +114,9 @@ def render(state_api_key, gallery_output_history):
         "btn_download_hist": btn_download_hist,
         "btn_delete_hist": btn_delete_hist,
         "state_hist_selected_path": state_hist_selected_path,
-        "state_selected_images": state_selected_images
+        "state_selected_images": state_selected_images,
+        "btn_add_to_selected": btn_add_to_selected,
+        "btn_remove_from_selected": btn_remove_from_selected,
+        "state_marked_for_add": state_marked_for_add,
+        "state_marked_for_remove": state_marked_for_remove
     }

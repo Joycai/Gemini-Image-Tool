@@ -238,24 +238,36 @@ def delete_prompt_from_db(selected_title):
     return refresh_prompt_dropdown()
 
 
-def select_img(evt: gr.SelectData, all_imgs, current):
-    path = all_imgs[evt.index] if isinstance(all_imgs, list) else all_imgs[evt.index].name
-    new_list = current + [path]
-    if len(new_list) > 5: new_list = new_list[-5:]
-    logger_utils.log(i18n.get("log_select_img", name=os.path.basename(path)))
-    return new_list, new_list
+def mark_for_add(evt: gr.SelectData):
+    if evt.value and isinstance(evt.value, dict) and 'image' in evt.value and 'path' in evt.value['image']:
+        return evt.value['image']['path']
+    return None
 
+def mark_for_remove(evt: gr.SelectData):
+    if evt.value and isinstance(evt.value, dict) and 'image' in evt.value and 'path' in evt.value['image']:
+        return evt.value['image']['path']
+    return None
 
-def remove_selected_img(evt: gr.SelectData, current_list):
-    if not current_list or evt.index is None:
-        return current_list, current_list
-    if evt.index >= len(current_list):
-        return current_list, current_list
-    removed_item = current_list[evt.index]
-    removed_name = os.path.basename(removed_item)
-    new_list = [path for i, path in enumerate(current_list) if i != evt.index]
-    logger_utils.log(i18n.get("log_remove_img", name=removed_name, count=len(new_list)))
-    return new_list, new_list
+def add_marked_to_selected(marked_path: str, current_selected: List[str]):
+    if not marked_path:
+        return current_selected
+    
+    if marked_path not in current_selected:
+        new_selected = current_selected + [marked_path]
+        if len(new_selected) > 5:
+            new_selected = new_selected[-5:]
+        logger_utils.log(i18n.get("log_select_img", name=os.path.basename(marked_path)))
+        return new_selected
+    
+    return current_selected
+
+def remove_marked_from_selected(marked_path: str, current_selected: List[str]):
+    if not marked_path or marked_path not in current_selected:
+        return current_selected
+
+    new_list = [item for item in current_selected if item != marked_path]
+    logger_utils.log(i18n.get("log_remove_img", name=os.path.basename(marked_path), count=len(new_list)))
+    return new_list
 
 
 def restart_app():
