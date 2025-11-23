@@ -31,7 +31,20 @@ def render(state_api_key, gallery_output_history):
                 # scale=0 表示按鈕不自動拉伸，size="sm" 讓按鈕小一點
                 btn_open_out_dir = gr.Button(i18n.get("btn_open_dir"), scale=0, size="sm")
 
+            # [修改点] 设置画廊 allow_preview=False 以强制用户使用我们的按钮，
+            # 或者保持 True (灯箱模式)，但我们要添加 selected 事件监听。
+            # 这里我们直接复用传入的 gallery_output_history 对象
             gallery_output_history.render()
+
+            # [新增] 选中图片的操作区
+            with gr.Row():
+                btn_download_hist = gr.DownloadButton(i18n.get("btn_down_selected"), size="sm", scale=1,
+                                                      interactive=False)
+                btn_delete_hist = gr.Button(i18n.get("btn_del_selected"), size="sm", variant="stop", scale=1,
+                                            interactive=False)
+
+            # [新增] 隐藏状态，用于存储当前选中的图片路径
+            state_hist_selected_path = gr.State(value=None)
 
             # === 右侧 ===
         with gr.Column(scale=6, elem_classes="right-panel"):
@@ -103,5 +116,9 @@ def render(state_api_key, gallery_output_history):
         # "download_html": download_html, # 刪除舊的
         "btn_download": btn_download,     # 新增新的
         "btn_open_out_dir": btn_open_out_dir,  # [新增] 別忘了返回這個按鈕對象
+        # [新增] 返回新组件
+        "btn_download_hist": btn_download_hist,
+        "btn_delete_hist": btn_delete_hist,
+        "state_hist_selected_path": state_hist_selected_path,
         "state_selected_images": state_selected_images
     }

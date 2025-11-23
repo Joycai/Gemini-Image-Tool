@@ -104,7 +104,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     btn_nav_home, btn_nav_settings, btn_restart, btn_theme = header.render()
 
     # 预创建输出历史组件 (供 main_page 使用)
-    gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=300, allow_preview=True, interactive=False,
+    gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=520, allow_preview=True, interactive=False,
                                         render=False)
 
     # 2. Tab 容器 (使用 CSS 隐藏了原本的 Tab 按钮)
@@ -184,6 +184,30 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         fn=app_logic.open_output_folder,
         inputs=None,
         outputs=None
+    )
+
+    # [新增] 历史画廊交互逻辑
+
+    # 1. 选中图片
+    gallery_output_history.select(
+        fn=app_logic.on_gallery_select,
+        inputs=[gallery_output_history],  # 将画廊自身作为输入，获取当前列表
+        outputs=[
+            main_ui["btn_download_hist"],  # 更新下载按钮
+            main_ui["btn_delete_hist"],  # 更新删除按钮
+            main_ui["state_hist_selected_path"]  # 更新选中路径状态
+        ]
+    )
+
+    # 2. 删除图片
+    main_ui["btn_delete_hist"].click(
+        fn=app_logic.delete_output_file,
+        inputs=[main_ui["state_hist_selected_path"]],
+        outputs=[
+            gallery_output_history,  # 刷新画廊
+            main_ui["btn_download_hist"],  # 重置下载按钮
+            main_ui["btn_delete_hist"]  # 重置删除按钮
+        ]
     )
 
     main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])

@@ -77,5 +77,9 @@
     "err_no_parts": "API Response Error: No 'parts' attribute",
     "err_text_response": "Text response received: {text}",
     "err_no_valid_image": "No valid image data found",
-    "btn_open_dir": "📂 Open Folder"
+    "btn_open_dir": "📂 Open Folder",
+    "btn_del_selected": "🗑️ Delete Selected",
+    "btn_down_selected": "⬇️ Download Selected",
+    "msg_del_ok": "✅ Image Deleted",
+    "msg_no_sel": "⚠️ No image selected"
 }

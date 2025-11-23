@@ -307,6 +307,89 @@ def open_output_folder():
         logger_utils.log(err_msg)
         gr.Warning(err_msg)
 
+
+# [新增] 处理 Gallery 选择事件
+def on_gallery_select(evt: gr.SelectData, gallery_data):
+    """
+        当用户点击历史画廊中的图片时触发
+        """
+    if not gallery_data or evt.index is None:
+        return gr.update(interactive=False), gr.update(interactive=False), None
+
+    try:
+        # 1. 获取 Gradio 返回的路径 (这通常是 Temp 路径)
+        selected_item = gallery_data[evt.index]
+        temp_path = None
+
+        if isinstance(selected_item, (list, tuple)):
+            temp_path = selected_item[0]
+        elif isinstance(selected_item, str):
+            temp_path = selected_item
+        elif hasattr(selected_item, "root") and hasattr(selected_item, "name"):
+            temp_path = selected_item.path
+        else:
+            temp_path = selected_item.get("name") or selected_item.get("path")
+
+        if temp_path:
+            # 2. [核心修复] 通过文件名反推真实路径
+            filename = os.path.basename(temp_path)
+
+            # 获取当前的输出目录配置
+            save_dir = db.get_setting("save_path", "outputs")
+
+            # 拼接得到真实路径
+            real_path = os.path.abspath(os.path.join(save_dir, filename))
+
+            # 3. 验证真实文件是否存在
+            # (如果文件名没变，应该能找到；如果找不到，可能是因为 Gradio 改了名，或者文件已被移走)
+            final_path = temp_path  # 默认回退到 temp
+
+            if os.path.exists(real_path):
+                final_path = real_path
+                # logger_utils.log(f"选中真实文件: {filename}") # 调试用
+            else:
+                logger_utils.log(f"⚠️ 未找到原始文件: {real_path}，将操作临时文件")
+
+            # 启用下载按钮(更新value) 和 删除按钮
+            return (
+                gr.DownloadButton(value=final_path, label=i18n.get("btn_down_selected") + f" ({filename})",
+                                  interactive=True),
+                gr.Button(interactive=True),  # 删除按钮启用
+                final_path  # 更新 State 为真实路径
+            )
+
+    except Exception as e:
+        logger_utils.log(f"Gallery Select Error: {e}")
+
+    return gr.update(interactive=False), gr.update(interactive=False), None
+
+
+# [新增] 删除选中的文件
+def delete_output_file(file_path):
+    """删除指定路径的文件并刷新画廊"""
+    if not file_path:
+        gr.Warning(i18n.get("msg_no_sel"))
+        return gr.skip(), gr.skip(), gr.skip()
+
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            logger_utils.log(f"Deleted file: {file_path}")
+            gr.Info(i18n.get("msg_del_ok"))
+        except Exception as e:
+            logger_utils.log(f"Delete failed: {e}")
+            gr.Warning(f"Delete failed: {e}")
+
+    # 刷新列表
+    new_gallery = load_output_gallery()
+
+    # 重置按钮状态
+    return (
+        new_gallery,
+        gr.DownloadButton(value=None, label=i18n.get("btn_down_selected"), interactive=False),
+        gr.Button(interactive=False)
+    )
+
 # ⬇️ 初始化函数
 def init_app_data():
     fresh_settings = db.get_all_settings()
