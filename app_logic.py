@@ -15,6 +15,7 @@ import logger_utils
 import i18n
 import platform     # [新增]
 import subprocess   # [新增]
+from config import VALID_IMAGE_EXTENSIONS
 
 # --- 全局任务状态管理 ---
 TASK_STATE = {
@@ -49,9 +50,8 @@ def load_images_from_dir(dir_path):
     if not dir_path or not os.path.exists(dir_path):
         return [], i18n.get("dir_path") + " Not Found"
     db.save_setting("last_dir", dir_path)
-    valid_exts = {'.png', '.jpg', '.jpeg', '.webp', '.bmp'}
     image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
-                   if os.path.splitext(f)[1].lower() in valid_exts]
+                   if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
     msg = i18n.get("log_load_dir", path=dir_path, count=len(image_files))
     logger_utils.log(msg)
     return image_files, msg
@@ -61,9 +61,8 @@ def load_output_gallery():
     save_dir = db.get_setting("save_path", "outputs")
     if not os.path.exists(save_dir):
         return []
-    valid_exts = {'.png', '.jpg', '.jpeg', '.webp'}
     files = [os.path.join(save_dir, f) for f in os.listdir(save_dir)
-             if os.path.splitext(f)[1].lower() in valid_exts]
+             if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
     files.sort(key=os.path.getmtime, reverse=True)
     return files
 

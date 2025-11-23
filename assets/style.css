@@ -1,0 +1,97 @@
+.right-panel { border-left: 1px solid #e5e7eb; padding-left: 20px; }
+.tool-sidebar { background-color: #f9fafb; padding: 10px; border-left: 1px solid #e5e7eb; }
+#fixed_gallery .grid-wrap { grid-template-columns: repeat(6, 1fr) !important; }
+
+/* 顶部工具栏样式 */
+.top-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 8px var(--block-padding);
+    border-bottom: 1px solid #e5e7eb;
+    background-color: var(--background-fill-primary);
+    gap: 10px;
+    margin-bottom: 0 !important;
+}
+
+.top-toolbar .markdown-text h3 {
+    margin: 0;
+    line-height: 1.5;
+    white-space: nowrap; /* 防止标题换行 */
+}
+
+/* 图标按钮样式 (使用更具体的选择器) */
+.top-toolbar .icon-button {
+    min-width: 40px !important;
+    max-width: 40px !important; /* 新增 */
+    width: 40px !important;
+    padding: 0 !important;
+    border: none !important;
+    background: none !important;
+    box-shadow: none !important;
+    font-size: 1.2em;
+    flex-shrink: 0; /* 防止按钮被压缩 */
+}
+.top-toolbar .icon-button:hover {
+    background-color: #f0f0f0 !important;
+}
+body.dark .top-toolbar .icon-button:hover {
+    background-color: #374151 !important;
+}
+
+
+/* =========================================
+   ⬇️ 新增：日誌框固定高度與滾動
+   ========================================= */
+#log_output_box {
+    height: 300px !important;  /* 強制固定外框高度 */
+    max-height: 300px !important;
+    overflow: hidden !important; /* 防止外框出現雙重滾動條 */
+}
+
+/* 針對內部的 CodeMirror 編輯器區域 */
+#log_output_box .cm-editor {
+    height: 100% !important;
+}
+
+/* 針對內容滾動區域 */
+#log_output_box .cm-scroller {
+    overflow-y: auto !important; /* 內容過多時顯示垂直滾動條 */
+}
+
+/* =========================================
+   ⬇️ 新增：Dark Mode 强制适配样式
+   ========================================= */
+body.dark {
+    /* 1. 重新定义 Gradio 的核心颜色变量 */
+    --body-background-fill: #0b0f19;
+    --background-fill-primary: #111827;
+    --background-fill-secondary: #1f2937;
+    --border-color-primary: #374151;
+    --block-background-fill: #1f2937;
+    --input-background-fill: #374151; /* 输入框背景 */
+    
+    /* 2. 文字颜色 */
+    --body-text-color: #F3F4F6;
+    --block-label-text-color: #D1D5DB;
+    --input-text-color: #FFFFFF;
+}
+
+/* 针对输入框的强制覆盖 (解决你遇到的白色背景问题) */
+body.dark input, 
+body.dark textarea, 
+body.dark select,
+body.dark .gr-input {
+    background-color: var(--input-background-fill) !important;
+    color: var(--input-text-color) !important;
+    border-color: var(--border-color-primary) !importan
+}
+
+/* 修复侧边栏和工具栏在深色模式下的背景 */
+body.dark .tool-sidebar,
+body.dark .right-panel {
+    background-color: #111827 !important; /* 深色背景 */
+    border-color: #374151 !important;     /* 深色边框 */
+}
+body.dark .top-toolbar {
+    border-bottom: 1px solid #374151 !important;
+}

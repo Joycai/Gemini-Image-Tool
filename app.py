@@ -19,97 +19,14 @@ import i18n
 import app_logic
 import logger_utils
 from component import header, main_page, settings_page
+from config import get_allowed_paths
 
-# CSS:
-# 1. 强制画廊网格
-# 2. 隐藏原生 Tab 的导航栏 (.tab-nav { display: none })
-custom_css = """
-.toolbar-btn { text-align: left !important; margin-bottom: 10px; }
-.right-panel { border-left: 1px solid #e5e7eb; padding-left: 20px; }
-.tool-sidebar { background-color: #f9fafb; padding: 10px; border-left: 1px solid #e5e7eb; }
-#fixed_gallery .grid-wrap { grid-template-columns: repeat(6, 1fr) !important; }
-
-/* 顶部工具栏样式 */
-.top-toolbar {
-    display: flex;
-    align-items: center;
-    padding: 8px var(--block-padding);
-    border-bottom: 1px solid #e5e7eb;
-    background-color: var(--background-fill-primary);
-    gap: 10px;
-    margin-bottom: 0 !important;
-}
-.top-toolbar .markdown-text h3 {
-    margin-top: 0;
-    margin-bottom: 0;
-    line-height: 1.5;
-}
-.toolbar-left { display: flex; align-items: center; gap: 10px; }
-.toolbar-right { display: flex; align-items: center; gap: 5px; }
-
-/* =========================================
-   ⬇️ 新增：日誌框固定高度與滾動
-   ========================================= */
-#log_output_box {
-    height: 300px !important;  /* 強制固定外框高度 */
-    max-height: 300px !important;
-    overflow: hidden !important; /* 防止外框出現雙重滾動條 */
-}
-
-/* 針對內部的 CodeMirror 編輯器區域 */
-#log_output_box .cm-editor {
-    height: 100% !important;
-}
-
-/* 針對內容滾動區域 */
-#log_output_box .cm-scroller {
-    overflow-y: auto !important; /* 內容過多時顯示垂直滾動條 */
-}
-
-/* =========================================
-   ⬇️ 新增：Dark Mode 强制适配样式
-   ========================================= */
-body.dark {
-    /* 1. 重新定义 Gradio 的核心颜色变量 */
-    --body-background-fill: #0b0f19;
-    --background-fill-primary: #111827;
-    --background-fill-secondary: #1f2937;
-    --border-color-primary: #374151;
-    --block-background-fill: #1f2937;
-    --input-background-fill: #374151; /* 输入框背景 */
-    
-    /* 2. 文字颜色 */
-    --body-text-color: #F3F4F6;
-    --block-label-text-color: #D1D5DB;
-    --input-text-color: #FFFFFF;
-}
-
-/* 针对输入框的强制覆盖 (解决你遇到的白色背景问题) */
-body.dark input, 
-body.dark textarea, 
-body.dark select,
-body.dark .gr-input {
-    background-color: var(--input-background-fill) !important;
-    color: var(--input-text-color) !important;
-    border-color: var(--border-color-primary) !important;
-}
-
-/* 修复侧边栏和工具栏在深色模式下的背景 */
-body.dark .tool-sidebar,
-body.dark .right-panel {
-    background-color: #111827 !important; /* 深色背景 */
-    border-color: #374151 !important;     /* 深色边框 */
-}
-body.dark .top-toolbar {
-    border-bottom: 1px solid #374151 !important;
-}
-"""
 # ⬇️ 新增 JS：用于切换深色模式
-js_toggle_theme = """
-() => {
-    document.body.classList.toggle('dark');
-}
-"""
+with open("assets/script.js", "r", encoding="utf-8") as f:
+    js_toggle_theme = f.read()
+
+with open("assets/style.css", "r", encoding="utf-8") as f:
+    custom_css = f.read()
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
@@ -120,41 +37,22 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     state_current_dir_images = gr.State(value=[])
 
     # 1. 顶部工具栏 (Header)
-    btn_nav_home, btn_nav_settings, btn_restart, btn_theme = header.render()
+    btn_restart, btn_theme = header.render()
 
     # 预创建输出历史组件 (供 main_page 使用)
     gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=520, allow_preview=True, interactive=False,
                                         render=False)
 
-    # 2. Tab 容器 (使用 CSS 隐藏了原本的 Tab 按钮)
-    # selected="tab_home" 表示默认显示主页
-    with gr.Tabs(elem_id="no_header_tabs", selected="tab_home") as main_tabs:
-        # ⬇️ i18n 修复: label="Workbench" -> label=i18n.get("tab_home")
+    # 2. Tab 容器
+    with gr.Tabs() as main_tabs:
         with gr.TabItem(i18n.get("tab_home"), id="tab_home"):
             main_ui = main_page.render(state_api_key, gallery_output_history)
 
-        # ⬇️ i18n 修复: label="Settings" -> label=i18n.get("tab_settings")
         with gr.TabItem(i18n.get("tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
 
 
-    # ================= 页面切换逻辑 =================
-    # 点击按钮 -> 更新 Tabs 组件的 selected 属性
-
-    def go_home():
-        return gr.Tabs(selected="tab_home")
-
-
-    def go_settings():
-        return gr.Tabs(selected="tab_settings")
-
-
-    btn_nav_home.click(fn=go_home, inputs=None, outputs=main_tabs)
-    btn_nav_settings.click(fn=go_settings, inputs=None, outputs=main_tabs)
-
     # ================= 业务逻辑绑定 =================
-
-    # ... (其余逻辑与之前完全一致，直接复用即可) ...
 
     # 主题切换
     btn_theme.click(None, None, None, js=js_toggle_theme)
@@ -164,15 +62,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     log_timer.tick(logger_utils.get_logs, outputs=main_ui["log_output"])
 
     # --- 设置页逻辑 ---
-    # 保存后自动跳回主页 (更新 outputs=main_tabs)
     settings_ui["btn_save"].click(
         app_logic.save_cfg_wrapper,
         inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
-        outputs=[state_api_key, main_tabs, gallery_output_history]  # 这里把 main_tabs 也放进去
-    ).then(
-        fn=go_home,  # 确保逻辑层也是切回 Home
-        inputs=None,
-        outputs=main_tabs
+        outputs=[state_api_key, gallery_output_history]
     )
 
     # --- 主页: Prompt ---
@@ -318,14 +211,6 @@ if __name__ == "__main__":
         sys.stderr = NullWriter()
     # =====================================================================
 
-    allowed_paths = []
-    if platform.system() == "Windows":
-        for char in range(ord('A'), ord('Z') + 1):
-            allowed_paths.append(f"{chr(char)}:\\")
-        nas_paths = ["\\\\DS720plus\\home", "\\\\192.168.1.1\\share"]
-        allowed_paths.extend(nas_paths)
-    else:
-        allowed_paths = ["/", "/mnt", "/media", "/home"]
-
+    allowed_paths = get_allowed_paths()
     print(f"✅ Allowed Paths: {len(allowed_paths)}")
     demo.launch(inbrowser=True, server_name="0.0.0.0", server_port=7860, allowed_paths=allowed_paths)
