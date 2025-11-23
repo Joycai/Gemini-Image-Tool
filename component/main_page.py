@@ -68,7 +68,11 @@ def render(state_api_key, gallery_output_history):
 
             log_output = gr.Code(language="shell", label=i18n.get("log_label"), lines=10, interactive=False)
             result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
-            download_html = gr.HTML(value=app_logic.get_disabled_download_html(), visible=True)
+            # [修改前]
+            # download_html = gr.HTML(value=app_logic.get_disabled_download_html(), visible=True)
+
+            # [修改後] 使用原生下載按鈕，初始隱藏或不可交互
+            btn_download = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
 
     return {
         "dir_input": dir_input,
@@ -92,6 +96,7 @@ def render(state_api_key, gallery_output_history):
         "btn_retry": btn_retry,
         "log_output": log_output,
         "result_image": result_image,
-        "download_html": download_html,
+        # "download_html": download_html, # 刪除舊的
+        "btn_download": btn_download,     # 新增新的
         "state_selected_images": state_selected_images
     }

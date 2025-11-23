@@ -7,6 +7,37 @@ import gradio as gr
 import logger_utils
 import i18n
 
+# [新增] 模型配置字典，方便未來擴展
+MODEL_CONFIGS = {
+    "default": {
+        "ignore_params": False,
+        "base_config": {"response_modalities": ["IMAGE"]}
+    },
+    "gemini-2.5": {
+        "ignore_params": True, # 2.5 系列忽略比例和分辨率
+        "base_config": {"response_modalities": ["IMAGE"]}
+    }
+}
+
+
+def _get_model_config(model_id, aspect_ratio, resolution):
+    """根據模型 ID 返回對應的配置對象"""
+    # 簡單的規則匹配
+    is_2_5 = "2.5" in model_id
+
+    if is_2_5:
+        logger_utils.log(i18n.get("detect_25"))
+        return types.GenerateContentConfig(**MODEL_CONFIGS["gemini-2.5"]["base_config"])
+    else:
+        # Gemini 3.0 Pro 或其他標準模型
+        if not aspect_ratio: aspect_ratio = "1:1"
+        if not resolution: resolution = "2K"
+
+        return types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+            image_config=types.ImageConfig(aspect_ratio=aspect_ratio, image_size=resolution)
+        )
+
 def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, resolution):
     if not api_key:
         msg = i18n.get("err_apikey")
@@ -30,16 +61,7 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
 
     logger_utils.log(i18n.get("req_sent", model=model_id, ar=aspect_ratio, res=resolution))
 
-    if "2.5" in model_id:
-        logger_utils.log(i18n.get("detect_25"))
-        config = types.GenerateContentConfig(response_modalities=["IMAGE"])
-    else:
-        if not aspect_ratio: aspect_ratio = "1:1"
-        if not resolution: resolution = "2K"
-        config = types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(aspect_ratio=aspect_ratio, image_size=resolution)
-        )
+    config = _get_model_config(model_id, aspect_ratio, resolution)
 
     max_retries = 3
     last_exception = None

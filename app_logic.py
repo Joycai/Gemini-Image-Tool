@@ -1,3 +1,4 @@
+from typing import List, Tuple, Optional
 import os
 import time
 import sys
@@ -150,7 +151,14 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
 
 
 # --- 供 UI 调用的入口 ---
-def start_generation_task(prompt, img_paths, key, model, ar, res):
+def start_generation_task(
+    prompt: str,
+    img_paths: List[str],
+    key: str,
+    model: str,
+    ar: str,
+    res: str
+) -> None:
     if TASK_STATE["status"] == "running":
         gr.Warning(i18n.get("log_task_running"))
         return
@@ -169,22 +177,29 @@ def start_generation_task(prompt, img_paths, key, model, ar, res):
 def poll_task_status():
     # 1. 运行中
     if TASK_STATE["status"] == "running":
-        return gr.skip(), get_disabled_download_html("log_new_task"), gr.skip()
+        # 返回：圖片不變，下載按鈕不可用且顯示 "生成中..."
+        return gr.skip(), gr.DownloadButton(label=i18n.get("log_new_task"), interactive=False), gr.skip()
 
     # 2. 完成且未更新 UI
     if not TASK_STATE["ui_updated"]:
         if TASK_STATE["status"] == "success":
             TASK_STATE["ui_updated"] = True
 
-            # 使用 Base64 生成下载链接
-            html_content = _generate_download_html(TASK_STATE["result_path"])
-
-            return TASK_STATE["result_image"], html_content, load_output_gallery()
+            # [修改點] 直接返回文件路徑給 DownloadButton
+            # update(value=路徑, label="下載", interactive=True)
+            new_btn = gr.DownloadButton(
+                label=i18n.get("btn_download_ready") + f" ({os.path.basename(TASK_STATE['result_path'])})",
+                value=TASK_STATE["result_path"],
+                interactive=True,
+                visible=True
+            )
+            return TASK_STATE["result_image"], new_btn, load_output_gallery()
 
         elif TASK_STATE["status"] == "error":
             TASK_STATE["ui_updated"] = True
             gr.Warning(i18n.get("log_task_failed", error_msg=TASK_STATE['error_msg']))
-            return None, get_disabled_download_html(), gr.skip()
+            # 錯誤狀態：按鈕變回不可用
+            return None, gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False), gr.skip()
 
     return gr.skip(), gr.skip(), gr.skip()
 
@@ -268,17 +283,20 @@ def init_app_data():
     current_html = get_disabled_download_html()
     restored_image = None
 
-    # 2. 恢复断网期间完成的任务
-    if TASK_STATE["status"] == "success" and TASK_STATE["result_path"] and TASK_STATE["result_image"]:
-        logger_utils.log("♻️ 检测到后台已完成的任务，正在恢复显示...")
-        restored_image = TASK_STATE["result_image"]
-        # 使用 Base64 生成下载链接
-        current_html = _generate_download_html(TASK_STATE["result_path"])
+    # 如果有恢復的任務，返回對應的 DownloadButton 更新
+    if TASK_STATE["status"] == "success" and TASK_STATE["result_path"]:
+        current_download_btn = gr.DownloadButton(
+            label=i18n.get("btn_download_ready"),
+            value=TASK_STATE["result_path"],
+            interactive=True
+        )
+    else:
+        current_download_btn = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
 
     return (
         fresh_settings["last_dir"],
         fresh_settings["api_key"],
-        current_html,
+        current_download_btn,
         restored_image,
         fresh_settings["save_path"],
         fresh_settings["file_prefix"],

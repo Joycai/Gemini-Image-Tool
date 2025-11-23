@@ -210,7 +210,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         inputs=None,
         outputs=[
             main_ui["result_image"],
-            main_ui["download_html"],
+            main_ui["btn_download"],  # 這裡對應新的組件
             gallery_output_history
         ]
     )
@@ -222,8 +222,8 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         outputs=[
             main_ui["dir_input"],  # 1
             state_api_key,  # 2
-            main_ui["download_html"],  # 3
-            main_ui["result_image"],  # 4 ⬇️ 新增：接收恢复的图片
+            main_ui["btn_download"],  # 3 [修改點]
+            main_ui["result_image"],  # 4
             settings_ui["path"],  # 5
             settings_ui["prefix"],  # 6
             settings_ui["lang"],  # 7
