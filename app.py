@@ -2,7 +2,6 @@
 import asyncio
 import sys
 
-# 仅在 Debug 模式下应用修复
 if sys.gettrace() is not None:
     _pycharm_run = asyncio.run
 
@@ -25,7 +24,7 @@ from PIL import Image
 import database as db
 import api_client
 import logger_utils
-import i18n  # ⬇️ 新增 i18n 模块
+import i18n
 
 
 # --- 辅助逻辑 ---
@@ -45,24 +44,59 @@ def load_images_from_dir(dir_path):
     valid_exts = {'.png', '.jpg', '.jpeg', '.webp', '.bmp'}
     image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
                    if os.path.splitext(f)[1].lower() in valid_exts]
-
-    # 使用 i18n
     msg = i18n.get("log_load_dir", path=dir_path, count=len(image_files))
     logger_utils.log(msg)
     return image_files, msg
 
 
+# ⬇️ 新增：加载输出目录的图片 (用于左侧下方 Output Gallery)
+def load_output_gallery():
+    save_dir = db.get_setting("save_path", "outputs")
+    if not os.path.exists(save_dir):
+        return []
+
+    # 获取所有图片并按修改时间倒序排列（最新的在最前）
+    valid_exts = {'.png', '.jpg', '.jpeg', '.webp'}
+    files = [os.path.join(save_dir, f) for f in os.listdir(save_dir)
+             if os.path.splitext(f)[1].lower() in valid_exts]
+    files.sort(key=os.path.getmtime, reverse=True)
+    return files
+
+
+# 生成禁用状态的下载按钮 HTML
+def get_disabled_download_html():
+    text = i18n.get("btn_download_placeholder")
+    return f"""
+    <div style="text-align: center; margin-top: 10px;">
+        <span style="
+            display: inline-block;
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            border: 1px solid #e5e7eb;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-family: sans-serif;
+            cursor: not-allowed;
+            user-select: none;
+        ">
+        {text}
+        </span>
+    </div>
+    """
+
+
 def handle_generation_and_save(prompt, img_paths, key, model, ar, res):
     logger_utils.log(i18n.get("log_new_task"))
 
-    # 注意：api_client 内部的日志建议也改造成接受 i18n，或者在 api_client 里 import i18n
-    # 这里为了简化，我们在 api_client 外部做部分日志，内部保持原样或后续再改
+    # 1. 调用 API
     try:
         generated_image = api_client.call_google_genai(prompt, img_paths, key, model, ar, res)
     except Exception as e:
-        # api_client 抛出的 Error 已经在内部处理过，这里直接展示
-        return None, gr.HTML(visible=False)
+        # 失败时保持按钮灰色
+        return None, get_disabled_download_html()
 
+    # 2. 保存文件
     save_dir = db.get_setting("save_path", "outputs")
     prefix = db.get_setting("file_prefix", "gemini_gen")
     full_path = None
@@ -79,11 +113,11 @@ def handle_generation_and_save(prompt, img_paths, key, model, ar, res):
         logger_utils.log(i18n.get("log_save_fail", err=str(e)))
         gr.Warning(i18n.get("warn_save_fail", err=str(e)))
 
+    # 3. 生成激活状态的 HTML 链接
     if full_path and os.path.exists(full_path):
-        # 构建下载 HTML
         safe_path = full_path.replace("\\", "/")
         filename = os.path.basename(full_path)
-        btn_text = i18n.get("btn_download_html") + f" ({filename})"
+        btn_text = i18n.get("btn_download_ready") + f" ({filename})"
 
         html_content = f"""
         <div style="text-align: center; margin-top: 10px;">
@@ -93,12 +127,12 @@ def handle_generation_and_save(prompt, img_paths, key, model, ar, res):
             </a>
         </div>
         """
-        return generated_image, gr.HTML(value=html_content, visible=True)
+        return generated_image, html_content
     else:
-        return generated_image, gr.HTML(visible=False)
+        return generated_image, get_disabled_download_html()
 
 
-# --- Prompt 管理逻辑 ---
+# --- Prompt 管理逻辑 (保持不变) ---
 def refresh_prompt_dropdown():
     titles = db.get_all_prompt_titles()
     return gr.Dropdown(choices=titles, value="---")
@@ -151,28 +185,49 @@ def remove_selected_img(evt: gr.SelectData, current_list):
     return new_list, new_list
 
 
-# --- UI 构建 ---
+def restart_app():
+    """
+    重启当前 Python 进程
+    注意：这会导致前端网页连接断开，用户需要手动刷新浏览器
+    """
+    logger_utils.log(i18n.get("log_restarting"))
+    # 稍微延迟一点点，让日志有机会写入
+    time.sleep(0.5)
 
-# CSS: 强制画廊网格布局
+    # 获取当前 Python解释器路径 和 脚本路径参数
+    python = sys.executable
+    # 使用 execl 替换当前进程
+    os.execl(python, python, *sys.argv)
+    
+
+# ⬇️ 页面加载初始化 (修改版)
+def init_app_data():
+    fresh_settings = db.get_all_settings()
+    logger_utils.log("🔄 正在恢复用户会话...")
+    # 返回的内容顺序必须与下面 demo.load 的 outputs 一一对应
+    return (
+        fresh_settings["last_dir"],       # 1. 目录路径
+        fresh_settings["api_key"],        # 2. State API Key
+        get_disabled_download_html(),     # 3. 下载按钮状态
+        fresh_settings["save_path"],      # 4. 设置: 自动保存路径 (修复不同步的关键!)
+        fresh_settings["file_prefix"],    # 5. 设置: 文件前缀
+        fresh_settings["language"],       # 6. 设置: 语言
+        fresh_settings["api_key"]         # 7. 设置: API Key 输入框
+    )
+
+
+# --- UI 构建 ---
 custom_css = """
 .toolbar-btn { text-align: left !important; margin-bottom: 10px; }
 .right-panel { border-left: 1px solid #e5e7eb; padding-left: 20px; }
 .tool-sidebar { background-color: #f9fafb; padding: 10px; border-left: 1px solid #e5e7eb; }
 #fixed_gallery .grid-wrap { grid-template-columns: repeat(6, 1fr) !important; }
 """
-
-# ⬇️ JavaScript: 用于切换深色模式
-# Gradio 网页通常通过 body 的 class="dark" 来控制主题
-js_toggle_theme = """
-() => {
-    document.body.classList.toggle('dark');
-}
-"""
+js_toggle_theme = "() => { document.body.classList.toggle('dark'); }"
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
 
-    # 初始化数据
     settings = db.get_all_settings()
     initial_prompts = db.get_all_prompt_titles()
 
@@ -185,9 +240,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         gr.Markdown(f"### {i18n.get('app_title')}")
         with gr.Column(scale=1): pass
 
-        # ⬇️ 新增：深色模式切换按钮 (绑定 JS)
-        btn_theme = gr.Button(i18n.get("btn_theme"), size="sm", variant="secondary", scale=0)
+        # ⬇️ 新增：重启按钮 (红色警告色 variant="stop" 或 灰色 secondary 均可)
+        btn_restart = gr.Button(i18n.get("btn_restart"), size="sm", variant="stop", scale=0)
 
+        btn_theme = gr.Button(i18n.get("btn_theme"), size="sm", variant="secondary", scale=0)
         btn_settings_top = gr.Button(i18n.get("btn_settings"), size="sm", variant="secondary", scale=0)
 
     # 2. 设置面板
@@ -199,49 +255,41 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         with gr.Row():
             setting_save_path = gr.Textbox(label=i18n.get("label_save_path"), value=settings["save_path"])
             setting_prefix = gr.Textbox(label=i18n.get("label_prefix"), value=settings["file_prefix"])
-
-        # ⬇️ 新增：语言选择
         with gr.Row():
-            # 值为 code, 显示为 Label。 Gradio Dropdown 可以直接传 values list
-            setting_lang = gr.Dropdown(
-                choices=[("中文", "zh"), ("English", "en")],
-                value=settings["language"],
-                label=i18n.get("label_language"),
-                interactive=True
-            )
+            setting_lang = gr.Dropdown(choices=[("中文", "zh"), ("English", "en")], value=settings["language"],
+                                       label=i18n.get("label_language"), interactive=True)
 
     # 3. 主区域
     with gr.Row(equal_height=False):
-        # 左侧：浏览
+        # === 左侧：资源与历史 (40%) ===
         with gr.Column(scale=4):
+            # A. 本地素材库
             gr.Markdown(f"#### {i18n.get('tab_assets')}")
             with gr.Row():
                 dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
                 btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
                 btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
             size_slider = gr.Slider(2, 6, value=4, step=1, label="Column")
-            gallery_source = gr.Gallery(label="Source", columns=4, height=500, allow_preview=False)
+            gallery_source = gr.Gallery(label="Source", columns=4, height=520, allow_preview=False)  # 高度略减，腾位置给下方
+
             info_box = gr.Markdown(i18n.get("ready"))
 
-        # 右侧：工作台
+            # B. ⬇️ 新增：输出历史浏览器
+            gr.Markdown(f"#### {i18n.get('header_output_gallery', '📤 历史输出')}")
+            # 这里的 allow_preview=True，因为用户可能想看大图
+            gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=520, allow_preview=True,
+                                                interactive=False)
+
+        # === 右侧：工作台 (60%) ===
         with gr.Column(scale=6, elem_classes="right-panel"):
             with gr.Group():
                 with gr.Row():
                     gr.Markdown(i18n.get("selected_imgs"))
                     btn_clear = gr.Button("🗑️", size="sm", scale=0)
-
                 gr.Markdown(i18n.get("tip_remove"))
-                gallery_selected = gr.Gallery(
-                    label=i18n.get("gallery_selected"),
-                    elem_id="fixed_gallery",
-                    height=240,
-                    columns=6,
-                    rows=1,
-                    show_label=False,
-                    object_fit="cover",
-                    allow_preview=False,
-                    interactive=False
-                )
+                gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240,
+                                              columns=6, rows=1, show_label=False, object_fit="cover",
+                                              allow_preview=False, interactive=False)
 
             gr.Markdown(i18n.get("section_prompt"))
             with gr.Group():
@@ -268,46 +316,51 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
                 btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)
                 btn_retry = gr.Button(i18n.get("btn_retry"), scale=1)
 
-            result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
-            download_html = gr.HTML(visible=False)
+            # ⬇️ 新增：Log 区域 (移到中间)
+            # lines=10 固定高度，max_lines 也设为 10 确保不自动撑开
+            log_output = gr.Code(language="shell", label=i18n.get("log_label"), lines=10, interactive=False)
 
-    # Log 显示区域
-    with gr.Accordion(i18n.get("log_title"), open=True):
-        log_output = gr.Code(language="shell", label=i18n.get("log_label"), lines=10, interactive=False)
-        log_timer = gr.Timer(1)
+            # ⬇️ 修改：结果预览与下载
+            result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
+
+            # ⬇️ 修改：常驻 HTML，初始显示禁用状态
+            download_html = gr.HTML(value=get_disabled_download_html(), visible=True)
+
+    # 这里的 Log Timer 逻辑需要保留，但 Code 组件已经移到了上面
+    log_timer = gr.Timer(1)
 
     # ================= 事件绑定 =================
 
-    # ⬇️ 深色模式切换 (直接执行 JS)
     btn_theme.click(None, None, None, js=js_toggle_theme)
-
     log_timer.tick(logger_utils.get_logs, outputs=log_output)
     btn_settings_top.click(lambda: gr.Accordion(visible=True), None, settings_panel)
+    # ⬇️ 绑定重启事件
+    btn_restart.click(fn=restart_app, inputs=None, outputs=None)
 
-
+    # 保存配置事件：保存后不仅更新 state，还要刷新左下角的输出浏览器(因为路径可能变了)
     def save_cfg_wrapper(key, path, prefix, lang):
         db.save_setting("api_key", key)
         db.save_setting("save_path", path)
         db.save_setting("file_prefix", prefix)
         db.save_setting("language", lang)
-
         logger_utils.log(i18n.get("info_conf_saved"))
         gr.Info(i18n.get("info_conf_saved"))
-        # 注意：语言修改需要重启 App 才能完全应用到 UI Label
-        return key, gr.Accordion(visible=False)
+        # 返回: key, 隐藏面板, 刷新后的输出列表
+        return key, gr.Accordion(visible=False), load_output_gallery()
 
 
     btn_save_settings.click(
         save_cfg_wrapper,
         [setting_api_key_input, setting_save_path, setting_prefix, setting_lang],
-        [state_api_key, settings_panel]
+        [state_api_key, settings_panel, gallery_output_history]  # 更新 gallery_output_history
     )
 
-    # 其他事件保持逻辑不变，仅复用
+    # Prompt 事件
     btn_save_prompt.click(save_prompt_to_db, [prompt_title_input, prompt_input], [prompt_dropdown])
     btn_load_prompt.click(load_prompt_to_ui, [prompt_dropdown], [prompt_input])
     btn_del_prompt.click(delete_prompt_from_db, [prompt_dropdown], [prompt_dropdown])
 
+    # 左上素材库事件
     btn_select_dir.click(lambda: open_folder_dialog() or gr.skip(), None, dir_input)
     load_inputs = [dir_input]
     load_outputs = [state_current_dir_images, info_box]
@@ -322,30 +375,30 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     gallery_selected.select(remove_selected_img, [state_selected_images], [state_selected_images, gallery_selected])
     btn_clear.click(lambda: ([], []), None, [state_selected_images, gallery_selected])
 
+    # 生成事件：
+    # 成功后：1.显示图片 2.更新下载按钮HTML 3.自动刷新左下角的输出浏览器
     gen_inputs = [prompt_input, state_selected_images, state_api_key, model_selector, ar_selector, res_selector]
     gen_outputs = [result_image, download_html]
-    btn_send.click(handle_generation_and_save, gen_inputs, gen_outputs)
-    btn_retry.click(handle_generation_and_save, gen_inputs, gen_outputs)
 
-    # ⬇️ 新增：页面加载时的初始化函数
-    def init_app_data():
-        """
-        每次页面刷新时执行：从数据库拉取最新的配置
-        """
-        fresh_settings = db.get_all_settings()
-        logger_utils.log("🔄 正在恢复上次的用户会话配置...")
-        # 返回: (最新目录路径, 最新API Key)
-        return fresh_settings["last_dir"], fresh_settings["api_key"]
+    btn_send.click(handle_generation_and_save, gen_inputs, gen_outputs).then(load_output_gallery, None,
+                                                                             gallery_output_history)
+    btn_retry.click(handle_generation_and_save, gen_inputs, gen_outputs).then(load_output_gallery, None,
+                                                                              gallery_output_history)
 
-    # ⬇️ 修改后的启动逻辑：
-    # 1. 先从 DB 读取最新配置 -> 更新 dir_input 和 state_api_key
-    # 2. 然后用更新后的 dir_input 去加载图片
-    # 3. 最后刷新画廊
-
+    # 启动加载链：
+    # Init Data -> Load Source Images -> Refresh Source Gallery -> Load Output History
     demo.load(
         init_app_data,
         inputs=None,
-        outputs=[dir_input, state_api_key]
+        outputs=[
+            dir_input,  # 1
+            state_api_key,  # 2
+            download_html,  # 3
+            setting_save_path,  # 4 (新增)
+            setting_prefix,  # 5 (新增)
+            setting_lang,  # 6 (新增)
+            setting_api_key_input  # 7 (新增)
+        ]
     ).then(
         load_images_from_dir,
         inputs=[dir_input],
@@ -354,6 +407,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         lambda x: x,
         inputs=[state_current_dir_images],
         outputs=[gallery_source]
+    ).then(
+        load_output_gallery,
+        inputs=None,
+        outputs=[gallery_output_history]
     )
 
 if __name__ == "__main__":

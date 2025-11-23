@@ -60,5 +60,10 @@
     "log_load_dir": "📂 Load Dir: {path} (Found {count} imgs)",
     "log_select_img": "➕ Selected: {name}",
     "log_remove_img": "🗑️ Removed: {name} ({count} left)",
-    "log_token_usage": "📊 Token Usage: Input {input} + Output {output} = Total {total}"
+    "log_token_usage": "📊 Token Usage: Input {input} + Output {output} = Total {total}",
+    "header_output_gallery": "📤 OutputHistory",
+    "btn_download_placeholder": "⬇️ Waiting for Response...",
+    "btn_download_ready": "⬇️ Download HD Image",
+    "btn_restart": "♻️ Restart App",
+    "log_restarting": "♻️ Restarting application..."
 }

@@ -60,5 +60,10 @@
     "log_load_dir": "📂 加载目录: {path} (找到 {count} 张图片)",
     "log_select_img": "➕ 选中图片: {name}",
     "log_remove_img": "🗑️ 已移除: {name} (剩余 {count} 张)",
-    "log_token_usage": "📊 Token 用量: 输入 {input} + 输出 {output} = 总计 {total}"
+    "log_token_usage": "📊 Token 用量: 输入 {input} + 输出 {output} = 总计 {total}",
+    "header_output_gallery": "📤 历史输出归档",
+    "btn_download_placeholder": "⬇️ 等待生成...",
+    "btn_download_ready": "⬇️ 点击下载高清原图",
+    "btn_restart": "♻️ 重启系统",
+    "log_restarting": "♻️ 正在重启应用程序..."
 }

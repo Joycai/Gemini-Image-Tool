@@ -18,7 +18,6 @@ def load_language():
     CURRENT_LANG = lang_code
 
     # 2. 确定文件路径
-    # 假设 lang 目录在当前文件同级
     base_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_dir, "lang", f"{lang_code}.json")
 
@@ -28,23 +27,32 @@ def load_language():
             with open(file_path, "r", encoding="utf-8") as f:
                 _TRANSLATIONS = json.load(f)
         else:
-            print(f"⚠️ 语言文件不存在: {file_path}, 回退到空字典")
+            # print(f"⚠️ 语言文件不存在: {file_path}, 回退到空字典")
             _TRANSLATIONS = {}
     except Exception as e:
         print(f"❌ 加载语言失败: {e}")
         _TRANSLATIONS = {}
 
 
-def get(key, **kwargs):
+# ⬇️ 修复点：修改函数签名，增加 default 参数
+def get(key, default=None, **kwargs):
     """
-    获取翻译文本，支持格式化参数
-    用法: i18n.get("welcome_msg", name="User")
+    获取翻译文本，支持默认值和格式化参数
+    用法:
+      1. i18n.get("key")
+      2. i18n.get("key", "默认值")
+      3. i18n.get("key", name="User")
     """
     # 如果字典为空（还没初始化），尝试加载
     if not _TRANSLATIONS:
         load_language()
 
-    text = _TRANSLATIONS.get(key, key)  # 如果找不到key，直接返回key本身
+    # 逻辑：
+    # 1. 如果传了 default，没找到 key 就返回 default
+    # 2. 如果没传 default，没找到 key 就返回 key 本身
+    fallback = default if default is not None else key
+
+    text = _TRANSLATIONS.get(key, fallback)
 
     if kwargs:
         try:
