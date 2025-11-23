@@ -29,36 +29,60 @@ custom_css = """
 .tool-sidebar { background-color: #f9fafb; padding: 10px; border-left: 1px solid #e5e7eb; }
 #fixed_gallery .grid-wrap { grid-template-columns: repeat(6, 1fr) !important; }
 
-/* ⬇️ 顶部工具栏专用样式 ⬇️ */
+/* 顶部工具栏样式 */
 .top-toolbar {
     display: flex;
-    align-items: center; /* 关键：垂直居中对齐 */
+    align-items: center;
     padding: 8px var(--block-padding);
     border-bottom: 1px solid #e5e7eb;
     background-color: var(--background-fill-primary);
-    gap: 10px; /* 元素间距 */
+    gap: 10px;
     margin-bottom: 0 !important;
 }
-
-/* 修复 Markdown 标题自带的 margin，使其能垂直居中 */
 .top-toolbar .markdown-text h3 {
     margin-top: 0;
     margin-bottom: 0;
     line-height: 1.5;
 }
+.toolbar-left { display: flex; align-items: center; gap: 10px; }
+.toolbar-right { display: flex; align-items: center; gap: 5px; }
 
-/* 微调左侧组合的间距 */
-.toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+/* =========================================
+   ⬇️ 新增：Dark Mode 强制适配样式
+   ========================================= */
+body.dark {
+    /* 1. 重新定义 Gradio 的核心颜色变量 */
+    --body-background-fill: #0b0f19;
+    --background-fill-primary: #111827;
+    --background-fill-secondary: #1f2937;
+    --border-color-primary: #374151;
+    --block-background-fill: #1f2937;
+    --input-background-fill: #374151; /* 输入框背景 */
+    
+    /* 2. 文字颜色 */
+    --body-text-color: #F3F4F6;
+    --block-label-text-color: #D1D5DB;
+    --input-text-color: #FFFFFF;
 }
 
-/* 微调右侧组合的间距 */
-.toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+/* 针对输入框的强制覆盖 (解决你遇到的白色背景问题) */
+body.dark input, 
+body.dark textarea, 
+body.dark select,
+body.dark .gr-input {
+    background-color: var(--input-background-fill) !important;
+    color: var(--input-text-color) !important;
+    border-color: var(--border-color-primary) !important;
+}
+
+/* 修复侧边栏和工具栏在深色模式下的背景 */
+body.dark .tool-sidebar,
+body.dark .right-panel {
+    background-color: #111827 !important; /* 深色背景 */
+    border-color: #374151 !important;     /* 深色边框 */
+}
+body.dark .top-toolbar {
+    border-bottom: 1px solid #374151 !important;
 }
 """
 # ⬇️ 新增 JS：用于切换深色模式
