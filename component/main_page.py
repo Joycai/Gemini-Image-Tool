@@ -20,90 +20,72 @@ def render(state_api_key, gallery_output_history):
     with gr.Row(equal_height=False):
         # === 左侧 ===
         with gr.Column(scale=4):
-            gr.Markdown(f"#### {i18n.get('tab_assets')}")
-            with gr.Row():
-                dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
-                btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
-                btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
-
-            # ⬇️ i18n 修复: label="Column" -> label=i18n.get("label_column")
-            size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
-
-            # ⬇️ i18n 修复: label="Source" -> label=i18n.get("label_source")
-            gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False)
-
-            info_box = gr.Markdown(i18n.get("ready"))
-
-            with gr.Row():
-                gr.Markdown(f"#### {i18n.get('header_output_gallery', '📤 歷史輸出')}")
-                # scale=0 表示按鈕不自動拉伸，size="sm" 讓按鈕小一點
-                btn_open_out_dir = gr.Button(i18n.get("btn_open_dir"), scale=0, size="sm")
-
-            # [修改点] 设置画廊 allow_preview=False 以强制用户使用我们的按钮，
-            # 或者保持 True (灯箱模式)，但我们要添加 selected 事件监听。
-            # 这里我们直接复用传入的 gallery_output_history 对象
-            gallery_output_history.render()
-
-            # [新增] 选中图片的操作区
-            with gr.Row():
-                btn_download_hist = gr.DownloadButton(i18n.get("btn_down_selected"), size="sm", scale=1,
-                                                      interactive=False)
-                btn_delete_hist = gr.Button(i18n.get("btn_del_selected"), size="sm", variant="stop", scale=1,
-                                            interactive=False)
-
-            # [新增] 隐藏状态，用于存储当前选中的图片路径
-            state_hist_selected_path = gr.State(value=None)
-
-            # === 右侧 ===
-        with gr.Column(scale=6, elem_classes="right-panel"):
-            state_selected_images = gr.State(value=[])
+            # --- 区域 1: 图片选择 ---
             with gr.Group():
+                gr.Markdown(f"#### {i18n.get('tab_assets')}")
+                with gr.Row():
+                    dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
+                    btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
+                    btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
+                size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
+                gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False)
+                info_box = gr.Markdown(i18n.get("ready"))
+
+            # --- 区域 2: 输出浏览 ---
+            with gr.Group():
+                with gr.Row():
+                    gr.Markdown(f"#### {i18n.get('header_output_gallery')}")
+                    btn_open_out_dir = gr.Button(i18n.get("btn_open_dir"), scale=0, size="sm")
+                gallery_output_history.render()
+                with gr.Row():
+                    btn_download_hist = gr.DownloadButton(i18n.get("btn_down_selected"), size="sm", scale=1, interactive=False)
+                    btn_delete_hist = gr.Button(i18n.get("btn_del_selected"), size="sm", variant="stop", scale=1, interactive=False)
+                state_hist_selected_path = gr.State(value=None)
+
+        # === 右侧 ===
+        with gr.Column(scale=6):
+            # --- 区域 3: 编辑和发送 ---
+            with gr.Group():
+                gr.Markdown(f"### {i18n.get('section_control_panel')}")
+                
+                # 已选参考图
                 with gr.Row():
                     gr.Markdown(i18n.get("selected_imgs"))
                     btn_clear = gr.Button("🗑️", size="sm", scale=0)
                 gr.Markdown(i18n.get("tip_remove"))
-                gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery",
-                                              height=240, columns=6, rows=1, show_label=False, object_fit="cover",
-                                              allow_preview=False, interactive=False)
+                gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="cover", allow_preview=False, interactive=False)
+                state_selected_images = gr.State(value=[])
 
-            gr.Markdown(i18n.get("section_prompt"))
-            with gr.Group():
+                # Prompt
+                gr.Markdown(i18n.get("section_prompt"))
                 with gr.Row():
-                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("prompt_placeholder"),
-                                                  label=i18n.get("label_hist_prompt"), scale=3, interactive=True)
+                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("prompt_placeholder"), label=i18n.get("label_hist_prompt"), scale=3, interactive=True)
                     btn_load_prompt = gr.Button(i18n.get("btn_load"), scale=1)
                     btn_del_prompt = gr.Button(i18n.get("btn_del"), scale=1, variant="stop")
                 prompt_input = gr.Textbox(label="", placeholder=i18n.get("ph_prompt"), lines=4, show_label=False)
                 with gr.Row():
-                    prompt_title_input = gr.Textbox(placeholder=i18n.get("ph_save_title"),
-                                                    label=i18n.get("label_save_title"), scale=3, container=False)
+                    prompt_title_input = gr.Textbox(placeholder=i18n.get("ph_save_title"), label=i18n.get("label_save_title"), scale=3, container=False)
                     btn_save_prompt = gr.Button(i18n.get("btn_save_prompt"), scale=1)
 
-            with gr.Row():
-                model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES,
-                                             value=MODEL_SELECTOR_DEFAULT, label=i18n.get("label_model"),
-                                             scale=2, allow_custom_value=True)
-                ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("label_ratio"),
-                                          scale=1)
-                res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("label_res"), scale=1)
+                # 模型、比例、分辨率
+                with gr.Row():
+                    model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES, value=MODEL_SELECTOR_DEFAULT, label=i18n.get("label_model"), scale=2, allow_custom_value=True)
+                    ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("label_ratio"), scale=1)
+                    res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("label_res"), scale=1)
 
-            with gr.Row():
-                btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)
-                btn_retry = gr.Button(i18n.get("btn_retry"), scale=1)
+                # 发送和重试按钮
+                with gr.Row():
+                    btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)
+                    btn_retry = gr.Button(i18n.get("btn_retry"), scale=1)
 
-            log_output = gr.Code(
-                language="shell",
-                label=i18n.get("log_label"),
-                lines=10,
-                interactive=False,
-                elem_id="log_output_box"
-            )
-            result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
-            # [修改前]
-            # download_html = gr.HTML(value=app_logic.get_disabled_download_html(), visible=True)
+                # 日志
+                with gr.Accordion(i18n.get("log_label"), open=False):
+                    log_output = gr.Code(language="shell", lines=10, interactive=False, elem_id="log_output_box")
 
-            # [修改後] 使用原生下載按鈕，初始隱藏或不可交互
-            btn_download = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
+            # --- 区域 4: 结果预览 ---
+            with gr.Group():
+                result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
+                btn_download = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
 
     return {
         "dir_input": dir_input,
@@ -127,10 +109,8 @@ def render(state_api_key, gallery_output_history):
         "btn_retry": btn_retry,
         "log_output": log_output,
         "result_image": result_image,
-        # "download_html": download_html, # 刪除舊的
-        "btn_download": btn_download,     # 新增新的
-        "btn_open_out_dir": btn_open_out_dir,  # [新增] 別忘了返回這個按鈕對象
-        # [新增] 返回新组件
+        "btn_download": btn_download,
+        "btn_open_out_dir": btn_open_out_dir,
         "btn_download_hist": btn_download_hist,
         "btn_delete_hist": btn_delete_hist,
         "state_hist_selected_path": state_hist_selected_path,

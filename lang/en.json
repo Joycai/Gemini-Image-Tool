@@ -92,5 +92,6 @@
     "log_deleted_file": "Deleted file: {path}",
     "log_delete_failed": "Delete failed: {error}",
     "warn_delete_failed": "Delete failed: {error}",
-    "log_resuming_session": "🔄 Resuming user session..."
+    "log_resuming_session": "🔄 Resuming user session...",
+    "section_control_panel": "⚙️ Control & Prompt"
 }
