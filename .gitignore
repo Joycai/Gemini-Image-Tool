@@ -1,3 +1,5 @@
 /.venv/
 /outputs/
 /app_data.db
+/build/
+/dist/
