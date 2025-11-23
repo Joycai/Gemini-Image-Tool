@@ -6,34 +6,31 @@ import logger_utils
 
 
 def render(state_api_key, gallery_output_history):
-    """
-    渲染主工作台
-    """
     settings = db.get_all_settings()
     initial_prompts = db.get_all_prompt_titles()
 
-    # 使用 Group 作为容器，默认显示
     with gr.Row(equal_height=False):
-        # === 左侧：资源与历史 (40%) ===
+        # === 左侧 ===
         with gr.Column(scale=4):
-            # A. 本地素材库
             gr.Markdown(f"#### {i18n.get('tab_assets')}")
             with gr.Row():
                 dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
                 btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
                 btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
-            size_slider = gr.Slider(2, 6, value=4, step=1, label="Column")
-            gallery_source = gr.Gallery(label="Source", columns=4, height=520, allow_preview=False)
+
+            # ⬇️ i18n 修复: label="Column" -> label=i18n.get("label_column")
+            size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
+
+            # ⬇️ i18n 修复: label="Source" -> label=i18n.get("label_source")
+            gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False)
 
             info_box = gr.Markdown(i18n.get("ready"))
 
-            # B. 输出历史 (组件从外部传入以便于刷新)
             gr.Markdown(f"#### {i18n.get('header_output_gallery', '📤 历史输出')}")
-            gallery_output_history.render()  # 渲染传入的组件
+            gallery_output_history.render()
 
-        # === 右侧：工作台 (60%) ===
+            # === 右侧 ===
         with gr.Column(scale=6, elem_classes="right-panel"):
-            # 1. 已选区
             state_selected_images = gr.State(value=[])
             with gr.Group():
                 with gr.Row():
@@ -44,7 +41,6 @@ def render(state_api_key, gallery_output_history):
                                               height=240, columns=6, rows=1, show_label=False, object_fit="cover",
                                               allow_preview=False, interactive=False)
 
-            # 2. Prompt区
             gr.Markdown(i18n.get("section_prompt"))
             with gr.Group():
                 with gr.Row():
@@ -58,7 +54,6 @@ def render(state_api_key, gallery_output_history):
                                                     label=i18n.get("label_save_title"), scale=3, container=False)
                     btn_save_prompt = gr.Button(i18n.get("btn_save_prompt"), scale=1)
 
-            # 3. 参数区
             with gr.Row():
                 model_selector = gr.Dropdown(["gemini-2.5-flash-image", "gemini-3-pro-image-preview"],
                                              value="gemini-3-pro-image-preview", label=i18n.get("label_model"),
@@ -74,9 +69,6 @@ def render(state_api_key, gallery_output_history):
             log_output = gr.Code(language="shell", label=i18n.get("log_label"), lines=10, interactive=False)
             result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
             download_html = gr.HTML(value=app_logic.get_disabled_download_html(), visible=True)
-
-    # === 事件绑定 (部分组件内部事件可以放在这里，也可以在 app.py 统一管理，这里返回组件供 app.py 使用) ===
-    # 为了保持架构清晰，我们将所有 logic 绑定都放在 app.py，这里只做简单的内部 UI 联动
 
     return {
         "dir_input": dir_input,

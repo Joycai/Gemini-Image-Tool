@@ -68,5 +68,13 @@
     "log_restarting": "♻️ 正在重启应用程序...",
     "log_task_running": "⚠️ 任务正在进行中，请稍候...",
     "log_task_submitted": "🚀 任务已后台提交，请留意日志...",
-    "log_task_failed": "任务失败: {error_msg}"
+    "log_task_failed": "任务失败: {error_msg}",
+    "label_column": "列数",
+    "label_source": "素材来源",
+    "label_outputs": "输出归档",
+    "tab_home": "创作工作台",
+    "tab_settings": "系统设置",
+    "err_no_parts": "API 响应异常: 缺少 'parts' 属性",
+    "err_text_response": "API 返回了文本而非图片: {text}",
+    "err_no_valid_image": "未找到有效的图片数据"
 }

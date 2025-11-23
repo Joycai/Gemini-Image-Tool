@@ -68,5 +68,13 @@
     "log_restarting": "♻️ Restarting application...",
     "log_task_running": "⚠️ Task is running...",
     "log_task_submitted": "🚀 Task submitted...",
-    "log_task_failed": "Task failed: {error_msg}"
+    "log_task_failed": "Task failed: {error_msg}",
+    "label_column": "Columns",
+    "label_source": "Source",
+    "label_outputs": "Outputs",
+    "tab_home": "Workbench",
+    "tab_settings": "Settings",
+    "err_no_parts": "API Response Error: No 'parts' attribute",
+    "err_text_response": "Text response received: {text}",
+    "err_no_valid_image": "No valid image data found"
 }

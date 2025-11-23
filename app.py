@@ -110,12 +110,12 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # 2. Tab 容器 (使用 CSS 隐藏了原本的 Tab 按钮)
     # selected="tab_home" 表示默认显示主页
     with gr.Tabs(elem_id="no_header_tabs", selected="tab_home") as main_tabs:
-        # --- Tab 1: 主工作台 ---
-        with gr.TabItem("Workbench", id="tab_home"):
+        # ⬇️ i18n 修复: label="Workbench" -> label=i18n.get("tab_home")
+        with gr.TabItem(i18n.get("tab_home"), id="tab_home"):
             main_ui = main_page.render(state_api_key, gallery_output_history)
 
-        # --- Tab 2: 设置页面 ---
-        with gr.TabItem("Settings", id="tab_settings"):
+        # ⬇️ i18n 修复: label="Settings" -> label=i18n.get("tab_settings")
+        with gr.TabItem(i18n.get("tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
 
 

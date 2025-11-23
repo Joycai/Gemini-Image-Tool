@@ -1,7 +1,8 @@
 import os
 import time
 import sys
-import threading  # ⬇️ 新增
+from urllib.parse import quote
+import threading
 import tkinter as tk
 from tkinter import filedialog
 import gradio as gr
@@ -13,20 +14,17 @@ import logger_utils
 import i18n
 
 # --- 全局任务状态管理 ---
-# 这是一个简单的内存数据库，用来记录当前正在跑的任务
-# 即使页面刷新，只要 Python 进程没挂，这个状态就在
 TASK_STATE = {
-    "status": "idle",  # idle, running, success, error
+    "status": "idle",
     "timestamp": 0,
-    "result_image": None,  # 存储 PIL Image 对象
-    "result_path": None,  # 存储文件路径
+    "result_image": None,
+    "result_path": None,
     "error_msg": None,
-    "ui_updated": True  # 标记 UI 是否已经获取了最新结果
+    "ui_updated": True
 }
 
 
 def reset_task_state():
-    """重置任务状态"""
     TASK_STATE["status"] = "idle"
     TASK_STATE["result_image"] = None
     TASK_STATE["result_path"] = None
@@ -78,9 +76,37 @@ def get_disabled_download_html(text_key="btn_download_placeholder"):
     """
 
 
+# ⬇️ 新增：统一生成下载链接的函数 (修复 URL 编码问题)
+def _generate_download_html(full_path):
+    if not full_path or not os.path.exists(full_path):
+        return get_disabled_download_html()
+
+    filename = os.path.basename(full_path)
+
+    # 1. 统一路径分隔符
+    normalized_path = full_path.replace("\\", "/")
+
+    # 2. URL 编码 (解决中文、空格、特殊符号问题)
+    # quote 会把 "C:/图片/1.png" 变成 "C%3A/%E5%9B%BE..."
+    encoded_path = quote(normalized_path)
+
+    # 3. 拼接 Gradio 文件接口
+    download_url = f"/file={encoded_path}"
+
+    btn_text = i18n.get("btn_download_ready") + f" ({filename})"
+
+    return f"""
+    <div style="text-align: center; margin-top: 10px;">
+        <a href="{download_url}" download="{filename}"
+           style="display: inline-block; background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer;">
+           {btn_text}
+        </a>
+    </div>
+    """
+
+
 # --- 核心：后台任务线程函数 ---
 def _background_worker(prompt, img_paths, key, model, ar, res):
-    """这是在后台线程中运行的真实逻辑"""
     try:
         TASK_STATE["status"] = "running"
         TASK_STATE["ui_updated"] = False
@@ -115,21 +141,13 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
 
 
 # --- 供 UI 调用的入口 ---
-
 def start_generation_task(prompt, img_paths, key, model, ar, res):
-    """
-    UI 点击按钮时调用此函数。
-    它不再阻塞等待结果，而是启动线程后立即返回。
-    """
     if TASK_STATE["status"] == "running":
-
         gr.Warning(i18n.get("log_task_running"))
         return
 
-    # 重置状态
     reset_task_state()
 
-    # 启动后台线程
     t = threading.Thread(
         target=_background_worker,
         args=(prompt, img_paths, key, model, ar, res)
@@ -138,54 +156,31 @@ def start_generation_task(prompt, img_paths, key, model, ar, res):
     gr.Info(i18n.get("log_task_submitted"))
 
 
-# --- UI 轮询函数 (Timer 每秒调用) ---
+# --- UI 轮询函数 ---
 def poll_task_status():
-    """
-    检查当前任务状态，并返回 UI 更新
-    返回: (Image, HTML, Gallery)
-    """
-    # 1. 如果正在运行
+    # 1. 运行中
     if TASK_STATE["status"] == "running":
-        # 返回禁用状态的下载按钮，文字改为 "处理中..."
         return gr.skip(), get_disabled_download_html("log_new_task"), gr.skip()
 
-    # 2. 如果已经处理完，且 UI 还没更新过 (避免重复刷新导致闪烁)
+    # 2. 完成且未更新 UI
     if not TASK_STATE["ui_updated"]:
-
         if TASK_STATE["status"] == "success":
-            # 标记已更新
             TASK_STATE["ui_updated"] = True
 
-            # 构建下载链接
-            full_path = TASK_STATE["result_path"]
-            safe_path = full_path.replace("\\", "/")
-            filename = os.path.basename(full_path)
-            btn_text = i18n.get("btn_download_ready") + f" ({filename})"
-            html_content = f"""
-            <div style="text-align: center; margin-top: 10px;">
-                <a href="/file={safe_path}" download="{filename}" target="_blank" 
-                   style="display: inline-block; background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                   {btn_text}
-                </a>
-            </div>
-            """
-            # 成功：更新图片、显示下载按钮、刷新历史画廊
+            # ⬇️ 使用修复后的 HTML 生成函数
+            html_content = _generate_download_html(TASK_STATE["result_path"])
+
             return TASK_STATE["result_image"], html_content, load_output_gallery()
 
         elif TASK_STATE["status"] == "error":
             TASK_STATE["ui_updated"] = True
-            # gr.Warning(f"任务失败: {TASK_STATE['error_msg']}")
-            gr.Warning(i18n.get("log_task_failed"),error_msg={TASK_STATE['error_msg']})
-
+            gr.Warning(i18n.get("log_task_failed", error_msg=TASK_STATE['error_msg']))
             return None, get_disabled_download_html(), gr.skip()
 
-    # 3. 其他情况 (Idle 或 UI已更新)，保持现状
     return gr.skip(), gr.skip(), gr.skip()
 
 
-# ... (其余 Prompt 相关、Init 相关逻辑保持不变，直接复制原来的即可) ...
-# 为了确保完整性，以下是保留的原有逻辑：
-
+# ... Prompt, Restart, Config 函数保持不变 ...
 def refresh_prompt_dropdown():
     titles = db.get_all_prompt_titles()
     return gr.Dropdown(choices=titles, value="---")
@@ -255,42 +250,27 @@ def save_cfg_wrapper(key, path, prefix, lang):
     return key, load_output_gallery()
 
 
+# ⬇️ 初始化函数 (也使用修复后的 HTML 生成逻辑)
 def init_app_data():
     fresh_settings = db.get_all_settings()
     logger_utils.log("🔄 正在恢复用户会话...")
 
     # 1. 默认状态
     current_html = get_disabled_download_html()
-    restored_image = None  # 默认不显示图片
+    restored_image = None
 
-    # 2. 检查是否有“断网期间跑完”的任务
-    # 如果任务状态是 Success，说明图已经生成好了，直接恢复显示！
+    # 2. 恢复断网期间完成的任务
     if TASK_STATE["status"] == "success" and TASK_STATE["result_path"] and TASK_STATE["result_image"]:
         logger_utils.log("♻️ 检测到后台已完成的任务，正在恢复显示...")
-
-        # 恢复图片
         restored_image = TASK_STATE["result_image"]
+        # 使用统一的函数生成 HTML
+        current_html = _generate_download_html(TASK_STATE["result_path"])
 
-        # 恢复下载按钮
-        full_path = TASK_STATE["result_path"]
-        filename = os.path.basename(full_path)
-        safe_path = full_path.replace("\\", "/")
-        btn_text = i18n.get("btn_download_ready") + f" ({filename})"
-        current_html = f"""
-                <div style="text-align: center; margin-top: 10px;">
-                    <a href="/file={safe_path}" download="{filename}" target="_blank" 
-                       style="display: inline-block; background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                       {btn_text}
-                    </a>
-                </div>
-                """
-
-    # 返回数据顺序必须与 app.py 的 outputs 一致
     return (
         fresh_settings["last_dir"],
         fresh_settings["api_key"],
-        current_html,  # 恢复的下载按钮
-        restored_image,  # ⬇️ 新增：恢复的图片 (对应 result_image)
+        current_html,
+        restored_image,
         fresh_settings["save_path"],
         fresh_settings["file_prefix"],
         fresh_settings["language"],
