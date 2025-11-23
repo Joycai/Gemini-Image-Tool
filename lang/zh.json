@@ -82,5 +82,15 @@
     "btn_down_selected": "⬇️ 下载选中",
     "msg_del_ok": "✅ 图片已删除",
     "msg_no_sel": "⚠️ 未选择图片",
-    "prompt_placeholder": "---"
+    "prompt_placeholder": "---",
+    "error_dir_not_found": "目录 '{path}' 不存在",
+    "btn_download_ready_with_filename": "下载 ({filename})",
+    "error_create_dir": "无法创建目录: {error}",
+    "error_open_folder": "打开文件夹失败: {error}",
+    "log_original_file_not_found": "⚠️ 未找到原始文件: {path}，将操作临时文件",
+    "log_gallery_select_error": "画廊选择错误: {error}",
+    "log_deleted_file": "已删除文件: {path}",
+    "log_delete_failed": "删除失败: {error}",
+    "warn_delete_failed": "删除失败: {error}",
+    "log_resuming_session": "🔄 正在恢复用户会话..."
 }

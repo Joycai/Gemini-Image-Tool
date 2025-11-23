@@ -82,5 +82,15 @@
     "btn_down_selected": "⬇️ Download Selected",
     "msg_del_ok": "✅ Image Deleted",
     "msg_no_sel": "⚠️ No image selected",
-    "prompt_placeholder": "---"
+    "prompt_placeholder": "---",
+    "error_dir_not_found": "Directory '{path}' not found",
+    "btn_download_ready_with_filename": "Download ({filename})",
+    "error_create_dir": "Failed to create directory: {error}",
+    "error_open_folder": "Failed to open folder: {error}",
+    "log_original_file_not_found": "⚠️ Original file not found: {path}, will operate on temp file",
+    "log_gallery_select_error": "Gallery select error: {error}",
+    "log_deleted_file": "Deleted file: {path}",
+    "log_delete_failed": "Delete failed: {error}",
+    "warn_delete_failed": "Delete failed: {error}",
+    "log_resuming_session": "🔄 Resuming user session..."
 }

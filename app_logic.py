@@ -48,7 +48,7 @@ def open_folder_dialog():
 
 def load_images_from_dir(dir_path):
     if not dir_path or not os.path.exists(dir_path):
-        return [], i18n.get("dir_path") + " Not Found"
+        return [], i18n.get("error_dir_not_found", path=dir_path)
     db.save_setting("last_dir", dir_path)
     image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
                    if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
@@ -101,7 +101,7 @@ def _generate_download_html(full_path):
         # 4. 构造 Data URI (这就是把图片变成了巨长的一行字)
         href = f"data:{mime_type};base64,{b64_str}"
 
-        btn_text = i18n.get("btn_download_ready") + f" ({filename})"
+        btn_text = i18n.get("btn_download_ready_with_filename", filename=filename)
 
         return f"""
         <div style="text-align: center; margin-top: 10px;">
@@ -189,7 +189,7 @@ def poll_task_status():
             # [修改點] 直接返回文件路徑給 DownloadButton
             # update(value=路徑, label="下載", interactive=True)
             new_btn = gr.DownloadButton(
-                label=i18n.get("btn_download_ready") + f" ({os.path.basename(TASK_STATE['result_path'])})",
+                label=i18n.get("btn_download_ready_with_filename", filename=os.path.basename(TASK_STATE['result_path'])),
                 value=TASK_STATE["result_path"],
                 interactive=True,
                 visible=True
@@ -285,7 +285,7 @@ def open_output_folder():
         try:
             os.makedirs(path, exist_ok=True)
         except Exception as e:
-            gr.Warning(f"無法創建目錄: {e}")
+            gr.Warning(i18n.get("error_create_dir", error=e))
             return
 
     # 獲取絕對路徑
@@ -302,7 +302,7 @@ def open_output_folder():
             subprocess.run(["xdg-open", abs_path])
 
     except Exception as e:
-        err_msg = f"打開文件夾失敗: {str(e)}"
+        err_msg = i18n.get("error_open_folder", error=e)
         logger_utils.log(err_msg)
         gr.Warning(err_msg)
 
@@ -347,7 +347,7 @@ def on_gallery_select(evt: gr.SelectData, gallery_data):
                 final_path = real_path
                 # logger_utils.log(f"选中真实文件: {filename}") # 调试用
             else:
-                logger_utils.log(f"⚠️ 未找到原始文件: {real_path}，将操作临时文件")
+                logger_utils.log(i18n.get("log_original_file_not_found", path=real_path))
 
             # 启用下载按钮(更新value) 和 删除按钮
             return (
@@ -358,7 +358,7 @@ def on_gallery_select(evt: gr.SelectData, gallery_data):
             )
 
     except Exception as e:
-        logger_utils.log(f"Gallery Select Error: {e}")
+        logger_utils.log(i18n.get("log_gallery_select_error", error=e))
 
     return gr.update(interactive=False), gr.update(interactive=False), None
 
@@ -373,11 +373,11 @@ def delete_output_file(file_path):
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
-            logger_utils.log(f"Deleted file: {file_path}")
+            logger_utils.log(i18n.get("log_deleted_file", path=file_path))
             gr.Info(i18n.get("msg_del_ok"))
         except Exception as e:
-            logger_utils.log(f"Delete failed: {e}")
-            gr.Warning(f"Delete failed: {e}")
+            logger_utils.log(i18n.get("log_delete_failed", error=e))
+            gr.Warning(i18n.get("warn_delete_failed", error=e))
 
     # 刷新列表
     new_gallery = load_output_gallery()
@@ -392,7 +392,7 @@ def delete_output_file(file_path):
 # ⬇️ 初始化函数
 def init_app_data():
     fresh_settings = db.get_all_settings()
-    logger_utils.log("🔄 正在恢复用户会话...")
+    logger_utils.log(i18n.get("log_resuming_session"))
 
     # 1. 默认状态
     current_html = get_disabled_download_html()
