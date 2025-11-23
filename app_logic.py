@@ -208,11 +208,11 @@ def poll_task_status():
 # ... (以下函数保持不变) ...
 def refresh_prompt_dropdown():
     titles = db.get_all_prompt_titles()
-    return gr.Dropdown(choices=titles, value="---")
+    return gr.Dropdown(choices=titles, value=i18n.get("prompt_placeholder"))
 
 
 def load_prompt_to_ui(selected_title):
-    if not selected_title or selected_title == "---":
+    if not selected_title or selected_title == i18n.get("prompt_placeholder"):
         return gr.skip()
     logger_utils.log(i18n.get("log_load_prompt", title=selected_title))
     content = db.get_prompt_content(selected_title)
@@ -230,7 +230,7 @@ def save_prompt_to_db(title, content):
 
 
 def delete_prompt_from_db(selected_title):
-    if not selected_title or selected_title == "---":
+    if not selected_title or selected_title == i18n.get("prompt_placeholder"):
         return gr.skip()
     db.delete_prompt(selected_title)
     logger_utils.log(i18n.get("log_del_prompt", title=selected_title))

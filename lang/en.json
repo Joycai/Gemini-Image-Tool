@@ -81,5 +81,6 @@
     "btn_del_selected": "🗑️ Delete Selected",
     "btn_down_selected": "⬇️ Download Selected",
     "msg_del_ok": "✅ Image Deleted",
-    "msg_no_sel": "⚠️ No image selected"
+    "msg_no_sel": "⚠️ No image selected",
+    "prompt_placeholder": "---"
 }

@@ -3,6 +3,14 @@ import i18n
 import database as db
 import app_logic
 import logger_utils
+from config import (
+    MODEL_SELECTOR_CHOICES,
+    MODEL_SELECTOR_DEFAULT,
+    AR_SELECTOR_CHOICES,
+    AR_SELECTOR_DEFAULT,
+    RES_SELECTOR_CHOICES,
+    RES_SELECTOR_DEFAULT
+)
 
 
 def render(state_api_key, gallery_output_history):
@@ -61,7 +69,7 @@ def render(state_api_key, gallery_output_history):
             gr.Markdown(i18n.get("section_prompt"))
             with gr.Group():
                 with gr.Row():
-                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value="---",
+                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("prompt_placeholder"),
                                                   label=i18n.get("label_hist_prompt"), scale=3, interactive=True)
                     btn_load_prompt = gr.Button(i18n.get("btn_load"), scale=1)
                     btn_del_prompt = gr.Button(i18n.get("btn_del"), scale=1, variant="stop")
@@ -72,12 +80,12 @@ def render(state_api_key, gallery_output_history):
                     btn_save_prompt = gr.Button(i18n.get("btn_save_prompt"), scale=1)
 
             with gr.Row():
-                model_selector = gr.Dropdown(["gemini-2.5-flash-image", "gemini-3-pro-image-preview"],
-                                             value="gemini-3-pro-image-preview", label=i18n.get("label_model"),
+                model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES,
+                                             value=MODEL_SELECTOR_DEFAULT, label=i18n.get("label_model"),
                                              scale=2, allow_custom_value=True)
-                ar_selector = gr.Dropdown(["1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"], value="1:1", label=i18n.get("label_ratio"),
+                ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("label_ratio"),
                                           scale=1)
-                res_selector = gr.Dropdown(["1K", "2K", "4K"], value="2K", label=i18n.get("label_res"), scale=1)
+                res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("label_res"), scale=1)
 
             with gr.Row():
                 btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)

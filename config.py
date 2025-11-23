@@ -24,3 +24,19 @@ def get_allowed_paths():
         # 对于 Linux 和 macOS，允许常见的挂载点
         allowed_paths = ["/", "/mnt", "/media", "/home"]
     return allowed_paths
+
+# ==============================================================
+# UI 组件的配置
+# ==============================================================
+
+# 模型选择器
+MODEL_SELECTOR_CHOICES = ["gemini-2.5-flash-image", "gemini-3-pro-image-preview"]
+MODEL_SELECTOR_DEFAULT = "gemini-3-pro-image-preview"
+
+# 宽高比选择器
+AR_SELECTOR_CHOICES = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
+AR_SELECTOR_DEFAULT = "1:1"
+
+# 分辨率选择器
+RES_SELECTOR_CHOICES = ["1K", "2K", "4K"]
+RES_SELECTOR_DEFAULT = "2K"

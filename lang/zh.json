@@ -81,5 +81,6 @@
     "btn_del_selected": "🗑️ 删除选中",
     "btn_down_selected": "⬇️ 下载选中",
     "msg_del_ok": "✅ 图片已删除",
-    "msg_no_sel": "⚠️ 未选择图片"
+    "msg_no_sel": "⚠️ 未选择图片",
+    "prompt_placeholder": "---"
 }
