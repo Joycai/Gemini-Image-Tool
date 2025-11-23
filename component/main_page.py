@@ -83,7 +83,13 @@ def render(state_api_key, gallery_output_history):
                 btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)
                 btn_retry = gr.Button(i18n.get("btn_retry"), scale=1)
 
-            log_output = gr.Code(language="shell", label=i18n.get("log_label"), lines=10, interactive=False)
+            log_output = gr.Code(
+                language="shell",
+                label=i18n.get("log_label"),
+                lines=10,
+                interactive=False,
+                elem_id="log_output_box"
+            )
             result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
             # [修改前]
             # download_html = gr.HTML(value=app_logic.get_disabled_download_html(), visible=True)

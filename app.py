@@ -48,6 +48,25 @@ custom_css = """
 .toolbar-right { display: flex; align-items: center; gap: 5px; }
 
 /* =========================================
+   ⬇️ 新增：日誌框固定高度與滾動
+   ========================================= */
+#log_output_box {
+    height: 300px !important;  /* 強制固定外框高度 */
+    max-height: 300px !important;
+    overflow: hidden !important; /* 防止外框出現雙重滾動條 */
+}
+
+/* 針對內部的 CodeMirror 編輯器區域 */
+#log_output_box .cm-editor {
+    height: 100% !important;
+}
+
+/* 針對內容滾動區域 */
+#log_output_box .cm-scroller {
+    overflow-y: auto !important; /* 內容過多時顯示垂直滾動條 */
+}
+
+/* =========================================
    ⬇️ 新增：Dark Mode 强制适配样式
    ========================================= */
 body.dark {
