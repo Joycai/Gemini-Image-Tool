@@ -65,5 +65,8 @@
     "btn_download_placeholder": "⬇️ Waiting for Response...",
     "btn_download_ready": "⬇️ Download HD Image",
     "btn_restart": "♻️ Restart App",
-    "log_restarting": "♻️ Restarting application..."
+    "log_restarting": "♻️ Restarting application...",
+    "log_task_running": "⚠️ Task is running...",
+    "log_task_submitted": "🚀 Task submitted...",
+    "log_task_failed": "Task failed: {error_msg}"
 }
