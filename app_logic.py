@@ -15,6 +15,7 @@ import logger_utils
 import i18n
 import platform     # [新增]
 import subprocess   # [新增]
+from config import VALID_IMAGE_EXTENSIONS
 
 # --- 全局任务状态管理 ---
 TASK_STATE = {
@@ -47,11 +48,10 @@ def open_folder_dialog():
 
 def load_images_from_dir(dir_path):
     if not dir_path or not os.path.exists(dir_path):
-        return [], i18n.get("dir_path") + " Not Found"
+        return [], i18n.get("error_dir_not_found", path=dir_path)
     db.save_setting("last_dir", dir_path)
-    valid_exts = {'.png', '.jpg', '.jpeg', '.webp', '.bmp'}
     image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
-                   if os.path.splitext(f)[1].lower() in valid_exts]
+                   if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
     msg = i18n.get("log_load_dir", path=dir_path, count=len(image_files))
     logger_utils.log(msg)
     return image_files, msg
@@ -61,9 +61,8 @@ def load_output_gallery():
     save_dir = db.get_setting("save_path", "outputs")
     if not os.path.exists(save_dir):
         return []
-    valid_exts = {'.png', '.jpg', '.jpeg', '.webp'}
     files = [os.path.join(save_dir, f) for f in os.listdir(save_dir)
-             if os.path.splitext(f)[1].lower() in valid_exts]
+             if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
     files.sort(key=os.path.getmtime, reverse=True)
     return files
 
@@ -102,7 +101,7 @@ def _generate_download_html(full_path):
         # 4. 构造 Data URI (这就是把图片变成了巨长的一行字)
         href = f"data:{mime_type};base64,{b64_str}"
 
-        btn_text = i18n.get("btn_download_ready") + f" ({filename})"
+        btn_text = i18n.get("btn_download_ready_with_filename", filename=filename)
 
         return f"""
         <div style="text-align: center; margin-top: 10px;">
@@ -190,7 +189,7 @@ def poll_task_status():
             # [修改點] 直接返回文件路徑給 DownloadButton
             # update(value=路徑, label="下載", interactive=True)
             new_btn = gr.DownloadButton(
-                label=i18n.get("btn_download_ready") + f" ({os.path.basename(TASK_STATE['result_path'])})",
+                label=i18n.get("btn_download_ready_with_filename", filename=os.path.basename(TASK_STATE['result_path'])),
                 value=TASK_STATE["result_path"],
                 interactive=True,
                 visible=True
@@ -209,11 +208,11 @@ def poll_task_status():
 # ... (以下函数保持不变) ...
 def refresh_prompt_dropdown():
     titles = db.get_all_prompt_titles()
-    return gr.Dropdown(choices=titles, value="---")
+    return gr.Dropdown(choices=titles, value=i18n.get("prompt_placeholder"))
 
 
 def load_prompt_to_ui(selected_title):
-    if not selected_title or selected_title == "---":
+    if not selected_title or selected_title == i18n.get("prompt_placeholder"):
         return gr.skip()
     logger_utils.log(i18n.get("log_load_prompt", title=selected_title))
     content = db.get_prompt_content(selected_title)
@@ -231,7 +230,7 @@ def save_prompt_to_db(title, content):
 
 
 def delete_prompt_from_db(selected_title):
-    if not selected_title or selected_title == "---":
+    if not selected_title or selected_title == i18n.get("prompt_placeholder"):
         return gr.skip()
     db.delete_prompt(selected_title)
     logger_utils.log(i18n.get("log_del_prompt", title=selected_title))
@@ -239,24 +238,36 @@ def delete_prompt_from_db(selected_title):
     return refresh_prompt_dropdown()
 
 
-def select_img(evt: gr.SelectData, all_imgs, current):
-    path = all_imgs[evt.index] if isinstance(all_imgs, list) else all_imgs[evt.index].name
-    new_list = current + [path]
-    if len(new_list) > 5: new_list = new_list[-5:]
-    logger_utils.log(i18n.get("log_select_img", name=os.path.basename(path)))
-    return new_list, new_list
+def mark_for_add(evt: gr.SelectData):
+    if evt.value and isinstance(evt.value, dict) and 'image' in evt.value and 'path' in evt.value['image']:
+        return evt.value['image']['path']
+    return None
 
+def mark_for_remove(evt: gr.SelectData):
+    if evt.value and isinstance(evt.value, dict) and 'image' in evt.value and 'path' in evt.value['image']:
+        return evt.value['image']['path']
+    return None
 
-def remove_selected_img(evt: gr.SelectData, current_list):
-    if not current_list or evt.index is None:
-        return current_list, current_list
-    if evt.index >= len(current_list):
-        return current_list, current_list
-    removed_item = current_list[evt.index]
-    removed_name = os.path.basename(removed_item)
-    new_list = [path for i, path in enumerate(current_list) if i != evt.index]
-    logger_utils.log(i18n.get("log_remove_img", name=removed_name, count=len(new_list)))
-    return new_list, new_list
+def add_marked_to_selected(marked_path: str, current_selected: List[str]):
+    if not marked_path:
+        return current_selected
+    
+    if marked_path not in current_selected:
+        new_selected = current_selected + [marked_path]
+        if len(new_selected) > 5:
+            new_selected = new_selected[-5:]
+        logger_utils.log(i18n.get("log_select_img", name=os.path.basename(marked_path)))
+        return new_selected
+    
+    return current_selected
+
+def remove_marked_from_selected(marked_path: str, current_selected: List[str]):
+    if not marked_path or marked_path not in current_selected:
+        return current_selected
+
+    new_list = [item for item in current_selected if item != marked_path]
+    logger_utils.log(i18n.get("log_remove_img", name=os.path.basename(marked_path), count=len(new_list)))
+    return new_list
 
 
 def restart_app():
@@ -286,7 +297,7 @@ def open_output_folder():
         try:
             os.makedirs(path, exist_ok=True)
         except Exception as e:
-            gr.Warning(f"無法創建目錄: {e}")
+            gr.Warning(i18n.get("error_create_dir", error=e))
             return
 
     # 獲取絕對路徑
@@ -303,7 +314,7 @@ def open_output_folder():
             subprocess.run(["xdg-open", abs_path])
 
     except Exception as e:
-        err_msg = f"打開文件夾失敗: {str(e)}"
+        err_msg = i18n.get("error_open_folder", error=e)
         logger_utils.log(err_msg)
         gr.Warning(err_msg)
 
@@ -348,7 +359,7 @@ def on_gallery_select(evt: gr.SelectData, gallery_data):
                 final_path = real_path
                 # logger_utils.log(f"选中真实文件: {filename}") # 调试用
             else:
-                logger_utils.log(f"⚠️ 未找到原始文件: {real_path}，将操作临时文件")
+                logger_utils.log(i18n.get("log_original_file_not_found", path=real_path))
 
             # 启用下载按钮(更新value) 和 删除按钮
             return (
@@ -359,7 +370,7 @@ def on_gallery_select(evt: gr.SelectData, gallery_data):
             )
 
     except Exception as e:
-        logger_utils.log(f"Gallery Select Error: {e}")
+        logger_utils.log(i18n.get("log_gallery_select_error", error=e))
 
     return gr.update(interactive=False), gr.update(interactive=False), None
 
@@ -374,11 +385,11 @@ def delete_output_file(file_path):
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
-            logger_utils.log(f"Deleted file: {file_path}")
+            logger_utils.log(i18n.get("log_deleted_file", path=file_path))
             gr.Info(i18n.get("msg_del_ok"))
         except Exception as e:
-            logger_utils.log(f"Delete failed: {e}")
-            gr.Warning(f"Delete failed: {e}")
+            logger_utils.log(i18n.get("log_delete_failed", error=e))
+            gr.Warning(i18n.get("warn_delete_failed", error=e))
 
     # 刷新列表
     new_gallery = load_output_gallery()
@@ -393,7 +404,7 @@ def delete_output_file(file_path):
 # ⬇️ 初始化函数
 def init_app_data():
     fresh_settings = db.get_all_settings()
-    logger_utils.log("🔄 正在恢复用户会话...")
+    logger_utils.log(i18n.get("log_resuming_session"))
 
     # 1. 默认状态
     current_html = get_disabled_download_html()
