@@ -1,7 +1,28 @@
 import gradio as gr
 import i18n
 import database as db
+import shutil
+import os
+from config import UPLOAD_DIR, OUTPUT_DIR
+import app_logic
 
+def save_cfg_wrapper(key, path, prefix, lang):
+    db.save_setting("api_key", key)
+    db.save_setting("save_path", path)
+    db.save_setting("file_prefix", prefix)
+    db.save_setting("language", lang)
+    app_logic.logger_utils.log(i18n.get("logic_info_configSaved"))
+    gr.Info(i18n.get("logic_info_configSaved"))
+    return key, app_logic.load_output_gallery()
+
+def clear_cache():
+    """清空 tmp 目录下的 upload 和 output 文件夹"""
+    dirs_to_clear = [UPLOAD_DIR, OUTPUT_DIR]
+    for d in dirs_to_clear:
+        if os.path.exists(d):
+            shutil.rmtree(d)
+        os.makedirs(d)
+    gr.Info(i18n.get("logic_info_cacheCleared"))
 
 def render():
     settings = db.get_all_settings()
