@@ -1,6 +1,7 @@
 # ================= 🐛 PyCharm Debugger 修复补丁 =================
 import asyncio
 import sys
+import os
 
 if sys.gettrace() is not None:
     _pycharm_run = asyncio.run
@@ -19,7 +20,7 @@ import i18n
 import app_logic
 import logger_utils
 from component import header, main_page, settings_page
-from config import get_allowed_paths
+from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
 with open("assets/script.js", "r", encoding="utf-8") as f:
@@ -28,6 +29,12 @@ with open("assets/script.js", "r", encoding="utf-8") as f:
 with open("assets/style.css", "r", encoding="utf-8") as f:
     custom_css = f.read()
 
+# 创建临时目录
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
+
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
 
@@ -35,6 +42,9 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     settings = db.get_all_settings()
     state_api_key = gr.State(value=settings["api_key"])
     state_current_dir_images = gr.State(value=[])
+    # 新增一个 state 用于接收轮询的信号
+    state_poll_signal = gr.State(None)
+
 
     # 1. 顶部工具栏 (Header)
     btn_restart, btn_theme = header.render()
@@ -45,10 +55,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # 2. Tab 容器
     with gr.Tabs() as main_tabs:
-        with gr.TabItem(i18n.get("tab_home"), id="tab_home"):
+        with gr.TabItem(i18n.get("app_tab_home"), id="tab_home"):
             main_ui = main_page.render(state_api_key, gallery_output_history)
 
-        with gr.TabItem(i18n.get("tab_settings"), id="tab_settings"):
+        with gr.TabItem(i18n.get("app_tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
 
 
@@ -63,62 +73,62 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # --- 设置页逻辑 ---
     settings_ui["btn_save"].click(
-        app_logic.save_cfg_wrapper,
+        settings_page.save_cfg_wrapper,
         inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
         outputs=[state_api_key, gallery_output_history]
     )
+    settings_ui["btn_clear_cache"].click(fn=settings_page.clear_cache)
+
 
     # --- 主页: Prompt ---
-    main_ui["btn_save_prompt"].click(app_logic.save_prompt_to_db,
+    main_ui["btn_save_prompt"].click(main_page.save_prompt_to_db,
                                      [main_ui["prompt_title_input"], main_ui["prompt_input"]],
                                      [main_ui["prompt_dropdown"]])
-    main_ui["btn_load_prompt"].click(app_logic.load_prompt_to_ui, [main_ui["prompt_dropdown"]],
+    main_ui["btn_load_prompt"].click(main_page.load_prompt_to_ui, [main_ui["prompt_dropdown"]],
                                      [main_ui["prompt_input"]])
-    main_ui["btn_del_prompt"].click(app_logic.delete_prompt_from_db, [main_ui["prompt_dropdown"]],
+    main_ui["btn_del_prompt"].click(main_page.delete_prompt_from_db, [main_ui["prompt_dropdown"]],
                                     [main_ui["prompt_dropdown"]])
 
     # --- 主页: 左侧素材 ---
-    main_ui["btn_select_dir"].click(lambda: app_logic.open_folder_dialog() or gr.skip(), None, main_ui["dir_input"])
+    main_ui["btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, main_ui["dir_input"])
 
     load_inputs = [main_ui["dir_input"]]
     load_outputs = [state_current_dir_images, main_ui["info_box"]]
 
-    main_ui["dir_input"].change(app_logic.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
+    main_ui["dir_input"].change(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
                                                                                                 state_current_dir_images,
                                                                                                 main_ui[
                                                                                                     "gallery_source"])
-    main_ui["btn_refresh"].click(app_logic.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
+    main_ui["btn_refresh"].click(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
                                                                                                  state_current_dir_images,
                                                                                                  main_ui[
                                                                                                      "gallery_source"])
-    # [新增] 綁定打開文件夾按鈕
-    main_ui["btn_open_out_dir"].click(
-        fn=app_logic.open_output_folder,
-        inputs=None,
-        outputs=None
+    
+    # 上传逻辑
+    main_ui["upload_button"].upload(
+        main_page.handle_upload,
+        main_ui["upload_button"],
+        main_ui["gallery_upload"]
     )
 
     # [新增] 历史画廊交互逻辑
-
-    # 1. 选中图片
+    main_ui["btn_open_out_dir"].click(fn=main_page.open_output_folder)
     gallery_output_history.select(
-        fn=app_logic.on_gallery_select,
-        inputs=[gallery_output_history],  # 将画廊自身作为输入，获取当前列表
+        main_page.on_gallery_select,
+        inputs=[gallery_output_history],
         outputs=[
-            main_ui["btn_download_hist"],  # 更新下载按钮
-            main_ui["btn_delete_hist"],  # 更新删除按钮
-            main_ui["state_hist_selected_path"]  # 更新选中路径状态
+            main_ui["btn_download_hist"],
+            main_ui["btn_delete_hist"],
+            main_ui["state_hist_selected_path"]
         ]
     )
-
-    # 2. 删除图片
     main_ui["btn_delete_hist"].click(
-        fn=app_logic.delete_output_file,
+        main_page.delete_output_file,
         inputs=[main_ui["state_hist_selected_path"]],
         outputs=[
-            gallery_output_history,  # 刷新画廊
-            main_ui["btn_download_hist"],  # 重置下载按钮
-            main_ui["btn_delete_hist"]  # 重置删除按钮
+            gallery_output_history,
+            main_ui["btn_download_hist"],
+            main_ui["btn_delete_hist"]
         ]
     )
 
@@ -126,18 +136,23 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # --- 主页: 图片选择与移除 (新逻辑) ---
     main_ui["gallery_source"].select(
-        app_logic.mark_for_add,
+        main_page.mark_for_add,
+        None,
+        main_ui["state_marked_for_add"]
+    )
+    main_ui["gallery_upload"].select(
+        main_page.mark_for_add,
         None,
         main_ui["state_marked_for_add"]
     )
     main_ui["gallery_selected"].select(
-        app_logic.mark_for_remove,
+        main_page.mark_for_remove,
         None,
         main_ui["state_marked_for_remove"]
     )
 
     main_ui["btn_add_to_selected"].click(
-        app_logic.add_marked_to_selected,
+        main_page.add_marked_to_selected,
         [main_ui["state_marked_for_add"], main_ui["state_selected_images"]],
         main_ui["state_selected_images"]
     ).then(
@@ -147,7 +162,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     )
 
     main_ui["btn_remove_from_selected"].click(
-        app_logic.remove_marked_from_selected,
+        main_page.remove_marked_from_selected,
         [main_ui["state_marked_for_remove"], main_ui["state_selected_images"]],
         main_ui["state_selected_images"]
     ).then(
@@ -172,16 +187,20 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     main_ui["btn_retry"].click(app_logic.start_generation_task, gen_inputs, None)
 
     # 2. 状态轮询定时器 (每1秒检查一次)
-    # tick 事件会去 app_logic 检查 TASK_STATE，如果完成则更新 UI
     poll_timer = gr.Timer(1)
     poll_timer.tick(
         app_logic.poll_task_status,
         inputs=None,
         outputs=[
             main_ui["result_image"],
-            main_ui["btn_download"],  # 這裡對應新的組件
-            gallery_output_history
+            main_ui["btn_download"],
+            state_poll_signal
         ]
+    ).then(
+        # 仅当 poll_task_status 返回 "update_gallery" 信号时，才触发画廊更新
+        lambda s: main_page.load_output_gallery() if s == "update_gallery" else gr.skip(),
+        inputs=[state_poll_signal],
+        outputs=[gallery_output_history]
     )
 
     # --- 启动加载 ---
@@ -189,17 +208,17 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         app_logic.init_app_data,
         inputs=None,
         outputs=[
-            main_ui["dir_input"],  # 1
-            state_api_key,  # 2
-            main_ui["btn_download"],  # 3 [修改點]
-            main_ui["result_image"],  # 4
-            settings_ui["path"],  # 5
-            settings_ui["prefix"],  # 6
-            settings_ui["lang"],  # 7
-            settings_ui["api_key"]  # 8
+            main_ui["dir_input"],
+            state_api_key,
+            main_ui["btn_download"],
+            main_ui["result_image"],
+            settings_ui["path"],
+            settings_ui["prefix"],
+            settings_ui["lang"],
+            settings_ui["api_key"]
         ]
     ).then(
-        app_logic.load_images_from_dir,
+        main_page.load_images_from_dir,
         inputs=[main_ui["dir_input"]],
         outputs=[state_current_dir_images, main_ui["info_box"]]
     ).then(
@@ -207,7 +226,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         inputs=[state_current_dir_images],
         outputs=[main_ui["gallery_source"]]
     ).then(
-        app_logic.load_output_gallery,
+        main_page.load_output_gallery,
         inputs=None,
         outputs=[gallery_output_history]
     )
