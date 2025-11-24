@@ -29,10 +29,11 @@ with open("assets/script.js", "r", encoding="utf-8") as f:
 with open("assets/style.css", "r", encoding="utf-8") as f:
     custom_css = f.read()
 
-# 创建临时上传目录
-upload_dir = "tmp/upload"
-if not os.path.exists(upload_dir):
-    os.makedirs(upload_dir)
+# 创建临时目录
+if not os.path.exists("tmp/upload"):
+    os.makedirs("tmp/upload")
+if not os.path.exists("tmp/output"):
+    os.makedirs("tmp/output")
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")

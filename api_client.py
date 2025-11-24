@@ -26,7 +26,7 @@ def _get_model_config(model_id, aspect_ratio, resolution):
     is_2_5 = "2.5" in model_id
 
     if is_2_5:
-        logger_utils.log(i18n.get("detect_25"))
+        logger_utils.log(i18n.get("api_log_gemini25"))
         return types.GenerateContentConfig(**MODEL_CONFIGS["gemini-2.5"]["base_config"])
     else:
         # Gemini 3.0 Pro 或其他標準模型
@@ -40,7 +40,7 @@ def _get_model_config(model_id, aspect_ratio, resolution):
 
 def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, resolution):
     if not api_key:
-        msg = i18n.get("err_apikey")
+        msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
         raise gr.Error(msg)
 
@@ -51,15 +51,16 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
 
     contents = [prompt]
     if image_paths:
-        logger_utils.log(i18n.get("loading_imgs", count=len(image_paths)))
+        logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
         for path in image_paths:
             try:
                 img = Image.open(path)
                 contents.append(img)
             except Exception as e:
-                logger_utils.log(i18n.get("skip_img", path=path, err=e))
+                logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
 
-    logger_utils.log(i18n.get("req_sent", model=model_id, ar=aspect_ratio, res=resolution))
+    logger_utils.log(i18n.get("api_log_requestInfo", prompt_len=len(prompt), img_count=len(image_paths)))
+    logger_utils.log(i18n.get("api_log_requestSent", model=model_id, ar=aspect_ratio, res=resolution))
 
     config = _get_model_config(model_id, aspect_ratio, resolution)
 
@@ -69,7 +70,7 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
     for attempt in range(max_retries):
         try:
             if attempt > 0:
-                logger_utils.log(f"🔄 网络重试 (第 {attempt + 1}/{max_retries} 次)...")
+                logger_utils.log(i18n.get("api_log_networkRetry", attempt=attempt + 1, max_retries=max_retries))
 
             response = client.models.generate_content(
                 model=model_id,
@@ -79,34 +80,34 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
 
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 u = response.usage_metadata
-                logger_utils.log(i18n.get("log_token_usage", input=getattr(u, "prompt_token_count", 0),
+                logger_utils.log(i18n.get("api_log_tokenUsage", input=getattr(u, "prompt_token_count", 0),
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
 
             if not hasattr(response, 'parts'):
-                raise ValueError(i18n.get("err_no_parts"))
+                raise ValueError(i18n.get("api_error_noParts"))
 
             for part in response.parts:
                 if part.inline_data and part.inline_data.data:
-                    logger_utils.log(i18n.get("recv_img_inline"))
+                    logger_utils.log(i18n.get("api_log_receivedImgInline"))
                     return Image.open(BytesIO(part.inline_data.data))
 
                 if hasattr(part, "as_image"):
                     try:
                         g_img = part.as_image()
                         if hasattr(g_img, "data"):
-                            logger_utils.log(i18n.get("recv_img_sdk"))
+                            logger_utils.log(i18n.get("api_log_receivedImgSdk"))
                             return Image.open(BytesIO(g_img.data))
                         elif hasattr(g_img, "_pil_image"):
-                            logger_utils.log(i18n.get("recv_img_sdk"))
+                            logger_utils.log(i18n.get("api_log_receivedImgSdk"))
                             return g_img._pil_image
                     except:
                         pass
 
                 if hasattr(part, 'text') and part.text:
-                    raise ValueError(i18n.get("err_text_response", text=part.text))
+                    raise ValueError(i18n.get("api_error_textResponse", text=part.text))
 
-            raise ValueError(i18n.get("err_no_valid_image"))
+            raise ValueError(i18n.get("api_error_noValidImage"))
 
         except Exception as e:
             last_exception = e
@@ -115,6 +116,6 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
             time.sleep(2 * (attempt + 1))
             continue
 
-    sys_err_msg = i18n.get("err_sys", err=str(last_exception))
+    sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
     logger_utils.log(sys_err_msg)
     raise gr.Error(sys_err_msg)

@@ -84,9 +84,14 @@ def handle_upload(files):
 
 
 def load_output_gallery():
-    save_dir = db.get_setting("save_path", "outputs")
+    save_dir = db.get_setting("save_path")
+    # 如果没有配置 save_path，则不加载任何内容
+    if not save_dir:
+        return []
+        
     if not os.path.exists(save_dir):
         return []
+        
     files = [os.path.join(save_dir, f) for f in os.listdir(save_dir)
              if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
     files.sort(key=os.path.getmtime, reverse=True)
@@ -139,17 +144,32 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
         TASK_STATE["ui_updated"] = False
         logger_utils.log(i18n.get("logic_log_newTask"))
         generated_image = api_client.call_google_genai(prompt, img_paths, key, model, ar, res)
-        save_dir = db.get_setting("save_path", "outputs")
+        
+        # 1. 总是保存到临时目录
+        temp_dir = "tmp/output"
         prefix = db.get_setting("file_prefix", "gemini_gen")
-        os.makedirs(save_dir, exist_ok=True)
         timestamp = int(time.time())
         filename = f"{prefix}_{timestamp}.png"
-        full_path = os.path.abspath(os.path.join(save_dir, filename))
-        generated_image.save(full_path, format="PNG")
-        logger_utils.log(i18n.get("logic_log_saveOk", path=filename))
+        temp_path = os.path.abspath(os.path.join(temp_dir, filename))
+        generated_image.save(temp_path, format="PNG")
+        logger_utils.log(f"Saved to temp: {temp_path}")
+
+        # 2. 如果配置了永久目录，则复制过去
+        permanent_dir = db.get_setting("save_path")
+        if permanent_dir:
+            try:
+                os.makedirs(permanent_dir, exist_ok=True)
+                permanent_path = os.path.abspath(os.path.join(permanent_dir, filename))
+                shutil.copy(temp_path, permanent_path)
+                logger_utils.log(i18n.get("logic_log_saveOk", path=permanent_path))
+            except Exception as e:
+                logger_utils.log(f"Failed to copy to permanent storage: {e}")
+
+        # 3. 更新状态（使用临时路径）
         TASK_STATE["result_image"] = generated_image
-        TASK_STATE["result_path"] = full_path
+        TASK_STATE["result_path"] = temp_path
         TASK_STATE["status"] = "success"
+
     except Exception as e:
         error_msg = str(e)
         logger_utils.log(i18n.get("logic_log_saveFail", err=error_msg))

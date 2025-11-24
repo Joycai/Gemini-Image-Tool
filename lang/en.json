@@ -80,5 +80,20 @@
     "logic_error_deleteFailed": "Delete failed: {error}",
     "logic_warn_deleteFailed": "Delete failed: {error}",
     "logic_log_resumingSession": "🔄 Resuming user session...",
-    "logic_btn_downloadReady_noFilename": "⬇️ Download HD Image"
+    "logic_btn_downloadReady_noFilename": "⬇️ Download HD Image",
+
+    "api_log_loadingImgs": "📷 Loading {count} reference images...",
+    "api_log_skipImg": "⚠️ Skip corrupted image {path}: {err}",
+    "api_log_requestInfo": "ℹ️ Submitting: Prompt ({prompt_len} chars), Images ({img_count})",
+    "api_log_requestSent": "🚀 Request Sent | Model: {model} | AR: {ar} | Res: {res}",
+    "api_log_gemini25": "ℹ️ Gemini 2.5 detected. Ignoring AR/Res settings.",
+    "api_log_networkRetry": "🔄 Network retry ({attempt}/{max_retries})...",
+    "api_log_tokenUsage": "📊 Token Usage: Input {input} + Output {output} = Total {total}",
+    "api_log_receivedImgInline": "✅ Received Image (Inline Bytes)",
+    "api_log_receivedImgSdk": "✅ Received Image (SDK helper)",
+    "api_error_noParts": "API Response Error: No 'parts' attribute",
+    "api_error_textResponse": "API returned text instead of image: {text}",
+    "api_error_noValidImage": "No valid image data found in response",
+    "api_error_system": "❌ System Error: {err}",
+    "api_error_apiKey": "❌ API Key not configured"
 }

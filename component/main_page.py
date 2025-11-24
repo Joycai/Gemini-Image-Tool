@@ -16,6 +16,9 @@ from config import (
 def render(state_api_key, gallery_output_history):
     settings = db.get_all_settings()
     initial_prompts = db.get_all_prompt_titles()
+    
+    # 根据是否配置了永久保存路径，决定是否显示历史记录区域
+    history_visible = bool(settings.get("save_path"))
 
     with gr.Row(equal_height=False):
         # === 左侧 ===
@@ -41,7 +44,7 @@ def render(state_api_key, gallery_output_history):
                 state_marked_for_add = gr.State(None)
 
             # --- 区域 2: 输出浏览 ---
-            with gr.Group():
+            with gr.Group(visible=history_visible) as history_group:
                 with gr.Row():
                     gr.Markdown(f"#### {i18n.get('home_history_title')}")
                     btn_open_out_dir = gr.Button(i18n.get("home_history_btn_open"), scale=0, size="sm")
@@ -122,5 +125,6 @@ def render(state_api_key, gallery_output_history):
         "state_marked_for_add": state_marked_for_add,
         "state_marked_for_remove": state_marked_for_remove,
         "upload_button": upload_button,
-        "gallery_upload": gallery_upload
+        "gallery_upload": gallery_upload,
+        "history_group": history_group
     }
