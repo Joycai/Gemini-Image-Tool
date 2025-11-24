@@ -21,7 +21,10 @@ def render():
         setting_lang = gr.Dropdown(choices=[("中文", "zh"), ("English", "en")], value=settings["language"],
                                    label=i18n.get("settings_label_language"), interactive=True)
 
-    btn_save_settings = gr.Button(i18n.get("settings_btn_save"), variant="primary", scale=0)
+    with gr.Row():
+        btn_save_settings = gr.Button(i18n.get("settings_btn_save"), variant="primary", scale=1)
+        btn_clear_cache = gr.Button(i18n.get("settings_btn_clear_cache"), variant="stop", scale=1)
+
 
     # ⬇️ 关键修改：必须返回字典，不能只返回变量名
     return {
@@ -29,5 +32,6 @@ def render():
         "path": setting_save_path,
         "prefix": setting_prefix,
         "lang": setting_lang,
-        "btn_save": btn_save_settings
+        "btn_save": btn_save_settings,
+        "btn_clear_cache": btn_clear_cache
     }

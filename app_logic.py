@@ -16,7 +16,7 @@ import logger_utils
 import i18n
 import platform
 import subprocess
-from config import VALID_IMAGE_EXTENSIONS
+from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR
 
 # --- 全局任务状态管理 ---
 TASK_STATE = {
@@ -62,14 +62,13 @@ def handle_upload(files):
     if not files:
         return []
     
-    upload_dir = "tmp/upload"
     saved_paths = []
     for temp_path in files:
         if not temp_path:
             continue
             
         original_name = os.path.basename(temp_path)
-        target_path = os.path.join(upload_dir, original_name)
+        target_path = os.path.join(UPLOAD_DIR, original_name)
         
         try:
             shutil.copy(temp_path, target_path)
@@ -85,7 +84,6 @@ def handle_upload(files):
 
 def load_output_gallery():
     save_dir = db.get_setting("save_path")
-    # 如果没有配置 save_path，则不加载任何内容
     if not save_dir:
         return []
         
@@ -96,6 +94,16 @@ def load_output_gallery():
              if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
     files.sort(key=os.path.getmtime, reverse=True)
     return files
+
+
+def clear_cache():
+    """清空 tmp 目录下的 upload 和 output 文件夹"""
+    dirs_to_clear = [UPLOAD_DIR, OUTPUT_DIR]
+    for d in dirs_to_clear:
+        if os.path.exists(d):
+            shutil.rmtree(d)
+        os.makedirs(d)
+    gr.Info(i18n.get("logic_info_cacheCleared"))
 
 
 def get_disabled_download_html(text_key="home_preview_btn_download_placeholder"):
@@ -145,16 +153,13 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
         logger_utils.log(i18n.get("logic_log_newTask"))
         generated_image = api_client.call_google_genai(prompt, img_paths, key, model, ar, res)
         
-        # 1. 总是保存到临时目录
-        temp_dir = "tmp/output"
         prefix = db.get_setting("file_prefix", "gemini_gen")
         timestamp = int(time.time())
         filename = f"{prefix}_{timestamp}.png"
-        temp_path = os.path.abspath(os.path.join(temp_dir, filename))
+        temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
         generated_image.save(temp_path, format="PNG")
         logger_utils.log(f"Saved to temp: {temp_path}")
 
-        # 2. 如果配置了永久目录，则复制过去
         permanent_dir = db.get_setting("save_path")
         if permanent_dir:
             try:
@@ -165,7 +170,6 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
             except Exception as e:
                 logger_utils.log(f"Failed to copy to permanent storage: {e}")
 
-        # 3. 更新状态（使用临时路径）
         TASK_STATE["result_image"] = generated_image
         TASK_STATE["result_path"] = temp_path
         TASK_STATE["status"] = "success"

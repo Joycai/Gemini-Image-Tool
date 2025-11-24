@@ -50,6 +50,7 @@
     "settings_label_prefix": "Filename Prefix",
     "settings_label_language": "Language / 语言",
     "settings_btn_save": "💾 Save Config",
+    "settings_btn_clear_cache": "🗑️ Clear Cache",
 
     "logic_error_dirNotFound": "Directory '{path}' not found",
     "logic_log_loadDir": "📂 Load Dir: {path} (Found {count} imgs)",
@@ -81,6 +82,7 @@
     "logic_warn_deleteFailed": "Delete failed: {error}",
     "logic_log_resumingSession": "🔄 Resuming user session...",
     "logic_btn_downloadReady_noFilename": "⬇️ Download HD Image",
+    "logic_info_cacheCleared": "✅ Cache cleared successfully",
 
     "api_log_loadingImgs": "📷 Loading {count} reference images...",
     "api_log_skipImg": "⚠️ Skip corrupted image {path}: {err}",

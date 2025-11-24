@@ -20,7 +20,7 @@ import i18n
 import app_logic
 import logger_utils
 from component import header, main_page, settings_page
-from config import get_allowed_paths
+from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
 with open("assets/script.js", "r", encoding="utf-8") as f:
@@ -30,10 +30,10 @@ with open("assets/style.css", "r", encoding="utf-8") as f:
     custom_css = f.read()
 
 # 创建临时目录
-if not os.path.exists("tmp/upload"):
-    os.makedirs("tmp/upload")
-if not os.path.exists("tmp/output"):
-    os.makedirs("tmp/output")
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
@@ -74,6 +74,8 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
         outputs=[state_api_key, gallery_output_history]
     )
+    settings_ui["btn_clear_cache"].click(fn=app_logic.clear_cache)
+
 
     # --- 主页: Prompt ---
     main_ui["btn_save_prompt"].click(app_logic.save_prompt_to_db,
