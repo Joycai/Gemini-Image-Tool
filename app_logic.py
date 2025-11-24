@@ -49,11 +49,11 @@ def open_folder_dialog():
 
 def load_images_from_dir(dir_path):
     if not dir_path or not os.path.exists(dir_path):
-        return [], i18n.get("error_dir_not_found", path=dir_path)
+        return [], i18n.get("logic_error_dirNotFound", path=dir_path)
     db.save_setting("last_dir", dir_path)
     image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
                    if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
-    msg = i18n.get("log_load_dir", path=dir_path, count=len(image_files))
+    msg = i18n.get("logic_log_loadDir", path=dir_path, count=len(image_files))
     logger_utils.log(msg)
     return image_files, msg
 
@@ -65,7 +65,6 @@ def handle_upload(files):
     upload_dir = "tmp/upload"
     saved_paths = []
     for temp_path in files:
-        # 在 Gradio 6 中，上传的文件对象本身就是临时路径字符串
         if not temp_path:
             continue
             
@@ -94,7 +93,7 @@ def load_output_gallery():
     return files
 
 
-def get_disabled_download_html(text_key="btn_download_placeholder"):
+def get_disabled_download_html(text_key="home_preview_btn_download_placeholder"):
     text = i18n.get(text_key)
     return f"""
     <div style="text-align: center; margin-top: 10px;">
@@ -119,7 +118,7 @@ def _generate_download_html(full_path):
         if ext == "jpg": ext = "jpeg"
         mime_type = f"image/{ext}"
         href = f"data:{mime_type};base64,{b64_str}"
-        btn_text = i18n.get("btn_download_ready_with_filename", filename=filename)
+        btn_text = i18n.get("logic_btn_downloadReady", filename=filename)
 
         return f"""
         <div style="text-align: center; margin-top: 10px;">
@@ -138,7 +137,7 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
     try:
         TASK_STATE["status"] = "running"
         TASK_STATE["ui_updated"] = False
-        logger_utils.log(i18n.get("log_new_task"))
+        logger_utils.log(i18n.get("logic_log_newTask"))
         generated_image = api_client.call_google_genai(prompt, img_paths, key, model, ar, res)
         save_dir = db.get_setting("save_path", "outputs")
         prefix = db.get_setting("file_prefix", "gemini_gen")
@@ -147,35 +146,35 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
         filename = f"{prefix}_{timestamp}.png"
         full_path = os.path.abspath(os.path.join(save_dir, filename))
         generated_image.save(full_path, format="PNG")
-        logger_utils.log(i18n.get("log_save_ok", path=filename))
+        logger_utils.log(i18n.get("logic_log_saveOk", path=filename))
         TASK_STATE["result_image"] = generated_image
         TASK_STATE["result_path"] = full_path
         TASK_STATE["status"] = "success"
     except Exception as e:
         error_msg = str(e)
-        logger_utils.log(i18n.get("log_save_fail", err=error_msg))
+        logger_utils.log(i18n.get("logic_log_saveFail", err=error_msg))
         TASK_STATE["error_msg"] = error_msg
         TASK_STATE["status"] = "error"
 
 
 def start_generation_task(prompt: str, img_paths: List[str], key: str, model: str, ar: str, res: str):
     if TASK_STATE["status"] == "running":
-        gr.Warning(i18n.get("log_task_running"))
+        gr.Warning(i18n.get("logic_warn_taskRunning"))
         return
     reset_task_state()
     t = threading.Thread(target=_background_worker, args=(prompt, img_paths, key, model, ar, res))
     t.start()
-    gr.Info(i18n.get("log_task_submitted"))
+    gr.Info(i18n.get("logic_info_taskSubmitted"))
 
 
 def poll_task_status():
     if TASK_STATE["status"] == "running":
-        return gr.skip(), gr.DownloadButton(label=i18n.get("log_new_task"), interactive=False), gr.skip()
+        return gr.skip(), gr.DownloadButton(label=i18n.get("logic_log_newTask"), interactive=False), gr.skip()
     if not TASK_STATE["ui_updated"]:
         if TASK_STATE["status"] == "success":
             TASK_STATE["ui_updated"] = True
             new_btn = gr.DownloadButton(
-                label=i18n.get("btn_download_ready_with_filename", filename=os.path.basename(TASK_STATE['result_path'])),
+                label=i18n.get("logic_btn_downloadReady", filename=os.path.basename(TASK_STATE['result_path'])),
                 value=TASK_STATE["result_path"],
                 interactive=True,
                 visible=True
@@ -183,40 +182,40 @@ def poll_task_status():
             return TASK_STATE["result_image"], new_btn, load_output_gallery()
         elif TASK_STATE["status"] == "error":
             TASK_STATE["ui_updated"] = True
-            gr.Warning(i18n.get("log_task_failed", error_msg=TASK_STATE['error_msg']))
-            return None, gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False), gr.skip()
+            gr.Warning(i18n.get("logic_warn_taskFailed", error_msg=TASK_STATE['error_msg']))
+            return None, gr.DownloadButton(label=i18n.get("home_preview_btn_download_placeholder"), interactive=False), gr.skip()
     return gr.skip(), gr.skip(), gr.skip()
 
 
 def refresh_prompt_dropdown():
     titles = db.get_all_prompt_titles()
-    return gr.Dropdown(choices=titles, value=i18n.get("prompt_placeholder"))
+    return gr.Dropdown(choices=titles, value=i18n.get("home_control_prompt_placeholder"))
 
 
 def load_prompt_to_ui(selected_title):
-    if not selected_title or selected_title == i18n.get("prompt_placeholder"):
+    if not selected_title or selected_title == i18n.get("home_control_prompt_placeholder"):
         return gr.skip()
-    logger_utils.log(i18n.get("log_load_prompt", title=selected_title))
+    logger_utils.log(i18n.get("logic_log_loadPrompt", title=selected_title))
     content = db.get_prompt_content(selected_title)
     return content
 
 
 def save_prompt_to_db(title, content):
     if not title or not content:
-        gr.Warning(i18n.get("warn_prompt_empty"))
+        gr.Warning(i18n.get("logic_warn_promptEmpty"))
         return gr.skip()
     db.save_prompt(title, content)
-    logger_utils.log(i18n.get("log_save_prompt", title=title))
-    gr.Info(i18n.get("info_prompt_saved", title=title))
+    logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
+    gr.Info(i18n.get("logic_info_promptSaved", title=title))
     return refresh_prompt_dropdown()
 
 
 def delete_prompt_from_db(selected_title):
-    if not selected_title or selected_title == i18n.get("prompt_placeholder"):
+    if not selected_title or selected_title == i18n.get("home_control_prompt_placeholder"):
         return gr.skip()
     db.delete_prompt(selected_title)
-    logger_utils.log(i18n.get("log_del_prompt", title=selected_title))
-    gr.Info(i18n.get("info_prompt_del", title=selected_title))
+    logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
+    gr.Info(i18n.get("logic_info_promptDeleted", title=selected_title))
     return refresh_prompt_dropdown()
 
 
@@ -237,7 +236,7 @@ def add_marked_to_selected(marked_path: str, current_selected: List[str]):
         new_selected = current_selected + [marked_path]
         if len(new_selected) > 5:
             new_selected = new_selected[-5:]
-        logger_utils.log(i18n.get("log_select_img", name=os.path.basename(marked_path)))
+        logger_utils.log(i18n.get("logic_log_selectImage", name=os.path.basename(marked_path)))
         return new_selected
     return current_selected
 
@@ -245,12 +244,12 @@ def remove_marked_from_selected(marked_path: str, current_selected: List[str]):
     if not marked_path or marked_path not in current_selected:
         return current_selected
     new_list = [item for item in current_selected if item != marked_path]
-    logger_utils.log(i18n.get("log_remove_img", name=os.path.basename(marked_path), count=len(new_list)))
+    logger_utils.log(i18n.get("logic_log_removeImage", name=os.path.basename(marked_path), count=len(new_list)))
     return new_list
 
 
 def restart_app():
-    logger_utils.log(i18n.get("log_restarting"))
+    logger_utils.log(i18n.get("logic_log_restarting"))
     time.sleep(0.5)
     python = sys.executable
     os.execl(python, python, *sys.argv)
@@ -261,8 +260,8 @@ def save_cfg_wrapper(key, path, prefix, lang):
     db.save_setting("save_path", path)
     db.save_setting("file_prefix", prefix)
     db.save_setting("language", lang)
-    logger_utils.log(i18n.get("info_conf_saved"))
-    gr.Info(i18n.get("info_conf_saved"))
+    logger_utils.log(i18n.get("logic_info_configSaved"))
+    gr.Info(i18n.get("logic_info_configSaved"))
     return key, load_output_gallery()
 
 
@@ -272,7 +271,7 @@ def open_output_folder():
         try:
             os.makedirs(path, exist_ok=True)
         except Exception as e:
-            gr.Warning(i18n.get("error_create_dir", error=e))
+            gr.Warning(i18n.get("logic_error_createDir", error=e))
             return
     abs_path = os.path.abspath(path)
     logger_utils.log(f"嘗試打開目錄: {abs_path}")
@@ -285,7 +284,7 @@ def open_output_folder():
         else:
             subprocess.run(["xdg-open", abs_path])
     except Exception as e:
-        err_msg = i18n.get("error_open_folder", error=e)
+        err_msg = i18n.get("logic_error_openFolder", error=e)
         logger_utils.log(err_msg)
         gr.Warning(err_msg)
 
@@ -312,50 +311,50 @@ def on_gallery_select(evt: gr.SelectData, gallery_data):
             if os.path.exists(real_path):
                 final_path = real_path
             else:
-                logger_utils.log(i18n.get("log_original_file_not_found", path=real_path))
+                logger_utils.log(i18n.get("logic_log_originalFileNotFound", path=real_path))
             return (
-                gr.DownloadButton(value=final_path, label=i18n.get("btn_down_selected") + f" ({filename})", interactive=True),
+                gr.DownloadButton(value=final_path, label=i18n.get("home_history_btn_download") + f" ({filename})", interactive=True),
                 gr.Button(interactive=True),
                 final_path
             )
     except Exception as e:
-        logger_utils.log(i18n.get("log_gallery_select_error", error=e))
+        logger_utils.log(i18n.get("logic_error_gallerySelect", error=e))
     return gr.update(interactive=False), gr.update(interactive=False), None
 
 
 def delete_output_file(file_path):
     if not file_path:
-        gr.Warning(i18n.get("msg_no_sel"))
+        gr.Warning(i18n.get("logic_warn_noImageSelected"))
         return gr.skip(), gr.skip(), gr.skip()
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
-            logger_utils.log(i18n.get("log_deleted_file", path=file_path))
-            gr.Info(i18n.get("msg_del_ok"))
+            logger_utils.log(i18n.get("logic_log_deletedFile", path=file_path))
+            gr.Info(i18n.get("logic_info_deleteSuccess"))
         except Exception as e:
-            logger_utils.log(i18n.get("log_delete_failed", error=e))
-            gr.Warning(i18n.get("warn_delete_failed", error=e))
+            logger_utils.log(i18n.get("logic_error_deleteFailed", error=e))
+            gr.Warning(i18n.get("logic_warn_deleteFailed", error=e))
     new_gallery = load_output_gallery()
     return (
         new_gallery,
-        gr.DownloadButton(value=None, label=i18n.get("btn_down_selected"), interactive=False),
+        gr.DownloadButton(value=None, label=i18n.get("home_history_btn_download"), interactive=False),
         gr.Button(interactive=False)
     )
 
 
 def init_app_data():
     fresh_settings = db.get_all_settings()
-    logger_utils.log(i18n.get("log_resuming_session"))
+    logger_utils.log(i18n.get("logic_log_resumingSession"))
     current_html = get_disabled_download_html()
     restored_image = None
     if TASK_STATE["status"] == "success" and TASK_STATE["result_path"]:
         current_download_btn = gr.DownloadButton(
-            label=i18n.get("btn_download_ready"),
+            label=i18n.get("logic_btn_downloadReady_noFilename"),
             value=TASK_STATE["result_path"],
             interactive=True
         )
     else:
-        current_download_btn = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
+        current_download_btn = gr.DownloadButton(label=i18n.get("home_preview_btn_download_placeholder"), interactive=False)
     return (
         fresh_settings["last_dir"],
         fresh_settings["api_key"],

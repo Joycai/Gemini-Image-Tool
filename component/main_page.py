@@ -22,73 +22,73 @@ def render(state_api_key, gallery_output_history):
         with gr.Column(scale=4):
             # --- 区域 1: 图片选择 ---
             with gr.Group():
-                gr.Markdown(f"#### {i18n.get('tab_assets')}")
+                gr.Markdown(f"#### {i18n.get('home_assets_title')}")
                 with gr.Tabs():
-                    with gr.TabItem(i18n.get("tab_local_folder")):
+                    with gr.TabItem(i18n.get("home_assets_tab_local")):
                         with gr.Row():
-                            dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
-                            btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
-                            btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
-                        size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
-                        gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=480, allow_preview=False, object_fit="contain")
+                            dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("home_assets_label_dirPath"), scale=3)
+                            btn_select_dir = gr.Button(i18n.get("home_assets_btn_browse"), scale=0, min_width=50)
+                            btn_refresh = gr.Button(i18n.get("home_assets_btn_refresh"), scale=0, min_width=50)
+                        size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("home_assets_label_columns"))
+                        gallery_source = gr.Gallery(label=i18n.get("home_assets_label_source"), columns=4, height=480, allow_preview=False, object_fit="contain")
                     
-                    with gr.TabItem(i18n.get("tab_upload")):
-                        upload_button = gr.UploadButton(i18n.get("btn_upload"), file_types=["image"], file_count="multiple")
+                    with gr.TabItem(i18n.get("home_assets_tab_upload")):
+                        upload_button = gr.UploadButton(i18n.get("home_assets_btn_upload"), file_types=["image"], file_count="multiple")
                         gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain")
 
-                btn_add_to_selected = gr.Button(i18n.get("btn_add_to_prompt"), variant="primary")
-                info_box = gr.Markdown(i18n.get("ready"))
+                btn_add_to_selected = gr.Button(i18n.get("home_assets_btn_addToSelected"), variant="primary")
+                info_box = gr.Markdown(i18n.get("home_assets_info_ready"))
                 state_marked_for_add = gr.State(None)
 
             # --- 区域 2: 输出浏览 ---
             with gr.Group():
                 with gr.Row():
-                    gr.Markdown(f"#### {i18n.get('header_output_gallery')}")
-                    btn_open_out_dir = gr.Button(i18n.get("btn_open_dir"), scale=0, size="sm")
+                    gr.Markdown(f"#### {i18n.get('home_history_title')}")
+                    btn_open_out_dir = gr.Button(i18n.get("home_history_btn_open"), scale=0, size="sm")
                 gallery_output_history.render()
                 with gr.Row():
-                    btn_download_hist = gr.DownloadButton(i18n.get("btn_down_selected"), size="sm", scale=1, interactive=False)
-                    btn_delete_hist = gr.Button(i18n.get("btn_del_selected"), size="sm", variant="stop", scale=1, interactive=False)
+                    btn_download_hist = gr.DownloadButton(i18n.get("home_history_btn_download"), size="sm", scale=1, interactive=False)
+                    btn_delete_hist = gr.Button(i18n.get("home_history_btn_delete"), size="sm", variant="stop", scale=1, interactive=False)
                 state_hist_selected_path = gr.State(value=None)
 
         # === 右侧 ===
         with gr.Column(scale=6):
             # --- 区域 3: 编辑和发送 ---
             with gr.Group():
-                gr.Markdown(f"### {i18n.get('section_control_panel')}")
+                gr.Markdown(f"### {i18n.get('home_control_title')}")
                 
-                btn_remove_from_selected = gr.Button(i18n.get("btn_remove_from_prompt"), variant="stop")
-                gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="contain", allow_preview=False, interactive=False)
+                btn_remove_from_selected = gr.Button(i18n.get("home_control_btn_removeFromSelected"), variant="stop")
+                gallery_selected = gr.Gallery(label=i18n.get("home_control_gallery_selected_label"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="contain", allow_preview=False, interactive=False)
                 state_selected_images = gr.State(value=[])
                 state_marked_for_remove = gr.State(None)
 
-                gr.Markdown(i18n.get("section_prompt"))
+                gr.Markdown(i18n.get("home_control_prompt_title"))
                 with gr.Row():
-                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("prompt_placeholder"), label=i18n.get("label_hist_prompt"), scale=3, interactive=True)
-                    btn_load_prompt = gr.Button(i18n.get("btn_load"), scale=1)
-                    btn_del_prompt = gr.Button(i18n.get("btn_del"), scale=1, variant="stop")
-                prompt_input = gr.Textbox(label="", placeholder=i18n.get("ph_prompt"), lines=4, show_label=False)
+                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("home_control_prompt_placeholder"), label=i18n.get("home_control_prompt_label_history"), scale=3, interactive=True)
+                    btn_load_prompt = gr.Button(i18n.get("home_control_prompt_btn_load"), scale=1)
+                    btn_del_prompt = gr.Button(i18n.get("home_control_prompt_btn_delete"), scale=1, variant="stop")
+                prompt_input = gr.Textbox(label="", placeholder=i18n.get("home_control_prompt_input_placeholder"), lines=4, show_label=False)
                 with gr.Row():
-                    prompt_title_input = gr.Textbox(placeholder=i18n.get("ph_save_title"), label=i18n.get("label_save_title"), scale=3, container=False)
-                    btn_save_prompt = gr.Button(i18n.get("btn_save_prompt"), scale=1)
+                    prompt_title_input = gr.Textbox(placeholder=i18n.get("home_control_prompt_save_placeholder"), label=i18n.get("home_control_prompt_save_label"), scale=3, container=False)
+                    btn_save_prompt = gr.Button(i18n.get("home_control_prompt_btn_save"), scale=1)
 
                 with gr.Row():
-                    model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES, value=MODEL_SELECTOR_DEFAULT, label=i18n.get("label_model"), scale=2, allow_custom_value=True)
-                    ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("label_ratio"), scale=1)
-                    res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("label_res"), scale=1)
+                    model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES, value=MODEL_SELECTOR_DEFAULT, label=i18n.get("home_control_model_label"), scale=2, allow_custom_value=True)
+                    ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("home_control_ratio_label"), scale=1)
+                    res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("home_control_resolution_label"), scale=1)
 
                 with gr.Row():
-                    btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)
-                    btn_retry = gr.Button(i18n.get("btn_retry"), scale=1)
+                    btn_send = gr.Button(i18n.get("home_control_btn_send"), variant="primary", scale=3)
+                    btn_retry = gr.Button(i18n.get("home_control_btn_retry"), scale=1)
 
-                with gr.Accordion(i18n.get("log_label"), open=False):
+                with gr.Accordion(i18n.get("home_control_log_label"), open=False):
                     log_output = gr.Code(language="shell", lines=10, interactive=False, elem_id="log_output_box")
 
             # --- 区域 4: 结果预览 ---
             with gr.Group():
-                gr.Markdown(f"### {i18n.get('section_preview')}")
-                result_image = gr.Image(label=i18n.get("label_result"), type="pil", interactive=False, height=500)
-                btn_download = gr.DownloadButton(label=i18n.get("btn_download_placeholder"), interactive=False)
+                gr.Markdown(f"### {i18n.get('home_preview_title')}")
+                result_image = gr.Image(label=i18n.get("home_preview_label_result"), type="pil", interactive=False, height=500)
+                btn_download = gr.DownloadButton(label=i18n.get("home_preview_btn_download_placeholder"), interactive=False)
 
     return {
         "dir_input": dir_input,

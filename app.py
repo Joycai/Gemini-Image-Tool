@@ -51,10 +51,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # 2. Tab 容器
     with gr.Tabs() as main_tabs:
-        with gr.TabItem(i18n.get("tab_home"), id="tab_home"):
+        with gr.TabItem(i18n.get("app_tab_home"), id="tab_home"):
             main_ui = main_page.render(state_api_key, gallery_output_history)
 
-        with gr.TabItem(i18n.get("tab_settings"), id="tab_settings"):
+        with gr.TabItem(i18n.get("app_tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
 
 
