@@ -96,5 +96,8 @@
     "section_control_panel": "⚙️ 控制和提示词",
     "section_preview": "🖼️ 结果预览",
     "btn_add_to_prompt": "➡️ 发送到已选",
-    "btn_remove_from_prompt": "🗑️ 移除选中"
+    "btn_remove_from_prompt": "🗑️ 移除选中",
+    "tab_local_folder": "本地文件夹",
+    "tab_upload": "上传图片",
+    "btn_upload": "点击或拖拽文件到此处上传"
 }

@@ -96,5 +96,8 @@
     "section_control_panel": "⚙️ Control & Prompt",
     "section_preview": "🖼️ Preview",
     "btn_add_to_prompt": "➡️ Add to Selected",
-    "btn_remove_from_prompt": "🗑️ Remove Selected"
+    "btn_remove_from_prompt": "🗑️ Remove Selected",
+    "tab_local_folder": "Local Folder",
+    "tab_upload": "Upload",
+    "btn_upload": "Click or Drag & Drop to Upload"
 }

@@ -1,6 +1,7 @@
 # ================= 🐛 PyCharm Debugger 修复补丁 =================
 import asyncio
 import sys
+import os
 
 if sys.gettrace() is not None:
     _pycharm_run = asyncio.run
@@ -27,6 +28,11 @@ with open("assets/script.js", "r", encoding="utf-8") as f:
 
 with open("assets/style.css", "r", encoding="utf-8") as f:
     custom_css = f.read()
+
+# 创建临时上传目录
+upload_dir = "tmp/upload"
+if not os.path.exists(upload_dir):
+    os.makedirs(upload_dir)
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
@@ -91,11 +97,12 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
                                                                                                  state_current_dir_images,
                                                                                                  main_ui[
                                                                                                      "gallery_source"])
-    # [新增] 綁定打開文件夾按鈕
-    main_ui["btn_open_out_dir"].click(
-        fn=app_logic.open_output_folder,
-        inputs=None,
-        outputs=None
+    
+    # 上传逻辑
+    main_ui["upload_button"].upload(
+        app_logic.handle_upload,
+        main_ui["upload_button"],
+        main_ui["gallery_upload"]
     )
 
     # [新增] 历史画廊交互逻辑
@@ -126,6 +133,11 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # --- 主页: 图片选择与移除 (新逻辑) ---
     main_ui["gallery_source"].select(
+        app_logic.mark_for_add,
+        None,
+        main_ui["state_marked_for_add"]
+    )
+    main_ui["gallery_upload"].select(
         app_logic.mark_for_add,
         None,
         main_ui["state_marked_for_add"]

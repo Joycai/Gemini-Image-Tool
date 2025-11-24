@@ -23,13 +23,20 @@ def render(state_api_key, gallery_output_history):
             # --- 区域 1: 图片选择 ---
             with gr.Group():
                 gr.Markdown(f"#### {i18n.get('tab_assets')}")
-                with gr.Row():
-                    dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
-                    btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
-                    btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
-                size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
+                with gr.Tabs():
+                    with gr.TabItem(i18n.get("tab_local_folder")):
+                        with gr.Row():
+                            dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("dir_path"), scale=3)
+                            btn_select_dir = gr.Button(i18n.get("btn_select"), scale=0, min_width=50)
+                            btn_refresh = gr.Button(i18n.get("btn_refresh"), scale=0, min_width=50)
+                        size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("label_column"))
+                        gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=480, allow_preview=False, object_fit="contain")
+                    
+                    with gr.TabItem(i18n.get("tab_upload")):
+                        upload_button = gr.UploadButton(i18n.get("btn_upload"), file_types=["image"], file_count="multiple")
+                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain")
+
                 btn_add_to_selected = gr.Button(i18n.get("btn_add_to_prompt"), variant="primary")
-                gallery_source = gr.Gallery(label=i18n.get("label_source"), columns=4, height=520, allow_preview=False, object_fit="contain")
                 info_box = gr.Markdown(i18n.get("ready"))
                 state_marked_for_add = gr.State(None)
 
@@ -50,13 +57,11 @@ def render(state_api_key, gallery_output_history):
             with gr.Group():
                 gr.Markdown(f"### {i18n.get('section_control_panel')}")
                 
-                # 已选参考图
                 btn_remove_from_selected = gr.Button(i18n.get("btn_remove_from_prompt"), variant="stop")
                 gallery_selected = gr.Gallery(label=i18n.get("gallery_selected"), elem_id="fixed_gallery", height=240, columns=6, rows=1, show_label=False, object_fit="contain", allow_preview=False, interactive=False)
                 state_selected_images = gr.State(value=[])
                 state_marked_for_remove = gr.State(None)
 
-                # Prompt
                 gr.Markdown(i18n.get("section_prompt"))
                 with gr.Row():
                     prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("prompt_placeholder"), label=i18n.get("label_hist_prompt"), scale=3, interactive=True)
@@ -67,18 +72,15 @@ def render(state_api_key, gallery_output_history):
                     prompt_title_input = gr.Textbox(placeholder=i18n.get("ph_save_title"), label=i18n.get("label_save_title"), scale=3, container=False)
                     btn_save_prompt = gr.Button(i18n.get("btn_save_prompt"), scale=1)
 
-                # 模型、比例、分辨率
                 with gr.Row():
                     model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES, value=MODEL_SELECTOR_DEFAULT, label=i18n.get("label_model"), scale=2, allow_custom_value=True)
                     ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("label_ratio"), scale=1)
                     res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("label_res"), scale=1)
 
-                # 发送和重试按钮
                 with gr.Row():
                     btn_send = gr.Button(i18n.get("btn_send"), variant="primary", scale=3)
                     btn_retry = gr.Button(i18n.get("btn_retry"), scale=1)
 
-                # 日志
                 with gr.Accordion(i18n.get("log_label"), open=False):
                     log_output = gr.Code(language="shell", lines=10, interactive=False, elem_id="log_output_box")
 
@@ -118,5 +120,7 @@ def render(state_api_key, gallery_output_history):
         "btn_add_to_selected": btn_add_to_selected,
         "btn_remove_from_selected": btn_remove_from_selected,
         "state_marked_for_add": state_marked_for_add,
-        "state_marked_for_remove": state_marked_for_remove
+        "state_marked_for_remove": state_marked_for_remove,
+        "upload_button": upload_button,
+        "gallery_upload": gallery_upload
     }
