@@ -17,6 +17,7 @@ import shutil
 import platform
 import subprocess
 from typing import List
+import app_logic
 
 # --- Main Page Logic ---
 

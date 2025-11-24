@@ -85,7 +85,7 @@ def start_generation_task(prompt: str, img_paths: List[str], key: str, model: st
 
 def poll_task_status():
     if TASK_STATE["status"] == "running":
-        return gr.skip(), gr.skip(), gr.skip()
+        return gr.skip(), gr.DownloadButton(label=i18n.get("logic_log_newTask"), interactive=False), gr.skip()
     if not TASK_STATE["ui_updated"]:
         if TASK_STATE["status"] == "success":
             TASK_STATE["ui_updated"] = True
@@ -95,8 +95,7 @@ def poll_task_status():
                 interactive=True,
                 visible=True
             )
-            # 返回一个信号值，让 app.py 去更新画廊
-            return TASK_STATE["result_image"], new_btn, "update_gallery"
+            return TASK_STATE["result_image"], new_btn, main_page.load_output_gallery()
         elif TASK_STATE["status"] == "error":
             TASK_STATE["ui_updated"] = True
             gr.Warning(i18n.get("logic_warn_taskFailed", error_msg=TASK_STATE['error_msg']))
