@@ -97,5 +97,6 @@
     "api_error_textResponse": "API returned text instead of image: {text}",
     "api_error_noValidImage": "No valid image data found in response",
     "api_error_system": "❌ System Error: {err}",
-    "api_error_apiKey": "❌ API Key not configured"
+    "api_error_apiKey": "❌ API Key not configured",
+    "ar_none": "Auto"
 }

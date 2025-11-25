@@ -97,5 +97,6 @@
     "api_error_textResponse": "API 返回了文本而非图片: {text}",
     "api_error_noValidImage": "未找到有效的图片数据",
     "api_error_system": "❌ 系统异常: {err}",
-    "api_error_apiKey": "❌ 未配置 API Key"
+    "api_error_apiKey": "❌ 未配置 API Key",
+    "ar_none": "自动"
 }

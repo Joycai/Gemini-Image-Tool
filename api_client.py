@@ -30,12 +30,17 @@ def _get_model_config(model_id, aspect_ratio, resolution):
         return types.GenerateContentConfig(**MODEL_CONFIGS["gemini-2.5"]["base_config"])
     else:
         # Gemini 3.0 Pro 或其他標準模型
-        if not aspect_ratio: aspect_ratio = "1:1"
         if not resolution: resolution = "2K"
 
+        image_config_dict = {"image_size": resolution}
+        
+        # 仅当 aspect_ratio 被指定且不是 "ar_none" 时才添加它
+        if aspect_ratio and aspect_ratio != "ar_none":
+            image_config_dict["aspect_ratio"] = aspect_ratio
+        
         return types.GenerateContentConfig(
             response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(aspect_ratio=aspect_ratio, image_size=resolution)
+            image_config=types.ImageConfig(**image_config_dict)
         )
 
 def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, resolution):
@@ -59,8 +64,10 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
             except Exception as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
 
+    # 在日志中显示用户选择的原始值，即使是 "ar_none"
+    ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
     logger_utils.log(i18n.get("api_log_requestInfo", prompt_len=len(prompt), img_count=len(image_paths)))
-    logger_utils.log(i18n.get("api_log_requestSent", model=model_id, ar=aspect_ratio, res=resolution))
+    logger_utils.log(i18n.get("api_log_requestSent", model=model_id, ar=ar_log_val, res=resolution))
 
     config = _get_model_config(model_id, aspect_ratio, resolution)
 

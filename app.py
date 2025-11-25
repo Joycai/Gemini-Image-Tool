@@ -1,19 +1,5 @@
-# ================= 🐛 PyCharm Debugger 修复补丁 =================
-import asyncio
 import sys
 import os
-
-if sys.gettrace() is not None:
-    _pycharm_run = asyncio.run
-
-
-    def _fixed_run(main, *, debug=None, loop_factory=None):
-        return _pycharm_run(main, debug=debug)
-
-
-    asyncio.run = _fixed_run
-# ==============================================================
-
 import gradio as gr
 import database as db
 import i18n
