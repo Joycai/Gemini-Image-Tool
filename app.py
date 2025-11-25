@@ -1,19 +1,5 @@
-# ================= 🐛 PyCharm Debugger 修复补丁 =================
-import asyncio
 import sys
 import os
-
-if sys.gettrace() is not None:
-    _pycharm_run = asyncio.run
-
-
-    def _fixed_run(main, *, debug=None, loop_factory=None):
-        return _pycharm_run(main, debug=debug)
-
-
-    asyncio.run = _fixed_run
-# ==============================================================
-
 import gradio as gr
 import database as db
 import i18n
@@ -42,8 +28,8 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     settings = db.get_all_settings()
     state_api_key = gr.State(value=settings["api_key"])
     state_current_dir_images = gr.State(value=[])
-    # 新增一个 state 用于接收轮询的信号
-    state_poll_signal = gr.State(None)
+    # 移除不再需要的 state_poll_signal
+    # state_poll_signal = gr.State(None)
 
 
     # 1. 顶部工具栏 (Header)
@@ -169,7 +155,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         lambda x: x,
         main_ui["state_selected_images"],
         main_ui["gallery_selected"]
-    )
+    ).then(lambda : gr.Gallery(selected_index=None), outputs=[main_ui["gallery_selected"]])
 
 
     # --- 主页: 生成 (异步模式) ---
@@ -193,15 +179,17 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         inputs=None,
         outputs=[
             main_ui["result_image"],
-            main_ui["btn_download"],
-            state_poll_signal
+            main_ui["btn_download"]
         ]
-    ).then(
-        # 仅当 poll_task_status 返回 "update_gallery" 信号时，才触发画廊更新
-        lambda s: main_page.load_output_gallery() if s == "update_gallery" else gr.skip(),
-        inputs=[state_poll_signal],
+    )
+
+    # 3. [正确做法] 当预览图更新时，触发历史记录刷新
+    main_ui["result_image"].change(
+        fn=main_page.load_output_gallery,
+        inputs=None,
         outputs=[gallery_output_history]
     )
+
 
     # --- 启动加载 ---
     demo.load(

@@ -5,3 +5,5 @@
 /dist/
 *.spec
 /tmp
+credentials.json
+.idea

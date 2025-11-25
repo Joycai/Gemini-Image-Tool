@@ -22,14 +22,51 @@ import app_logic
 # --- Main Page Logic ---
 
 def open_folder_dialog():
-    import tkinter as tk
-    from tkinter import filedialog
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    folder_path = filedialog.askdirectory()
-    root.destroy()
-    return folder_path
+    """
+    Opens a native folder selection dialog.
+    Uses AppleScript on macOS to avoid threading issues with tkinter.
+    Uses tkinter on other systems.
+    """
+    system_platform = platform.system()
+    if system_platform == "Darwin":
+        script = 'POSIX path of (choose folder with prompt "Please select a folder to process")'
+        try:
+            # Execute the AppleScript
+            result = subprocess.run(
+                ['osascript', '-e', script],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            # The path is in stdout, with a trailing newline
+            folder_path = result.stdout.strip()
+            return folder_path
+        except subprocess.CalledProcessError:
+            # This error occurs if the user cancels the dialog
+            logger_utils.log("Folder selection cancelled by user.")
+            return None
+        except Exception as e:
+            # This error occurs if 'osascript' is not found or another error happens
+            logger_utils.log(f"Failed to open folder dialog using AppleScript: {e}")
+            gr.Warning("Could not open folder dialog. Please check system configuration.")
+            return None
+    else:
+        # Fallback to tkinter for other systems (Windows, Linux)
+        import tkinter as tk
+        from tkinter import filedialog
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            # Make sure the dialog appears on top of other windows
+            root.attributes('-topmost', True)
+            folder_path = filedialog.askdirectory()
+            root.destroy()
+            # askdirectory returns "" on cancel, convert to None for consistency
+            return folder_path if folder_path else None
+        except Exception as e:
+            logger_utils.log(f"Failed to open folder dialog using tkinter: {e}")
+            gr.Warning("Could not open folder dialog. Your system may be missing a graphical backend.")
+            return None
 
 def load_images_from_dir(dir_path):
     if not dir_path or not os.path.exists(dir_path):
@@ -227,7 +264,7 @@ def render(state_api_key, gallery_output_history):
                     
                     with gr.TabItem(i18n.get("home_assets_tab_upload")):
                         upload_button = gr.UploadButton(i18n.get("home_assets_btn_upload"), file_types=["image"], file_count="multiple")
-                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain")
+                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain", interactive=True)
 
                 btn_add_to_selected = gr.Button(i18n.get("home_assets_btn_addToSelected"), variant="primary")
                 info_box = gr.Markdown(i18n.get("home_assets_info_ready"))
@@ -264,7 +301,7 @@ def render(state_api_key, gallery_output_history):
 
                 with gr.Row():
                     model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES, value=MODEL_SELECTOR_DEFAULT, label=i18n.get("home_control_model_label"), scale=2, allow_custom_value=True)
-                    ar_selector = gr.Dropdown(choices=AR_SELECTOR_CHOICES, value=AR_SELECTOR_DEFAULT, label=i18n.get("home_control_ratio_label"), scale=1)
+                    ar_selector = gr.Dropdown(choices=i18n.get_translated_choices(AR_SELECTOR_CHOICES), value=AR_SELECTOR_DEFAULT, label=i18n.get("home_control_ratio_label"), scale=1)
                     res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("home_control_resolution_label"), scale=1)
 
                 with gr.Row():

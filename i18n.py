@@ -79,6 +79,13 @@ def get(key, default=None, **kwargs):
             return text
     return text
 
+def get_translated_choices(keys):
+    """
+    获取翻译后的选项列表，用于 gr.Dropdown 的 choices。
+    返回一个 (显示文本, 内部值) 的元组列表。
+    如果一个 key 没有翻译，显示文本将是 key 本身。
+    """
+    return [(get(key), key) for key in keys]
 
 # 模块加载时自动初始化一次
 load_language()
