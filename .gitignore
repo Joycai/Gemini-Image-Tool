@@ -6,3 +6,4 @@
 *.spec
 /tmp
 credentials.json
+.idea
