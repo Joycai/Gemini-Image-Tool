@@ -86,9 +86,13 @@ def start_generation_task(prompt: str, img_paths: List[str], key: str, model: st
 
 
 def poll_task_status():
+    # 状态1：任务正在运行，不需要更新 UI
     if TASK_STATE["status"] == "running":
-        return gr.skip(), gr.DownloadButton(label=i18n.get("logic_log_newTask"), interactive=False), gr.skip()
+        return gr.skip(), gr.skip()
+
+    # 状态2：任务已完成，但 UI 尚未更新
     if not TASK_STATE["ui_updated"]:
+        # 状态 2.1：任务成功
         if TASK_STATE["status"] == "success":
             TASK_STATE["ui_updated"] = True
             new_btn = gr.DownloadButton(
@@ -97,12 +101,16 @@ def poll_task_status():
                 interactive=True,
                 visible=True
             )
-            return TASK_STATE["result_image"], new_btn, main_page.load_output_gallery()
+            return TASK_STATE["result_image"], new_btn
+        
+        # 状态 2.2：任务失败
         elif TASK_STATE["status"] == "error":
             TASK_STATE["ui_updated"] = True
             gr.Warning(i18n.get("logic_warn_taskFailed", error_msg=TASK_STATE['error_msg']))
-            return None, gr.DownloadButton(label=i18n.get("home_preview_btn_download_placeholder"), interactive=False), gr.skip()
-    return gr.skip(), gr.skip(), gr.skip()
+            return None, gr.DownloadButton(label=i18n.get("home_preview_btn_download_placeholder"), interactive=False)
+
+    # 状态3：其他情况（例如 idle 且 UI 已更新），不执行任何操作
+    return gr.skip(), gr.skip()
 
 
 def restart_app():
