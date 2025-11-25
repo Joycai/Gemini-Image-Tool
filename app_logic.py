@@ -16,6 +16,8 @@ import logger_utils
 import i18n
 import platform
 import subprocess
+
+from component import main_page
 from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR
 
 # --- 全局任务状态管理 ---

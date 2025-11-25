@@ -169,7 +169,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         lambda x: x,
         main_ui["state_selected_images"],
         main_ui["gallery_selected"]
-    )
+    ).then(lambda : gr.Gallery(selected_index=None), outputs=[main_ui["gallery_selected"]])
 
 
     # --- 主页: 生成 (异步模式) ---
