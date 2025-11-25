@@ -13,8 +13,8 @@ MODEL_CONFIGS = {
         "ignore_params": False,
         "base_config": {"response_modalities": ["IMAGE"]}
     },
-    "gemini-2.5": {
-        "ignore_params": True, # 2.5 系列忽略比例和分辨率
+    "gemini-flash": { # 修正：使用更通用的 'flash' 键
+        "ignore_params": True, # Flash 系列忽略比例和分辨率
         "base_config": {"response_modalities": ["IMAGE"]}
     }
 }
@@ -22,14 +22,14 @@ MODEL_CONFIGS = {
 
 def _get_model_config(model_id, aspect_ratio, resolution):
     """根據模型 ID 返回對應的配置對象"""
-    # 簡單的規則匹配
-    is_2_5 = "2.5" in model_id
+    # 修正：检查模型 ID 是否包含 'flash'
+    is_flash_model = "flash" in model_id
 
-    if is_2_5:
-        logger_utils.log(i18n.get("api_log_gemini25"))
-        return types.GenerateContentConfig(**MODEL_CONFIGS["gemini-2.5"]["base_config"])
+    if is_flash_model:
+        logger_utils.log(i18n.get("api_log_gemini25")) # 日志消息可以保留，或创建一个更通用的
+        return types.GenerateContentConfig(**MODEL_CONFIGS["gemini-flash"]["base_config"])
     else:
-        # Gemini 3.0 Pro 或其他標準模型
+        # Gemini 1.5 Pro 或其他標準模型
         if not resolution: resolution = "2K"
 
         image_config_dict = {"image_size": resolution}
@@ -50,7 +50,7 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
         raise gr.Error(msg)
 
     if not model_id:
-        model_id = "gemini-3-pro-image-preview"
+        model_id = "gemini-1.5-pro" # 修正：与新模型名称保持一致
 
     client = genai.Client(api_key=api_key)
 
