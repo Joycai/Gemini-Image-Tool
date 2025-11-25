@@ -264,7 +264,7 @@ def render(state_api_key, gallery_output_history):
                     
                     with gr.TabItem(i18n.get("home_assets_tab_upload")):
                         upload_button = gr.UploadButton(i18n.get("home_assets_btn_upload"), file_types=["image"], file_count="multiple")
-                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain")
+                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain", interactive=True)
 
                 btn_add_to_selected = gr.Button(i18n.get("home_assets_btn_addToSelected"), variant="primary")
                 info_box = gr.Markdown(i18n.get("home_assets_info_ready"))
