@@ -74,6 +74,19 @@ After launching, the application will automatically open in your default browser
 
 ---
 
+## 🧪 Running Tests
+
+This project includes a suite of unit tests to ensure the stability and correctness of its core features. The test cases are located in the `tests/` directory.
+
+To run all tests, execute the following command from the project's root directory:
+
+```bash
+python -m unittest discover tests
+```
+If all tests pass, you will see an "OK" message.
+
+---
+
 ## 📖 User Guide
 
 ### 1. Initial Setup
