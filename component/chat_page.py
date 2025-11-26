@@ -4,7 +4,12 @@ import database as db
 import api_client
 import os
 import time
+import random
+import string
 from PIL import Image
+from typing import List, Dict, Tuple, Optional, Any
+from google import genai
+
 from config import (
     MODEL_SELECTOR_CHOICES,
     MODEL_SELECTOR_DEFAULT,
@@ -14,36 +19,68 @@ from config import (
     RES_SELECTOR_DEFAULT
 )
 
-def handle_chat_submission(chat_input, chat_history, genai_client, session_state, model, ar, res):
-    if not chat_input or (not chat_input['text'] and not chat_input['files']):
+# 定义 Chatbot 历史记录的类型别名，以增加可读性
+ChatHistory = List[Dict[str, Any]]
+# 定义会话状态的类型别名
+SessionState = Optional[Dict[str, Any]]
+
+def handle_chat_submission(
+    chat_input: Dict[str, Any], 
+    chat_history: ChatHistory, 
+    genai_client: Optional[genai.Client], 
+    session_state: SessionState, 
+    model: str, 
+    ar: str, 
+    res: str
+) -> Tuple[ChatHistory, SessionState, None]:
+    """
+    处理聊天提交的核心逻辑。
+
+    Args:
+        chat_input: 来自 gr.MultimodalTextbox 的输入。
+        chat_history: 当前的聊天历史记录。
+        genai_client: Google GenAI 的客户端实例。
+        session_state: 当前的会话状态字典。
+        model: 使用的模型 ID。
+        ar: 图像宽高比。
+        res: 图像分辨率。
+
+    Returns:
+        一个元组，包含更新后的聊天历史、会话状态和用于清空输入框的 None。
+    """
+    if not chat_input or (not chat_input.get('text') and not chat_input.get('files')):
         return chat_history, session_state, None
 
     # --- 会话管理 ---
-    session_id = None
-    chat_obj = None
+    session_id: str
+    chat_obj: Optional[genai.Chat]
     if session_state is None:
-        # 创建新会话
         session_id = f"chat_{int(time.time())}"
         chat_obj = None
         gr.Info("✨ New chat session started.")
     else:
-        # 恢复现有会话
         session_id = session_state["id"]
         chat_obj = session_state["session_obj"]
 
     # --- 格式化用户输入 (拆分为多条消息) ---
-    if chat_input['files']:
-        for file in chat_input['files']:
-            chat_history.append({"role": "user", "content": gr.Image(value=file, show_label=False, interactive=False)})
-    if chat_input['text']:
-        chat_history.append({"role": "user", "content": chat_input['text']})
+    if chat_input.get('files'):
+        for file_path in chat_input['files']:
+            chat_history.append({
+                "role": "user",
+                "content": gr.Image(value=file_path, show_label=False, interactive=False)
+            })
+    if chat_input.get('text'):
+        chat_history.append({
+            "role": "user", 
+            "content": chat_input['text']
+        })
 
     # --- 格式化 API 输入 ---
-    prompt_parts = []
-    if chat_input['files']:
-        for file in chat_input['files']:
-            prompt_parts.append(Image.open(file))
-    if chat_input['text']:
+    prompt_parts: List[Any] = []
+    if chat_input.get('files'):
+        for file_path in chat_input['files']:
+            prompt_parts.append(Image.open(file_path))
+    if chat_input.get('text'):
         prompt_parts.append(chat_input['text'])
 
     # 调用 API
@@ -52,53 +89,53 @@ def handle_chat_submission(chat_input, chat_history, genai_client, session_state
     )
 
     # 更新会话状态字典
-    updated_session_state = {"id": session_id, "session_obj": updated_chat_obj}
+    updated_session_state: SessionState = {"id": session_id, "session_obj": updated_chat_obj}
 
     # --- 处理 API 返回 (拆分为多条消息) ---
-    save_dir = db.get_setting("save_path")
+    save_dir: str = db.get_setting("save_path")
     if not save_dir:
         gr.Warning("Save path is not set. Images will not be saved.")
 
-    text_parts = []
-    image_parts = []
-    for part in response_parts:
-        if isinstance(part, str):
-            text_parts.append(part)
-        else:
-            image_parts.append(part)
+    text_parts: List[str] = [part for part in response_parts if isinstance(part, str)]
+    image_parts: List[Image.Image] = [part for part in response_parts if not isinstance(part, str)]
 
     if text_parts:
-        combined_text = "\n".join(text_parts)
+        combined_text: str = "\n".join(text_parts)
         chat_history.append({"role": "assistant", "content": combined_text})
 
     for img_part in image_parts:
         if save_dir:
             try:
                 os.makedirs(save_dir, exist_ok=True)
-                timestamp = int(time.time() * 1000)
-                # 使用稳定、持久的 session_id
-                filename = f"{session_id}_{timestamp}.png"
-                filepath = os.path.join(save_dir, filename)
+                timestamp: int = int(time.time() * 1000)
+                filename: str = f"{session_id}_{timestamp}.png"
+                filepath: str = os.path.join(save_dir, filename)
                 img_part.save(filepath)
-                chat_history.append({"role": "assistant", "content": gr.Image(value=filepath, show_label=False, interactive=False)})
+                chat_history.append({
+                    "role": "assistant",
+                    "content": gr.Image(value=filepath, show_label=False, interactive=False)
+                })
             except Exception as e:
-                error_msg = f"Failed to save image: {e}"
+                error_msg: str = f"Failed to save image: {e}"
                 gr.Warning(error_msg)
                 chat_history.append({"role": "assistant", "content": error_msg})
         else:
-            chat_history.append({"role": "assistant", "content": gr.Image(value=img_part, show_label=False, interactive=False)})
+            chat_history.append({
+                "role": "assistant",
+                "content": gr.Image(value=img_part, show_label=False, interactive=False)
+            })
 
     return chat_history, updated_session_state, None
 
-def clear_chat():
+def clear_chat() -> Tuple[List, None]:
     """清空聊天记录和会话状态"""
     return [], None
 
-def render(state_api_key):
+def render(state_api_key: gr.State) -> Dict[str, gr.Component]:
     """
     渲染聊天页面的 UI 组件。
     """
-    settings = db.get_all_settings()
+    settings: Dict[str, Any] = db.get_all_settings()
 
     with gr.Row(equal_height=False):
         # --- 左侧：素材库 ---
@@ -128,10 +165,8 @@ def render(state_api_key):
             with gr.Group():
                 gr.Markdown(f"### {i18n.get('chat_title')}")
                 
-                # 对话历史记录
                 chatbot = gr.Chatbot(label=i18n.get("chat_chatbot_label"), height=700, type="messages")
                 
-                # 多模态输入框
                 chat_input = gr.MultimodalTextbox(
                     file_types=["image"],
                     label=i18n.get("chat_input_label"),
@@ -139,7 +174,6 @@ def render(state_api_key):
                     show_label=False
                 )
 
-                # 控制按钮和参数
                 with gr.Row():
                     chat_model_selector = gr.Dropdown(choices=MODEL_SELECTOR_CHOICES, value=MODEL_SELECTOR_DEFAULT, label=i18n.get("home_control_model_label"), scale=2, allow_custom_value=True)
                     chat_ar_selector = gr.Dropdown(choices=i18n.get_translated_choices(AR_SELECTOR_CHOICES), value=AR_SELECTOR_DEFAULT, label=i18n.get("home_control_ratio_label"), scale=1)
@@ -149,7 +183,6 @@ def render(state_api_key):
                     chat_btn_send = gr.Button(i18n.get("chat_btn_send"), variant="primary", scale=3)
                     chat_btn_clear = gr.Button(i18n.get("chat_btn_clear"), variant="stop", scale=1)
 
-    # 返回所有需要被外部引用的组件
     return {
         "chat_dir_input": chat_dir_input,
         "chat_btn_select_dir": chat_btn_select_dir,
