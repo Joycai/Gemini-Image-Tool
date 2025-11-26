@@ -42,15 +42,19 @@ class Ticker:
                 # 否则，直接添加单个返回值
                 else:
                     all_results.append(result)
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-exception-caught
+                # 捕获所有异常以确保一个回调的失败不会停止整个轮询机制
+                # 外部回调的异常应该在各自的模块中更具体地处理
                 print(f"Error executing callback {func.__name__}: {e}")
                 # 发生异常时，根据回调函数的预期返回数量，填充 gr.skip()
-                # 这是一个简化的处理，实际应用中可能需要更复杂的逻辑
                 # 但对于目前的需求是足够的
-                # 我们假设 poll_task_status 返回2个值，get_logs 返回1个值
-                if 'poll_task_status' in func.__name__:
+                if 'poll_task_status_callback' in func.__name__:
                     all_results.extend([gr.skip(), gr.skip()])
+                elif 'poll_chat_task_status_callback' in func.__name__:
+                    all_results.extend([gr.skip(), gr.skip(), gr.skip(), gr.skip()])
                 elif 'get_logs' in func.__name__:
+                    all_results.append(gr.skip())
+                else: # Fallback for unknown callbacks
                     all_results.append(gr.skip())
         
         return tuple(all_results)

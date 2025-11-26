@@ -1,10 +1,12 @@
 import time
 from io import BytesIO
+from typing import List, Any, Optional, Dict
 
 import gradio as gr
 from PIL import Image
 from google import genai
 from google.genai import types
+from google.genai.chats import Chat
 
 import i18n
 import logger_utils
@@ -15,58 +17,88 @@ MODEL_CONFIGS = {
         "ignore_params": False,
         "base_config": {"response_modalities": ["IMAGE"]}
     },
-    "gemini-flash": { # 修正：使用更通用的 'flash' 键
-        "ignore_params": True, # Flash 系列忽略比例和分辨率
+    "gemini-flash": {
+        "ignore_params": True,
         "base_config": {"response_modalities": ["IMAGE"]}
     }
 }
 
 
-def _get_model_config(model_id, aspect_ratio, resolution):
+def _get_model_config(model_id: str, aspect_ratio: str, resolution: str) -> types.GenerateContentConfig:
     """根據模型 ID 返回對應的配置對象"""
-    # 修正：检查模型 ID 是否包含 'flash'
     is_flash_model = "flash" in model_id
 
     if is_flash_model:
-        logger_utils.log(i18n.get("api_log_gemini25")) # 日志消息可以保留，或创建一个更通用的
+        logger_utils.log(i18n.get("api_log_gemini25"))
         return types.GenerateContentConfig(**MODEL_CONFIGS["gemini-flash"]["base_config"])
-    else:
-        # Gemini 1.5 Pro 或其他標準模型
-        if not resolution: resolution = "2K"
+    
+    if not resolution:
+        resolution = "2K"
 
-        image_config_dict = {"image_size": resolution}
-        
-        # 仅当 aspect_ratio 被指定且不是 "ar_none" 时才添加它
-        if aspect_ratio and aspect_ratio != "ar_none":
-            image_config_dict["aspect_ratio"] = aspect_ratio
-        
-        return types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(**image_config_dict)
-        )
+    image_config_dict: Dict[str, Any] = {"image_size": resolution}
+    
+    if aspect_ratio and aspect_ratio != "ar_none":
+        image_config_dict["aspect_ratio"] = aspect_ratio
+    
+    return types.GenerateContentConfig(
+        response_modalities=["IMAGE"],
+        image_config=types.ImageConfig(**image_config_dict)
+    )
 
-def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, resolution):
+def _process_response_parts(response_parts: List[Any]) -> Image.Image:
+    """处理 API 响应中的图片部分，提取 PIL.Image 对象"""
+    for part in response_parts:
+        if part.inline_data and part.inline_data.data:
+            logger_utils.log(i18n.get("api_log_receivedImgInline"))
+            return Image.open(BytesIO(part.inline_data.data))
+
+        if hasattr(part, "as_image"):
+            try:
+                g_img = part.as_image()
+                if hasattr(g_img, "data"):
+                    logger_utils.log(i18n.get("api_log_receivedImgSdk"))
+                    return Image.open(BytesIO(g_img.data))
+                if hasattr(g_img, "_pil_image"): # pylint: disable=protected-access
+                    logger_utils.log(i18n.get("api_log_receivedImgSdk"))
+                    return g_img._pil_image # pylint: disable=protected-access
+            except Exception: # pylint: disable=broad-exception-caught
+                # 尝试从 as_image() 转换失败，继续检查其他类型
+                pass
+
+        if hasattr(part, 'text') and part.text:
+            raise ValueError(i18n.get("api_error_textResponse", text=part.text))
+
+    raise ValueError(i18n.get("api_error_noValidImage"))
+
+
+def call_google_genai(
+    prompt: str, 
+    image_paths: List[str], 
+    api_key: str, 
+    model_id: str, 
+    aspect_ratio: str, 
+    resolution: str
+) -> Image.Image:
     if not api_key:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
         raise gr.Error(msg)
 
     if not model_id:
-        model_id = "gemini-1.5-pro" # 修正：与新模型名称保持一致
+        model_id = "gemini-1.5-pro"
 
     client = genai.Client(api_key=api_key)
 
-    contents = [prompt]
+    contents: List[Any] = [prompt]
     if image_paths:
         logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
         for path in image_paths:
             try:
                 img = Image.open(path)
                 contents.append(img)
-            except Exception as e:
+            except (IOError, OSError) as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
 
-    # 在日志中显示用户选择的原始值，即使是 "ar_none"
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
     logger_utils.log(i18n.get("api_log_requestInfo", prompt_len=len(prompt), img_count=len(image_paths)))
     logger_utils.log(i18n.get("api_log_requestSent", model=model_id, ar=ar_log_val, res=resolution))
@@ -74,7 +106,7 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
     config = _get_model_config(model_id, aspect_ratio, resolution)
 
     max_retries = 3
-    last_exception = None
+    last_exception: Optional[Exception] = None
 
     for attempt in range(max_retries):
         try:
@@ -99,29 +131,9 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
                     raise ValueError(f"Request was blocked due to: {reason}")
                 raise ValueError(i18n.get("api_error_noParts"))
 
-            for part in response.parts:
-                if part.inline_data and part.inline_data.data:
-                    logger_utils.log(i18n.get("api_log_receivedImgInline"))
-                    return Image.open(BytesIO(part.inline_data.data))
+            return _process_response_parts(response.parts)
 
-                if hasattr(part, "as_image"):
-                    try:
-                        g_img = part.as_image()
-                        if hasattr(g_img, "data"):
-                            logger_utils.log(i18n.get("api_log_receivedImgSdk"))
-                            return Image.open(BytesIO(g_img.data))
-                        elif hasattr(g_img, "_pil_image"):
-                            logger_utils.log(i18n.get("api_log_receivedImgSdk"))
-                            return g_img._pil_image
-                    except:
-                        pass
-
-                if hasattr(part, 'text') and part.text:
-                    raise ValueError(i18n.get("api_error_textResponse", text=part.text))
-
-            raise ValueError(i18n.get("api_error_noValidImage"))
-
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-exception-caught
             last_exception = e
             if "401" in str(e) or "403" in str(e):
                 break
@@ -132,7 +144,14 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
     logger_utils.log(sys_err_msg)
     raise gr.Error(sys_err_msg)
 
-def call_google_chat(genai_client, chat_session, prompt_parts, model_id, aspect_ratio, resolution):
+def call_google_chat(
+    genai_client: genai.Client, 
+    chat_session: Optional[Chat],
+    prompt_parts: List[Any], 
+    model_id: str, 
+    aspect_ratio: str, 
+    resolution: str
+) -> tuple[Chat, List[Any]]:
     if genai_client is None:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
@@ -141,7 +160,6 @@ def call_google_chat(genai_client, chat_session, prompt_parts, model_id, aspect_
     if not model_id:
         model_id = "gemini-1.5-pro-image-preview"
 
-    # 如果没有传入会话，则使用传入的 client 创建一个新的
     if chat_session is None:
         logger_utils.log("✨ Creating new chat session.")
         chat_session = genai_client.chats.create(
@@ -151,9 +169,7 @@ def call_google_chat(genai_client, chat_session, prompt_parts, model_id, aspect_
             )
         )
 
-    # 构建生成配置
-    image_config_dict = {}
-    # 检查模型是否为 flash 系列
+    image_config_dict: Dict[str, Any] = {}
     is_flash_model = "2.5" in model_id or "flash" in model_id
     
     if not is_flash_model:
@@ -172,7 +188,7 @@ def call_google_chat(genai_client, chat_session, prompt_parts, model_id, aspect_
     logger_utils.log(f"💬 Sending message to chat | Model: {model_id} | AR: {ar_log_val} | Res: {resolution}")
 
     max_retries = 3
-    last_exception = None
+    last_exception: Optional[Exception] = None
 
     for attempt in range(max_retries):
         try:
@@ -196,23 +212,22 @@ def call_google_chat(genai_client, chat_session, prompt_parts, model_id, aspect_
                     raise ValueError(f"Request was blocked due to: {reason}")
                 raise ValueError(i18n.get("api_error_noParts"))
 
-            # 收集所有返回的部分
-            response_parts = []
+            response_parts_list: List[Any] = []
             for part in response.parts:
                 if part.text is not None:
-                    response_parts.append(part.text)
+                    response_parts_list.append(part.text)
                 elif image := part.as_image():
-                    response_parts.append(image)
+                    response_parts_list.append(image)
             
-            if not response_parts:
+            if not response_parts_list:
                  raise ValueError(i18n.get("api_error_noValidImage"))
 
-            logger_utils.log(f"✅ Received {len(response_parts)} parts from chat.")
-            return chat_session, response_parts
+            logger_utils.log(f"✅ Received {len(response_parts_list)} parts from chat.")
+            return chat_session, response_parts_list
 
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-exception-caught
             last_exception = e
-            if "401" in str(e) or "403" in str(e) or "client has been closed" in str(e): # 不可重试的认证或会话错误
+            if "401" in str(e) or "403" in str(e) or "client has been closed" in str(e):
                 break 
             time.sleep(2 * (attempt + 1))
             continue

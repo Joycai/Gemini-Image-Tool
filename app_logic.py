@@ -1,20 +1,23 @@
+from typing import List, Tuple, Optional, Any, Dict
 import os
-import shutil
+import time
 import sys
 import threading
-import time
-from typing import List, Any
-
 import gradio as gr
-from PIL import Image
+import shutil
 from google import genai
+from PIL import Image
 
-import api_client
 # 引入模块
 import database as db
-import i18n
+import api_client
 import logger_utils
-from config import OUTPUT_DIR
+import i18n
+# import platform # 移除未使用的导入
+# import subprocess # 移除未使用的导入
+
+from component import main_page
+from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR
 
 # --- 主生成任务状态 ---
 TASK_STATE = {
@@ -61,11 +64,11 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
                 permanent_path = os.path.abspath(os.path.join(permanent_dir, filename))
                 shutil.copy(temp_path, permanent_path)
                 logger_utils.log(i18n.get("logic_log_saveOk", path=permanent_path))
-            except Exception as e:
+            except (IOError, OSError) as e:
                 logger_utils.log(f"Failed to copy to permanent storage: {e}")
 
         TASK_STATE.update({"result_image": generated_image, "result_path": temp_path, "status": "success"})
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-exception-caught
         error_msg = str(e)
         logger_utils.log(i18n.get("logic_log_saveFail", err=error_msg))
         TASK_STATE.update({"error_msg": error_msg, "status": "error"})
@@ -125,7 +128,7 @@ def _chat_background_worker(genai_client, session_state, chat_input, model, ar, 
             "response_parts": response_parts,
             "updated_session": new_session_state
         })
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-exception-caught
         error_msg = str(e)
         logger_utils.log(f"❌ Chat failed: {error_msg}")
         CHAT_TASK_STATE.update({"status": "error", "error_msg": error_msg})
@@ -163,7 +166,7 @@ def create_genai_client(api_key):
     if not api_key: return None
     try:
         return genai.Client(api_key=api_key)
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-exception-caught
         logger_utils.log(f"Failed to create GenAI Client: {e}")
         return None
 

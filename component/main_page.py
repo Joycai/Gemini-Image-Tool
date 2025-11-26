@@ -1,3 +1,4 @@
+# pylint: disable=too-many-statements
 import os
 import platform
 import shutil
@@ -32,8 +33,8 @@ def open_folder_dialog():
         try:
             result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, check=True)
             return result.stdout.strip()
-        except (subprocess.CalledProcessError, Exception) as e:
-            logger_utils.log(f"Failed to open folder dialog: {e}")
+        except (subprocess.CalledProcessError, OSError) as e:
+            logger_utils.log(f"Failed to open folder dialog using AppleScript: {e}")
             return None
     else:
         try:
@@ -43,8 +44,8 @@ def open_folder_dialog():
             folder_path = filedialog.askdirectory()
             root.destroy()
             return folder_path if folder_path else None
-        except Exception as e:
-            logger_utils.log(f"Failed to open folder dialog: {e}")
+        except (tk.TclError, RuntimeError) as e:
+            logger_utils.log(f"Failed to open folder dialog using tkinter: {e}")
             return None
 
 def load_images_from_dir(dir_path, recursive):
@@ -67,16 +68,18 @@ def load_images_from_dir(dir_path, recursive):
     return image_files, msg
 
 def handle_upload(files):
-    if not files: return []
+    if not files:
+        return []
     saved_paths = []
     for temp_path in files:
-        if not temp_path: continue
+        if not temp_path:
+            continue
         original_name = os.path.basename(temp_path)
         target_path = os.path.join(UPLOAD_DIR, original_name)
         try:
             shutil.copy(temp_path, target_path)
             saved_paths.append(target_path)
-        except Exception as e:
+        except (IOError, OSError) as e:
             logger_utils.log(f"Failed to copy uploaded file: {e}")
     if saved_paths:
         logger_utils.log(f"Uploaded and saved {len(saved_paths)} files.")
@@ -93,7 +96,8 @@ def mark_for_remove(evt: gr.SelectData):
     return None
 
 def add_marked_to_selected(marked_path: str, current_selected: List[str]):
-    if not marked_path: return current_selected
+    if not marked_path:
+        return current_selected
     if marked_path not in current_selected:
         new_selected = current_selected + [marked_path]
         if len(new_selected) > 5:
@@ -139,7 +143,7 @@ def delete_prompt_from_db(selected_title):
 
 # --- UI Rendering ---
 
-def render(state_api_key):
+def render():
     settings = db.get_all_settings()
     initial_prompts = db.get_all_prompt_titles()
 

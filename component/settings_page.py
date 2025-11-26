@@ -7,6 +7,7 @@ import gradio as gr
 
 import database as db
 import i18n
+import logger_utils
 from component import main_page
 from config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
 
@@ -26,7 +27,6 @@ def export_prompts_logic():
         prompts = db.get_all_prompts_for_export()
         timestamp = int(time.time())
         filename = f"prompts_export_{timestamp}.json"
-        # 将文件保存到临时目录
         filepath = os.path.join(TEMP_DIR, filename)
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -34,8 +34,10 @@ def export_prompts_logic():
         
         gr.Info(i18n.get("logic_info_prompts_exported", count=len(prompts)))
         return gr.File(value=filepath, visible=True)
-    except Exception as e:
-        gr.Error(i18n.get("logic_error_prompts_export_failed", error=str(e)))
+    except (IOError, OSError, json.JSONDecodeError) as e:
+        error_msg = i18n.get("logic_error_prompts_export_failed", error=str(e))
+        logger_utils.log(error_msg)
+        gr.Error(error_msg)
         return gr.File(visible=False)
 
 def import_prompts_logic(file):
@@ -49,10 +51,11 @@ def import_prompts_logic(file):
         count = db.import_prompts_from_list(prompts_to_import)
         
         gr.Info(i18n.get("logic_info_prompts_imported", count=count))
-        # 返回更新后的 Dropdown 组件以刷新主页的 prompt 列表
         return main_page.refresh_prompt_dropdown()
-    except Exception as e:
-        gr.Error(i18n.get("logic_error_prompts_import_failed", error=str(e)))
+    except (IOError, OSError, json.JSONDecodeError) as e:
+        error_msg = i18n.get("logic_error_prompts_import_failed", error=str(e))
+        logger_utils.log(error_msg)
+        gr.Error(error_msg)
         return gr.skip()
 
 def render():

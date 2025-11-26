@@ -30,3 +30,5 @@ output-format=colorized
 [DESIGN]
 # 允许的最大参数数量
 max-args=10
+# 允许的最大局部变量数量
+max-locals=20

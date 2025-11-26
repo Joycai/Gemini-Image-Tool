@@ -4,9 +4,11 @@ from typing import List, Dict, Tuple, Optional, Any
 
 import gradio as gr
 from PIL import Image
+# from google import genai # 移除未使用的导入
 
 import database as db
 import i18n
+# import api_client # 移除未使用的导入
 from config import (
     MODEL_SELECTOR_CHOICES,
     MODEL_SELECTOR_DEFAULT,
@@ -21,7 +23,7 @@ ChatHistory = List[Dict[str, Any]]
 SessionState = Optional[Dict[str, Any]]
 
 def add_image_to_chat_input(
-    evt: gr.SelectData, 
+    evt: gr.SelectData,
     current_input: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
@@ -30,14 +32,11 @@ def add_image_to_chat_input(
     if not evt.value:
         return current_input
 
-    # 从事件数据中提取文件路径
     selected_path = evt.value['image']['path']
     
-    # 初始化或更新输入字典
     if current_input is None:
         current_input = {"text": "", "files": []}
     
-    # 添加新文件，并确保不重复
     if selected_path not in current_input["files"]:
         current_input["files"].append(selected_path)
         
@@ -50,17 +49,14 @@ def prepare_chat_display(chat_input: Dict[str, Any], chat_history: ChatHistory) 
     if not chat_input or (not chat_input.get('text') and not chat_input.get('files')):
         return chat_history, None, gr.update(), gr.update(), chat_input
 
-    # 1. 将用户输入添加到历史记录
     if chat_input.get('files'):
         for file_path in chat_input['files']:
             chat_history.append({"role": "user", "content": gr.Image(value=file_path, show_label=False, interactive=False)})
     if chat_input.get('text'):
         chat_history.append({"role": "user", "content": chat_input['text']})
     
-    # 2. 添加“正在思考”的消息
     chat_history.append({"role": "assistant", "content": "🤔 Thinking..."})
 
-    # 3. 返回更新后的 UI 状态和原始输入
     return chat_history, None, gr.update(interactive=False), gr.update(interactive=False), chat_input
 
 def handle_bot_response(
@@ -71,20 +67,15 @@ def handle_bot_response(
     """
     处理来自后台任务的机器人响应。
     """
-    # 移除 "Thinking..." 消息
     if chat_history and chat_history[-1]["content"] == "🤔 Thinking...":
         chat_history.pop()
 
     if response_parts is None or session_state_from_task is None:
-        # 发生错误时，response_parts 或 session_state 可能为 None
         chat_history.append({"role": "assistant", "content": "😥 Oops, something went wrong."})
-        # 保持旧的 session_state 不变，或者重置它，这里选择重置
         return chat_history, None
 
-    # --- 会话管理 ---
     session_id: str = session_state_from_task["id"]
     
-    # --- 处理 API 返回 (拆分为多条消息) ---
     save_dir: str = db.get_setting("save_path")
     if not save_dir:
         gr.Warning("Save path is not set. Images will not be saved.")
@@ -105,7 +96,7 @@ def handle_bot_response(
                 filepath: str = os.path.join(save_dir, filename)
                 img_part.save(filepath)
                 chat_history.append({"role": "assistant", "content": gr.Image(value=filepath, show_label=False, interactive=False)})
-            except Exception as e:
+            except (IOError, OSError) as e:
                 error_msg: str = f"Failed to save image: {e}"
                 gr.Warning(error_msg)
                 chat_history.append({"role": "assistant", "content": error_msg})
@@ -118,14 +109,13 @@ def clear_chat() -> Tuple[List, None]:
     """清空聊天记录和会话状态"""
     return [], None
 
-def render(state_api_key: gr.State) -> Dict[str, gr.Component]:
+def render() -> Dict[str, gr.Component]:
     """
     渲染聊天页面的 UI 组件。
     """
     settings: Dict[str, Any] = db.get_all_settings()
 
     with gr.Row(equal_height=False):
-        # --- 左侧：素材库 ---
         with gr.Column(scale=4):
             with gr.Group():
                 gr.Markdown(f"#### {i18n.get('home_assets_title')}")
@@ -147,7 +137,6 @@ def render(state_api_key: gr.State) -> Dict[str, gr.Component]:
                 chat_info_box = gr.Markdown(i18n.get("home_assets_info_ready"))
                 state_chat_marked_for_add = gr.State(None)
 
-        # --- 右侧：聊天界面 ---
         with gr.Column(scale=6):
             with gr.Group():
                 gr.Markdown(f"### {i18n.get('chat_title')}")
@@ -159,8 +148,7 @@ def render(state_api_key: gr.State) -> Dict[str, gr.Component]:
                     label=i18n.get("chat_input_label"),
                     placeholder=i18n.get("chat_input_placeholder"),
                     show_label=False,
-                    # 允许通过 Enter 键提交
-                    submit_btn=True 
+                    submit_btn=True
                 )
 
                 with gr.Row():
@@ -169,7 +157,6 @@ def render(state_api_key: gr.State) -> Dict[str, gr.Component]:
                     chat_res_selector = gr.Dropdown(choices=RES_SELECTOR_CHOICES, value=RES_SELECTOR_DEFAULT, label=i18n.get("home_control_resolution_label"), scale=1)
                 
                 with gr.Row():
-                    # 移除外部发送按钮，只保留清空按钮
                     chat_btn_clear = gr.Button(i18n.get("chat_btn_clear"), variant="stop", scale=1)
 
     return {

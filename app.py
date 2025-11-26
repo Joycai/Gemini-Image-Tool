@@ -1,9 +1,13 @@
+# pylint: disable=no-member
 import os
+import sys
+import platform # 导入 platform，但如果后续没有使用，pylint会再次警告
 
 import gradio as gr
 
 import database as db
 import i18n
+
 # 导入回调函数和 Ticker 实例
 from app_logic import (
     poll_task_status_callback,
@@ -15,10 +19,11 @@ from app_logic import (
     logger_utils as app_logic_logger,
     restart_app
 )
-from component import header, main_page, settings_page, chat_page, history_page
-from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 from logger_utils import get_logs
 from ticker import ticker_instance
+
+from component import header, main_page, settings_page, chat_page, history_page
+from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
 with open("assets/script.js", "r", encoding="utf-8") as f:
@@ -52,7 +57,7 @@ def save_and_update_client(key, path, prefix, lang):
     return key, new_client, history_page.load_output_gallery()
 
 
-with gr.Blocks(title=i18n.get("app_title")) as demo:
+with gr.Blocks(title=i18n.get("app_title")) as app:
     gr.HTML(f"<style>{custom_css}</style>")
 
     # 全局状态
@@ -75,10 +80,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # 2. Tab 容器
     with gr.Tabs() as main_tabs:
         with gr.TabItem(i18n.get("app_tab_home"), id="tab_home"):
-            main_ui = main_page.render(state_api_key)
+            main_ui = main_page.render()
         
         with gr.TabItem(i18n.get("app_tab_chat"), id="tab_chat"):
-            chat_ui = chat_page.render(state_api_key)
+            chat_ui = chat_page.render()
 
         with gr.TabItem(i18n.get("app_tab_history"), id="tab_history"):
             history_ui = history_page.render()
@@ -279,7 +284,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
 
     # --- 启动加载 ---
-    demo.load(
+    app.load(
         init_app_data,
         inputs=None,
         outputs=[
@@ -308,8 +313,8 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     )
 
 if __name__ == "__main__":
-    import sys
-
+    # import platform # pylint: disable=reimported
+    # import sys # pylint: disable=reimported
 
     # ================= 🚑 PyInstaller noconsole 修复补丁 =================
     # 当使用 --noconsole 打包时，sys.stdout 和 sys.stderr 是 None
@@ -320,7 +325,7 @@ if __name__ == "__main__":
 
         def flush(self): pass
 
-        def isatty(self): return False  # 这就是 uvicorn 需要的方法
+        def isatty(self): return False
 
         def fileno(self): return -1
 
@@ -333,4 +338,4 @@ if __name__ == "__main__":
 
     allowed_paths = get_allowed_paths()
     print(f"✅ Allowed Paths: {len(allowed_paths)}")
-    demo.launch(inbrowser=True, server_name="0.0.0.0", server_port=7860, allowed_paths=allowed_paths)
+    app.launch(inbrowser=True, server_name="0.0.0.0", server_port=7860, allowed_paths=allowed_paths)

@@ -26,7 +26,7 @@ def open_output_folder():
     if not os.path.exists(path):
         try:
             os.makedirs(path, exist_ok=True)
-        except Exception as e:
+        except OSError as e:
             gr.Warning(i18n.get("logic_error_createDir", error=e))
             return
     abs_path = os.path.abspath(path)
@@ -36,10 +36,10 @@ def open_output_folder():
         if system_platform == "Windows":
             os.startfile(abs_path)
         elif system_platform == "Darwin":
-            subprocess.run(["open", abs_path])
+            subprocess.run(["open", abs_path], check=False)
         else:
-            subprocess.run(["xdg-open", abs_path])
-    except Exception as e:
+            subprocess.run(["xdg-open", abs_path], check=False)
+    except (OSError, FileNotFoundError) as e:
         err_msg = i18n.get("logic_error_openFolder", error=e)
         logger_utils.log(err_msg)
         gr.Warning(err_msg)
@@ -62,7 +62,7 @@ def on_gallery_select(evt: gr.SelectData, gallery_data):
                 gr.Button(interactive=True),
                 final_path
             )
-    except Exception as e:
+    except (IndexError, KeyError) as e:
         logger_utils.log(i18n.get("logic_error_gallerySelect", error=e))
     return gr.update(interactive=False), gr.update(interactive=False), None
 
@@ -75,7 +75,7 @@ def delete_output_file(file_path):
             os.remove(file_path)
             logger_utils.log(i18n.get("logic_log_deletedFile", path=file_path))
             gr.Info(i18n.get("logic_info_deleteSuccess"))
-        except Exception as e:
+        except (OSError, IOError) as e:
             logger_utils.log(i18n.get("logic_error_deleteFailed", error=e))
             gr.Warning(i18n.get("logic_warn_deleteFailed", error=e))
     
@@ -96,7 +96,7 @@ def render():
             btn_refresh_history = gr.Button("🔄", scale=0, size="sm")
 
         gallery_output_history = gr.Gallery(
-            label="Outputs", columns=6, height="auto", allow_preview=True, 
+            label="Outputs", columns=6, height="auto", allow_preview=True,
             interactive=False, object_fit="contain"
         )
         with gr.Row():
