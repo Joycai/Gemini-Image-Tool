@@ -1,0 +1,32 @@
+[MAIN]
+# 指定 Python 版本
+py-version=3.12
+
+# 加载插件，例如拼写检查
+# (需要先安装: pip install pylint-spelling)
+# spelling-dict=en_US
+# spelling-private-dict-file=.pylint_spelling_private_dict.txt
+# plugins=
+#     pylint.extensions.spelling
+
+[MESSAGES CONTROL]
+# 禁用一些过于严格或不适用于本项目的检查
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    invalid-name,  # 允许使用像 c, f, e 这样的短变量名
+    too-few-public-methods, # 允许类中只有少量公共方法
+    line-too-long # 暂时禁用，如果需要可以启用并设置 max-line-length
+
+[FORMAT]
+# 设置单行最大字符数
+max-line-length=120
+
+[REPORTS]
+# 输出格式
+output-format=colorized
+
+[DESIGN]
+# 允许的最大参数数量
+max-args=10
