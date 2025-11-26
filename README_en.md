@@ -12,7 +12,7 @@ This is more than just a simple script; it's a full-featured, desktop-grade web 
 
 ## ✨ Key Features
 
-*   **🤖 Powerful Model Support**: Seamlessly integrates with Google's `gemini-1.5-flash` and `gemini-1.5-pro` models, with support for custom model IDs.
+*   **🤖 Powerful Model Support**: Seamlessly integrates with Google's `gemini-2.5-flash-image` and `gemini-3-pro-image-preview` models, with support for custom model IDs.
 *   **🎨 Flexible Generation Control**:
     *   Supports **Text-to-Image** and **Image-to-Image** generation (with up to 5 reference images).
     *   Customizable **aspect ratios** and **resolutions** for generated images.

@@ -1,19 +1,16 @@
-import gradio as gr
-import i18n
-import database as db
-import shutil
+import json
 import os
-from config import UPLOAD_DIR, OUTPUT_DIR
-import app_logic
+import shutil
+import time
 
-def save_cfg_wrapper(key, path, prefix, lang):
-    db.save_setting("api_key", key)
-    db.save_setting("save_path", path)
-    db.save_setting("file_prefix", prefix)
-    db.save_setting("language", lang)
-    app_logic.logger_utils.log(i18n.get("logic_info_configSaved"))
-    gr.Info(i18n.get("logic_info_configSaved"))
-    return key, app_logic.load_output_gallery()
+import gradio as gr
+
+import database as db
+import i18n
+import logger_utils
+from component import main_page
+from config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+
 
 def clear_cache():
     """清空 tmp 目录下的 upload 和 output 文件夹"""
@@ -23,6 +20,43 @@ def clear_cache():
             shutil.rmtree(d)
         os.makedirs(d)
     gr.Info(i18n.get("logic_info_cacheCleared"))
+
+def export_prompts_logic():
+    """导出所有 prompts 到一个 JSON 文件"""
+    try:
+        prompts = db.get_all_prompts_for_export()
+        timestamp = int(time.time())
+        filename = f"prompts_export_{timestamp}.json"
+        filepath = os.path.join(TEMP_DIR, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(prompts, f, ensure_ascii=False, indent=4)
+        
+        gr.Info(i18n.get("logic_info_prompts_exported", count=len(prompts)))
+        return gr.File(value=filepath, visible=True)
+    except (IOError, OSError, json.JSONDecodeError) as e:
+        error_msg = i18n.get("logic_error_prompts_export_failed", error=str(e))
+        logger_utils.log(error_msg)
+        gr.Error(error_msg)
+        return gr.File(visible=False)
+
+def import_prompts_logic(file):
+    """从 JSON 文件导入 prompts"""
+    if file is None:
+        return gr.skip()
+    try:
+        with open(file.name, 'r', encoding='utf-8') as f:
+            prompts_to_import = json.load(f)
+        
+        count = db.import_prompts_from_list(prompts_to_import)
+        
+        gr.Info(i18n.get("logic_info_prompts_imported", count=count))
+        return main_page.refresh_prompt_dropdown()
+    except (IOError, OSError, json.JSONDecodeError) as e:
+        error_msg = i18n.get("logic_error_prompts_import_failed", error=str(e))
+        logger_utils.log(error_msg)
+        gr.Error(error_msg)
+        return gr.skip()
 
 def render():
     settings = db.get_all_settings()
@@ -43,7 +77,18 @@ def render():
 
         with gr.Row():
             btn_save_settings = gr.Button(i18n.get("settings_btn_save"), variant="primary", scale=1)
-            btn_clear_cache = gr.Button(i18n.get("settings_btn_clear_cache"), variant="stop", scale=1)
+        
+        with gr.Accordion(label=i18n.get("settings_label_prompt_management"), open=True):
+            with gr.Row():
+                btn_export_prompts = gr.Button(i18n.get("settings_btn_export_prompts"))
+                btn_import_prompts = gr.UploadButton(i18n.get("settings_btn_import_prompts"), file_types=['.json'])
+            
+            exported_file = gr.File(label="Exported Prompts", visible=False)
+
+        with gr.Row():
+            btn_clear_cache = gr.Button(i18n.get("settings_btn_clear_cache"), variant="secondary", scale=1)
+            btn_restart = gr.Button("🔄 Restart", variant="stop", scale=1)
+
 
     return {
         "api_key": setting_api_key_input,
@@ -51,13 +96,9 @@ def render():
         "prefix": setting_prefix,
         "lang": setting_lang,
         "btn_save": btn_save_settings,
-        "btn_clear_cache": btn_clear_cache
+        "btn_clear_cache": btn_clear_cache,
+        "btn_restart": btn_restart,
+        "btn_export_prompts": btn_export_prompts,
+        "btn_import_prompts": btn_import_prompts,
+        "exported_file": exported_file
     }
-
-def bind_events(settings_ui, state_api_key, gallery_output_history):
-    settings_ui["btn_save"].click(
-        save_cfg_wrapper,
-        inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
-        outputs=[state_api_key, gallery_output_history]
-    )
-    settings_ui["btn_clear_cache"].click(fn=clear_cache)

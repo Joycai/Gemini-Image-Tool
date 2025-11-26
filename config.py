@@ -1,5 +1,5 @@
-import platform
 import os
+import platform
 
 # ==============================================================
 # 路径配置

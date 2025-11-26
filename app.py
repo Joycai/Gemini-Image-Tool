@@ -1,11 +1,28 @@
+# pylint: disable=no-member
 import sys
 import os
+import platform # pylint: disable=unused-import
+
 import gradio as gr
+
 import database as db
 import i18n
-import app_logic
-import logger_utils
-from component import header, main_page, settings_page
+
+# 导入回调函数和 Ticker 实例
+from app_logic import (
+    poll_task_status_callback,
+    start_generation_task,
+    init_app_data,
+    create_genai_client,
+    start_chat_task,
+    poll_chat_task_status_callback,
+    logger_utils as app_logic_logger,
+    restart_app
+)
+from logger_utils import get_logs
+from ticker import ticker_instance
+
+from component import header, main_page, settings_page, chat_page, history_page, assets_block
 from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
@@ -21,28 +38,55 @@ if not os.path.exists(UPLOAD_DIR):
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
-with gr.Blocks(title=i18n.get("app_title")) as demo:
+# 显式注册回调，确保顺序正确
+ticker_instance.register(poll_task_status_callback)
+ticker_instance.register(poll_chat_task_status_callback)
+ticker_instance.register(get_logs)
+
+# --- 顶层辅助函数 ---
+def save_and_update_client(key, path, prefix, lang):
+    db.save_setting("api_key", key)
+    db.save_setting("save_path", path)
+    db.save_setting("file_prefix", prefix)
+    db.save_setting("language", lang)
+    app_logic_logger.log(i18n.get("logic_info_configSaved"))
+    gr.Info(i18n.get("logic_info_configSaved"))
+    
+    new_client = create_genai_client(key)
+    # 同时更新历史记录页面
+    return key, new_client, history_page.load_output_gallery()
+
+
+with gr.Blocks(title=i18n.get("app_title")) as app:
     gr.HTML(f"<style>{custom_css}</style>")
 
     # 全局状态
     settings = db.get_all_settings()
     state_api_key = gr.State(value=settings["api_key"])
-    state_current_dir_images = gr.State(value=[])
-    # 移除不再需要的 state_poll_signal
-    # state_poll_signal = gr.State(None)
+    state_main_dir_images = gr.State(value=[])
+    state_chat_dir_images = gr.State(value=[])
+    state_genai_client = gr.State(value=None)
+    state_chat_session = gr.State(value=None)
+    # 用于轮询的聊天状态
+    state_response_parts = gr.State()
+    state_updated_session = gr.State()
+    # 用于在异步任务间传递用户输入的缓冲区
+    state_chat_input_buffer = gr.State()
 
 
     # 1. 顶部工具栏 (Header)
-    btn_restart, btn_theme = header.render()
-
-    # 预创建输出历史组件 (供 main_page 使用)
-    gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=520, allow_preview=True, interactive=False,
-                                        object_fit="contain", render=False)
+    btn_theme = header.render()
 
     # 2. Tab 容器
     with gr.Tabs() as main_tabs:
         with gr.TabItem(i18n.get("app_tab_home"), id="tab_home"):
-            main_ui = main_page.render(state_api_key, gallery_output_history)
+            main_ui = main_page.render()
+        
+        with gr.TabItem(i18n.get("app_tab_chat"), id="tab_chat"):
+            chat_ui = chat_page.render()
+
+        with gr.TabItem(i18n.get("app_tab_history"), id="tab_history"):
+            history_ui = history_page.render()
 
         with gr.TabItem(i18n.get("app_tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
@@ -53,17 +97,24 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # 主题切换
     btn_theme.click(None, None, None, js=js_toggle_theme)
 
-    # 日志刷新
-    log_timer = gr.Timer(1)
-    log_timer.tick(logger_utils.get_logs, outputs=main_ui["log_output"])
-
     # --- 设置页逻辑 ---
     settings_ui["btn_save"].click(
-        settings_page.save_cfg_wrapper,
+        save_and_update_client,
         inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
-        outputs=[state_api_key, gallery_output_history]
+        outputs=[state_api_key, state_genai_client, history_ui["gallery_output_history"]]
     )
     settings_ui["btn_clear_cache"].click(fn=settings_page.clear_cache)
+    settings_ui["btn_restart"].click(fn=restart_app, inputs=None, outputs=None)
+    settings_ui["btn_export_prompts"].click(
+        fn=settings_page.export_prompts_logic,
+        inputs=None,
+        outputs=[settings_ui["exported_file"]]
+    )
+    settings_ui["btn_import_prompts"].upload(
+        fn=settings_page.import_prompts_logic,
+        inputs=[settings_ui["btn_import_prompts"]],
+        outputs=[main_ui["prompt_dropdown"]]
+    )
 
 
     # --- 主页: Prompt ---
@@ -76,70 +127,77 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
                                     [main_ui["prompt_dropdown"]])
 
     # --- 主页: 左侧素材 ---
-    main_ui["btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, main_ui["dir_input"])
+    main_ui["main_btn_select_dir"].click(lambda: assets_block.open_folder_dialog() or gr.skip(), None, main_ui["main_dir_input"])
 
-    load_inputs = [main_ui["dir_input"]]
-    load_outputs = [state_current_dir_images, main_ui["info_box"]]
+    main_load_inputs = [main_ui["main_dir_input"], main_ui["main_recursive_checkbox"]]
+    main_load_outputs = [state_main_dir_images, main_ui["main_info_box"]]
 
-    main_ui["dir_input"].change(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
-                                                                                                state_current_dir_images,
-                                                                                                main_ui[
-                                                                                                    "gallery_source"])
-    main_ui["btn_refresh"].click(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
-                                                                                                 state_current_dir_images,
-                                                                                                 main_ui[
-                                                                                                     "gallery_source"])
+    main_ui["main_dir_input"].change(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                state_main_dir_images,
+                                                                                                main_ui["main_gallery_source"])
+    main_ui["main_btn_refresh"].click(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                 state_main_dir_images,
+                                                                                                 main_ui["main_gallery_source"])
+    main_ui["main_recursive_checkbox"].change(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                state_main_dir_images,
+                                                                                                main_ui["main_gallery_source"])
     
-    # 上传逻辑
-    main_ui["upload_button"].upload(
-        main_page.handle_upload,
-        main_ui["upload_button"],
-        main_ui["gallery_upload"]
-    )
+    main_ui["main_upload_button"].upload(assets_block.handle_upload, main_ui["main_upload_button"], main_ui["main_gallery_upload"])
+    main_ui["main_size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["main_size_slider"], main_ui["main_gallery_source"])
 
-    # [新增] 历史画廊交互逻辑
-    main_ui["btn_open_out_dir"].click(fn=main_page.open_output_folder)
-    gallery_output_history.select(
-        main_page.on_gallery_select,
-        inputs=[gallery_output_history],
+    # --- 聊天页: 左侧素材 ---
+    chat_ui["chat_btn_select_dir"].click(lambda: assets_block.open_folder_dialog() or gr.skip(), None, chat_ui["chat_dir_input"])
+
+    chat_load_inputs = [chat_ui["chat_dir_input"], chat_ui["chat_recursive_checkbox"]]
+    chat_load_outputs = [state_chat_dir_images, chat_ui["chat_info_box"]]
+
+    chat_ui["chat_dir_input"].change(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+                                                                                                state_chat_dir_images,
+                                                                                                chat_ui["chat_gallery_source"])
+    chat_ui["chat_btn_refresh"].click(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+                                                                                                 state_chat_dir_images,
+                                                                                                 chat_ui["chat_gallery_source"])
+    chat_ui["chat_recursive_checkbox"].change(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+                                                                                                state_chat_dir_images,
+                                                                                                chat_ui["chat_gallery_source"])
+    
+    chat_ui["chat_upload_button"].upload(assets_block.handle_upload, chat_ui["chat_upload_button"], chat_ui["chat_gallery_upload"])
+    chat_ui["chat_size_slider"].change(lambda x: gr.Gallery(columns=x), chat_ui["chat_size_slider"], chat_ui["chat_gallery_source"])
+
+
+    # --- 历史记录页 ---
+    history_ui["btn_open_out_dir"].click(fn=history_page.open_output_folder)
+    history_ui["btn_refresh_history"].click(fn=history_page.load_output_gallery, outputs=history_ui["gallery_output_history"])
+    history_ui["gallery_output_history"].select(
+        history_page.on_gallery_select,
+        inputs=[history_ui["gallery_output_history"]],
         outputs=[
-            main_ui["btn_download_hist"],
-            main_ui["btn_delete_hist"],
-            main_ui["state_hist_selected_path"]
+            history_ui["btn_download_hist"],
+            history_ui["btn_delete_hist"],
+            history_ui["state_hist_selected_path"]
         ]
     )
-    main_ui["btn_delete_hist"].click(
-        main_page.delete_output_file,
-        inputs=[main_ui["state_hist_selected_path"]],
+    history_ui["btn_delete_hist"].click(
+        history_page.delete_output_file,
+        inputs=[history_ui["state_hist_selected_path"]],
         outputs=[
-            gallery_output_history,
-            main_ui["btn_download_hist"],
-            main_ui["btn_delete_hist"]
+            history_ui["gallery_output_history"],
+            history_ui["btn_download_hist"],
+            history_ui["btn_delete_hist"]
         ]
     )
 
-    main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])
+    # --- 图片选择与移除 ---
+    main_ui["main_gallery_source"].select(main_page.mark_for_add, None, main_ui["main_state_marked_for_add"])
+    main_ui["main_gallery_upload"].select(main_page.mark_for_add, None, main_ui["main_state_marked_for_add"])
+    main_ui["gallery_selected"].select(main_page.mark_for_remove, None, main_ui["state_marked_for_remove"])
+    chat_ui["chat_gallery_source"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
+    chat_ui["chat_gallery_upload"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
 
-    # --- 主页: 图片选择与移除 (新逻辑) ---
-    main_ui["gallery_source"].select(
-        main_page.mark_for_add,
-        None,
-        main_ui["state_marked_for_add"]
-    )
-    main_ui["gallery_upload"].select(
-        main_page.mark_for_add,
-        None,
-        main_ui["state_marked_for_add"]
-    )
-    main_ui["gallery_selected"].select(
-        main_page.mark_for_remove,
-        None,
-        main_ui["state_marked_for_remove"]
-    )
 
     main_ui["btn_add_to_selected"].click(
         main_page.add_marked_to_selected,
-        [main_ui["state_marked_for_add"], main_ui["state_selected_images"]],
+        [main_ui["main_state_marked_for_add"], main_ui["state_selected_images"]],
         main_ui["state_selected_images"]
     ).then(
         lambda x: x,
@@ -167,37 +225,72 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         main_ui["ar_selector"],
         main_ui["res_selector"]
     ]
+    main_ui["btn_send"].click(start_generation_task, gen_inputs, None)
+    main_ui["btn_retry"].click(start_generation_task, gen_inputs, None)
 
-    # 1. 点击按钮 -> 仅提交任务 (Start Task)，不等待结果
-    main_ui["btn_send"].click(app_logic.start_generation_task, gen_inputs, None)
-    main_ui["btn_retry"].click(app_logic.start_generation_task, gen_inputs, None)
+    # --- 聊天页: 对话逻辑 (异步模式) ---
+    chat_ui["chat_input"].submit(
+        chat_page.prepare_chat_display,
+        inputs=[chat_ui["chat_input"], chat_ui["chatbot"]],
+        outputs=[chat_ui["chatbot"], chat_ui["chat_input"], chat_ui["chat_input"], chat_ui["chat_btn_clear"], state_chat_input_buffer]
+    ).then(
+        start_chat_task,
+        inputs=[
+            state_chat_input_buffer,
+            state_genai_client,
+            state_chat_session,
+            chat_ui["chat_model_selector"],
+            chat_ui["chat_ar_selector"],
+            chat_ui["chat_res_selector"]
+        ],
+        outputs=None
+    )
+    
+    state_response_parts.change(
+        chat_page.handle_bot_response,
+        inputs=[state_response_parts, state_updated_session, chat_ui["chatbot"]],
+        outputs=[chat_ui["chatbot"], state_chat_session]
+    )
 
-    # 2. 状态轮询定时器 (每1秒检查一次)
+    chat_ui["chat_btn_clear"].click(
+        chat_page.clear_chat,
+        inputs=None,
+        outputs=[chat_ui["chatbot"], state_chat_session]
+    )
+
+
+    # --- 全局定时器 ---
     poll_timer = gr.Timer(1)
     poll_timer.tick(
-        app_logic.poll_task_status,
+        ticker_instance.tick,
         inputs=None,
         outputs=[
             main_ui["result_image"],
-            main_ui["btn_download"]
+            main_ui["btn_download"],
+            state_response_parts,
+            state_updated_session,
+            chat_ui["chat_input"],
+            chat_ui["chat_btn_clear"],
+            main_ui["log_output"]
         ]
     )
 
-    # 3. [正确做法] 当预览图更新时，触发历史记录刷新
+    # --- 主页: 结果触发历史刷新 ---
     main_ui["result_image"].change(
-        fn=main_page.load_output_gallery,
+        fn=history_page.load_output_gallery,
         inputs=None,
-        outputs=[gallery_output_history]
+        outputs=[history_ui["gallery_output_history"]]
     )
 
 
     # --- 启动加载 ---
-    demo.load(
-        app_logic.init_app_data,
+    app.load(
+        init_app_data,
         inputs=None,
         outputs=[
-            main_ui["dir_input"],
+            main_ui["main_dir_input"],
             state_api_key,
+            state_genai_client,
             main_ui["btn_download"],
             main_ui["result_image"],
             settings_ui["path"],
@@ -206,24 +299,20 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
             settings_ui["api_key"]
         ]
     ).then(
-        main_page.load_images_from_dir,
-        inputs=[main_ui["dir_input"]],
-        outputs=[state_current_dir_images, main_ui["info_box"]]
+        assets_block.load_images_from_dir,
+        inputs=[main_ui["main_dir_input"], main_ui["main_recursive_checkbox"]],
+        outputs=[state_main_dir_images, main_ui["main_info_box"]]
     ).then(
         lambda x: x,
-        inputs=[state_current_dir_images],
-        outputs=[main_ui["gallery_source"]]
+        inputs=[state_main_dir_images],
+        outputs=[main_ui["main_gallery_source"]]
     ).then(
-        main_page.load_output_gallery,
+        history_page.load_output_gallery,
         inputs=None,
-        outputs=[gallery_output_history]
+        outputs=[history_ui["gallery_output_history"]]
     )
 
 if __name__ == "__main__":
-    import platform
-    import sys
-
-
     # ================= 🚑 PyInstaller noconsole 修复补丁 =================
     # 当使用 --noconsole 打包时，sys.stdout 和 sys.stderr 是 None
     # 这会导致 uvicorn 日志初始化失败。我们需要给它一个假的流对象。
@@ -233,7 +322,7 @@ if __name__ == "__main__":
 
         def flush(self): pass
 
-        def isatty(self): return False  # 这就是 uvicorn 需要的方法
+        def isatty(self): return False
 
         def fileno(self): return -1
 
@@ -246,4 +335,4 @@ if __name__ == "__main__":
 
     allowed_paths = get_allowed_paths()
     print(f"✅ Allowed Paths: {len(allowed_paths)}")
-    demo.launch(inbrowser=True, server_name="0.0.0.0", server_port=7860, allowed_paths=allowed_paths)
+    app.launch(inbrowser=True, server_name="0.0.0.0", server_port=7860, allowed_paths=allowed_paths)

@@ -1,6 +1,8 @@
 {
     "app_title": "🍌 Banana Pro Studio",
-    "app_tab_home": "Workbench",
+    "app_tab_home": "Single Image Edit",
+    "app_tab_chat": "Chat",
+    "app_tab_history": "History",
     "app_tab_settings": "Settings",
 
     "home_assets_title": "📂 Assets",
@@ -14,6 +16,7 @@
     "home_assets_btn_upload": "Click or Drag & Drop to Upload",
     "home_assets_btn_addToSelected": "➡️ Add to Selected",
     "home_assets_info_ready": "Ready.",
+    "home_assets_label_recursive": "Include Sub-directories",
 
     "home_history_title": "📤 Output History",
     "home_history_btn_open": "📂 Open Folder",
@@ -44,6 +47,13 @@
     "home_preview_label_result": "Preview",
     "home_preview_btn_download_placeholder": "⬇️ Waiting for Response...",
     
+    "chat_title": "🤖 Multimodal Chat",
+    "chat_chatbot_label": "Conversation",
+    "chat_input_label": "Send a message",
+    "chat_input_placeholder": "Type a message or add an image...",
+    "chat_btn_send": "Send",
+    "chat_btn_clear": "New Topic",
+
     "settings_title": "Settings",
     "settings_label_apiKey": "Google API Key",
     "settings_label_savePath": "Auto Save Path",
@@ -51,6 +61,9 @@
     "settings_label_language": "Language / 语言",
     "settings_btn_save": "💾 Save Config",
     "settings_btn_clear_cache": "🗑️ Clear Cache",
+    "settings_label_prompt_management": "Prompt Management",
+    "settings_btn_export_prompts": "Export Prompts (JSON)",
+    "settings_btn_import_prompts": "Import Prompts (JSON)",
 
     "logic_error_dirNotFound": "Directory '{path}' not found",
     "logic_log_loadDir": "📂 Load Dir: {path} (Found {count} imgs)",
@@ -83,6 +96,10 @@
     "logic_log_resumingSession": "🔄 Resuming user session...",
     "logic_btn_downloadReady_noFilename": "⬇️ Download HD Image",
     "logic_info_cacheCleared": "✅ Cache cleared successfully",
+    "logic_info_prompts_exported": "✅ Successfully exported {count} prompts.",
+    "logic_error_prompts_export_failed": "❌ Failed to export prompts: {error}",
+    "logic_info_prompts_imported": "✅ Successfully imported {count} prompts. Duplicates were overwritten.",
+    "logic_error_prompts_import_failed": "❌ Failed to import prompts: {error}",
 
     "api_log_loadingImgs": "📷 Loading {count} reference images...",
     "api_log_skipImg": "⚠️ Skip corrupted image {path}: {err}",
