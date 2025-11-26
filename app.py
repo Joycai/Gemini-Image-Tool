@@ -5,7 +5,14 @@ import database as db
 import i18n
 
 # 导入回调函数和 Ticker 实例
-from app_logic import poll_task_status_callback, start_generation_task, init_app_data, create_genai_client
+from app_logic import (
+    poll_task_status_callback, 
+    start_generation_task, 
+    init_app_data, 
+    create_genai_client,
+    start_chat_task,
+    poll_chat_task_status_callback
+)
 from logger_utils import get_logs
 from ticker import ticker_instance
 
@@ -26,9 +33,8 @@ if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
 # 显式注册回调，确保顺序正确
-# 顺序 1: 任务状态轮询 (返回2个值)
 ticker_instance.register(poll_task_status_callback)
-# 顺序 2: 日志刷新 (返回1个值)
+ticker_instance.register(poll_chat_task_status_callback)
 ticker_instance.register(get_logs)
 
 
@@ -38,14 +44,15 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # 全局状态
     settings = db.get_all_settings()
     state_api_key = gr.State(value=settings["api_key"])
-    # 主页面的素材状态
     state_main_dir_images = gr.State(value=[])
-    # 聊天页面的素材状态
     state_chat_dir_images = gr.State(value=[])
-    # Google GenAI Client 实例
     state_genai_client = gr.State(value=None)
-    # 聊天会话状态
     state_chat_session = gr.State(value=None)
+    # 用于轮询的聊天状态
+    state_response_parts = gr.State()
+    state_updated_session = gr.State()
+    # 用于在异步任务间传递用户输入的缓冲区
+    state_chat_input_buffer = gr.State()
 
 
     # 1. 顶部工具栏 (Header)
@@ -172,11 +179,9 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     )
 
     # --- 图片选择与移除 ---
-    # 主页
     main_ui["gallery_source"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
     main_ui["gallery_upload"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
     main_ui["gallery_selected"].select(main_page.mark_for_remove, None, main_ui["state_marked_for_remove"])
-    # 聊天页
     chat_ui["chat_gallery_source"].select(main_page.mark_for_add, None, chat_ui["state_chat_marked_for_add"])
     chat_ui["chat_gallery_upload"].select(main_page.mark_for_add, None, chat_ui["state_chat_marked_for_add"])
 
@@ -214,26 +219,30 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     main_ui["btn_send"].click(start_generation_task, gen_inputs, None)
     main_ui["btn_retry"].click(start_generation_task, gen_inputs, None)
 
-    # --- 聊天页: 对话逻辑 ---
-    chat_inputs = [
-        chat_ui["chat_input"],
-        chat_ui["chatbot"],
-        state_genai_client,
-        state_chat_session,
-        chat_ui["chat_model_selector"],
-        chat_ui["chat_ar_selector"],
-        chat_ui["chat_res_selector"]
-    ]
-    chat_outputs = [
-        chat_ui["chatbot"],
-        state_chat_session,
-        chat_ui["chat_input"]
-    ]
-    chat_ui["chat_btn_send"].click(
-        chat_page.handle_chat_submission,
-        inputs=chat_inputs,
-        outputs=chat_outputs
+    # --- 聊天页: 对话逻辑 (异步模式) ---
+    chat_ui["chat_input"].submit(
+        chat_page.prepare_chat_display,
+        inputs=[chat_ui["chat_input"], chat_ui["chatbot"]],
+        outputs=[chat_ui["chatbot"], chat_ui["chat_input"], chat_ui["chat_input"], chat_ui["chat_btn_clear"], state_chat_input_buffer]
+    ).then(
+        start_chat_task,
+        inputs=[
+            state_chat_input_buffer,
+            state_genai_client,
+            state_chat_session,
+            chat_ui["chat_model_selector"],
+            chat_ui["chat_ar_selector"],
+            chat_ui["chat_res_selector"]
+        ],
+        outputs=None
     )
+    
+    state_response_parts.change(
+        chat_page.handle_bot_response,
+        inputs=[state_response_parts, state_updated_session, chat_ui["chatbot"]],
+        outputs=[chat_ui["chatbot"], state_chat_session]
+    )
+
     chat_ui["chat_btn_clear"].click(
         chat_page.clear_chat,
         inputs=None,
@@ -249,6 +258,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         outputs=[
             main_ui["result_image"],
             main_ui["btn_download"],
+            state_response_parts,
+            state_updated_session,
+            chat_ui["chat_input"],
+            chat_ui["chat_btn_clear"],
             main_ui["log_output"]
         ]
     )
