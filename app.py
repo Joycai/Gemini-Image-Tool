@@ -1,7 +1,7 @@
 # pylint: disable=no-member
-import os
 import sys
-import platform # 导入 platform，但如果后续没有使用，pylint会再次警告
+import os
+import platform # pylint: disable=unused-import
 
 import gradio as gr
 
@@ -22,7 +22,7 @@ from app_logic import (
 from logger_utils import get_logs
 from ticker import ticker_instance
 
-from component import header, main_page, settings_page, chat_page, history_page
+from component import header, main_page, settings_page, chat_page, history_page, assets_block
 from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
@@ -127,41 +127,41 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
                                     [main_ui["prompt_dropdown"]])
 
     # --- 主页: 左侧素材 ---
-    main_ui["btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, main_ui["dir_input"])
+    main_ui["main_btn_select_dir"].click(lambda: assets_block.open_folder_dialog() or gr.skip(), None, main_ui["main_dir_input"])
 
-    main_load_inputs = [main_ui["dir_input"], main_ui["recursive_checkbox"]]
-    main_load_outputs = [state_main_dir_images, main_ui["info_box"]]
+    main_load_inputs = [main_ui["main_dir_input"], main_ui["main_recursive_checkbox"]]
+    main_load_outputs = [state_main_dir_images, main_ui["main_info_box"]]
 
-    main_ui["dir_input"].change(main_page.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+    main_ui["main_dir_input"].change(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
                                                                                                 state_main_dir_images,
-                                                                                                main_ui["gallery_source"])
-    main_ui["btn_refresh"].click(main_page.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                main_ui["main_gallery_source"])
+    main_ui["main_btn_refresh"].click(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
                                                                                                  state_main_dir_images,
-                                                                                                 main_ui["gallery_source"])
-    main_ui["recursive_checkbox"].change(main_page.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                 main_ui["main_gallery_source"])
+    main_ui["main_recursive_checkbox"].change(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
                                                                                                 state_main_dir_images,
-                                                                                                main_ui["gallery_source"])
+                                                                                                main_ui["main_gallery_source"])
     
-    main_ui["upload_button"].upload(main_page.handle_upload, main_ui["upload_button"], main_ui["gallery_upload"])
-    main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])
+    main_ui["main_upload_button"].upload(assets_block.handle_upload, main_ui["main_upload_button"], main_ui["main_gallery_upload"])
+    main_ui["main_size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["main_size_slider"], main_ui["main_gallery_source"])
 
     # --- 聊天页: 左侧素材 ---
-    chat_ui["chat_btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, chat_ui["chat_dir_input"])
+    chat_ui["chat_btn_select_dir"].click(lambda: assets_block.open_folder_dialog() or gr.skip(), None, chat_ui["chat_dir_input"])
 
     chat_load_inputs = [chat_ui["chat_dir_input"], chat_ui["chat_recursive_checkbox"]]
     chat_load_outputs = [state_chat_dir_images, chat_ui["chat_info_box"]]
 
-    chat_ui["chat_dir_input"].change(main_page.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+    chat_ui["chat_dir_input"].change(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
                                                                                                 state_chat_dir_images,
                                                                                                 chat_ui["chat_gallery_source"])
-    chat_ui["chat_btn_refresh"].click(main_page.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+    chat_ui["chat_btn_refresh"].click(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
                                                                                                  state_chat_dir_images,
                                                                                                  chat_ui["chat_gallery_source"])
-    chat_ui["chat_recursive_checkbox"].change(main_page.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+    chat_ui["chat_recursive_checkbox"].change(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
                                                                                                 state_chat_dir_images,
                                                                                                 chat_ui["chat_gallery_source"])
     
-    chat_ui["chat_upload_button"].upload(main_page.handle_upload, chat_ui["chat_upload_button"], chat_ui["chat_gallery_upload"])
+    chat_ui["chat_upload_button"].upload(assets_block.handle_upload, chat_ui["chat_upload_button"], chat_ui["chat_gallery_upload"])
     chat_ui["chat_size_slider"].change(lambda x: gr.Gallery(columns=x), chat_ui["chat_size_slider"], chat_ui["chat_gallery_source"])
 
 
@@ -188,8 +188,8 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
     )
 
     # --- 图片选择与移除 ---
-    main_ui["gallery_source"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
-    main_ui["gallery_upload"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
+    main_ui["main_gallery_source"].select(main_page.mark_for_add, None, main_ui["main_state_marked_for_add"])
+    main_ui["main_gallery_upload"].select(main_page.mark_for_add, None, main_ui["main_state_marked_for_add"])
     main_ui["gallery_selected"].select(main_page.mark_for_remove, None, main_ui["state_marked_for_remove"])
     chat_ui["chat_gallery_source"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
     chat_ui["chat_gallery_upload"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
@@ -197,7 +197,7 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
 
     main_ui["btn_add_to_selected"].click(
         main_page.add_marked_to_selected,
-        [main_ui["state_marked_for_add"], main_ui["state_selected_images"]],
+        [main_ui["main_state_marked_for_add"], main_ui["state_selected_images"]],
         main_ui["state_selected_images"]
     ).then(
         lambda x: x,
@@ -288,7 +288,7 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
         init_app_data,
         inputs=None,
         outputs=[
-            main_ui["dir_input"],
+            main_ui["main_dir_input"],
             state_api_key,
             state_genai_client,
             main_ui["btn_download"],
@@ -299,13 +299,13 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
             settings_ui["api_key"]
         ]
     ).then(
-        main_page.load_images_from_dir,
-        inputs=[main_ui["dir_input"], main_ui["recursive_checkbox"]],
-        outputs=[state_main_dir_images, main_ui["info_box"]]
+        assets_block.load_images_from_dir,
+        inputs=[main_ui["main_dir_input"], main_ui["main_recursive_checkbox"]],
+        outputs=[state_main_dir_images, main_ui["main_info_box"]]
     ).then(
         lambda x: x,
         inputs=[state_main_dir_images],
-        outputs=[main_ui["gallery_source"]]
+        outputs=[main_ui["main_gallery_source"]]
     ).then(
         history_page.load_output_gallery,
         inputs=None,
@@ -313,9 +313,6 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
     )
 
 if __name__ == "__main__":
-    # import platform # pylint: disable=reimported
-    # import sys # pylint: disable=reimported
-
     # ================= 🚑 PyInstaller noconsole 修复补丁 =================
     # 当使用 --noconsole 打包时，sys.stdout 和 sys.stderr 是 None
     # 这会导致 uvicorn 日志初始化失败。我们需要给它一个假的流对象。

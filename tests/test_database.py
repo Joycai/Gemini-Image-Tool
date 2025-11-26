@@ -7,7 +7,7 @@ import unittest
 # 这对于在 tests/ 目录下直接运行测试是必需的
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import database as db
+import database as db # pylint: disable=wrong-import-position
 
 class TestDatabase(unittest.TestCase):
 

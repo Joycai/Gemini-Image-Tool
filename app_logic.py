@@ -163,7 +163,8 @@ def restart_app():
     os.execl(python, python, *sys.argv)
 
 def create_genai_client(api_key):
-    if not api_key: return None
+    if not api_key:
+        return None
     try:
         return genai.Client(api_key=api_key)
     except Exception as e: # pylint: disable=broad-exception-caught

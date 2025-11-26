@@ -4,7 +4,6 @@ from typing import List, Dict, Tuple, Optional, Any
 
 import gradio as gr
 from PIL import Image
-# from google import genai # 移除未使用的导入
 
 import database as db
 import i18n
@@ -17,6 +16,8 @@ from config import (
     RES_SELECTOR_CHOICES,
     RES_SELECTOR_DEFAULT
 )
+from component import assets_block
+
 
 # 定义类型别名
 ChatHistory = List[Dict[str, Any]]
@@ -117,25 +118,9 @@ def render() -> Dict[str, gr.Component]:
 
     with gr.Row(equal_height=False):
         with gr.Column(scale=4):
-            with gr.Group():
-                gr.Markdown(f"#### {i18n.get('home_assets_title')}")
-                with gr.Tabs():
-                    with gr.TabItem(i18n.get("home_assets_tab_local")):
-                        with gr.Row():
-                            chat_dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("home_assets_label_dirPath"), scale=3)
-                            chat_btn_select_dir = gr.Button(i18n.get("home_assets_btn_browse"), scale=0, min_width=50)
-                            chat_btn_refresh = gr.Button(i18n.get("home_assets_btn_refresh"), scale=0, min_width=50)
-                        with gr.Row():
-                            chat_recursive_checkbox = gr.Checkbox(label=i18n.get("home_assets_label_recursive"), value=False)
-                            chat_size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("home_assets_label_columns"))
-                        chat_gallery_source = gr.Gallery(label=i18n.get("home_assets_label_source"), columns=4, height=600, allow_preview=False, object_fit="contain")
-                    
-                    with gr.TabItem(i18n.get("home_assets_tab_upload")):
-                        chat_upload_button = gr.UploadButton(i18n.get("home_assets_btn_upload"), file_types=["image"], file_count="multiple")
-                        chat_gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=600, allow_preview=False, object_fit="contain", interactive=True)
-
-                chat_info_box = gr.Markdown(i18n.get("home_assets_info_ready"))
-                state_chat_marked_for_add = gr.State(None)
+            # 渲染素材库块
+            assets_ui = assets_block.render_assets_block(prefix="chat_")
+            state_chat_marked_for_add = gr.State(None)
 
         with gr.Column(scale=6):
             with gr.Group():
@@ -160,15 +145,7 @@ def render() -> Dict[str, gr.Component]:
                     chat_btn_clear = gr.Button(i18n.get("chat_btn_clear"), variant="stop", scale=1)
 
     return {
-        "chat_dir_input": chat_dir_input,
-        "chat_btn_select_dir": chat_btn_select_dir,
-        "chat_btn_refresh": chat_btn_refresh,
-        "chat_recursive_checkbox": chat_recursive_checkbox,
-        "chat_size_slider": chat_size_slider,
-        "chat_gallery_source": chat_gallery_source,
-        "chat_upload_button": chat_upload_button,
-        "chat_gallery_upload": chat_gallery_upload,
-        "chat_info_box": chat_info_box,
+        **assets_ui,
         "state_chat_marked_for_add": state_chat_marked_for_add,
         "chatbot": chatbot,
         "chat_input": chat_input,
