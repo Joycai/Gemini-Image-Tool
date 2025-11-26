@@ -182,8 +182,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     main_ui["gallery_source"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
     main_ui["gallery_upload"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
     main_ui["gallery_selected"].select(main_page.mark_for_remove, None, main_ui["state_marked_for_remove"])
-    chat_ui["chat_gallery_source"].select(main_page.mark_for_add, None, chat_ui["state_chat_marked_for_add"])
-    chat_ui["chat_gallery_upload"].select(main_page.mark_for_add, None, chat_ui["state_chat_marked_for_add"])
+    
+    # 聊天页: 从素材库添加图片到输入框
+    chat_ui["chat_gallery_source"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
+    chat_ui["chat_gallery_upload"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
 
 
     main_ui["btn_add_to_selected"].click(

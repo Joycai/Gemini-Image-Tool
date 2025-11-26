@@ -20,6 +20,29 @@ from config import (
 ChatHistory = List[Dict[str, Any]]
 SessionState = Optional[Dict[str, Any]]
 
+def add_image_to_chat_input(
+    evt: gr.SelectData, 
+    current_input: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    将从画廊选择的图片添加到多模态输入框中。
+    """
+    if not evt.value:
+        return current_input
+
+    # 从事件数据中提取文件路径
+    selected_path = evt.value['image']['path']
+    
+    # 初始化或更新输入字典
+    if current_input is None:
+        current_input = {"text": "", "files": []}
+    
+    # 添加新文件，并确保不重复
+    if selected_path not in current_input["files"]:
+        current_input["files"].append(selected_path)
+        
+    return current_input
+
 def prepare_chat_display(chat_input: Dict[str, Any], chat_history: ChatHistory) -> Tuple[ChatHistory, None, gr.update, gr.update, Dict[str, Any]]:
     """
     立即响应用户输入，更新聊天记录，禁用输入，并缓冲原始输入。
