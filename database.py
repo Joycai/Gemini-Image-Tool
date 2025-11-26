@@ -76,5 +76,29 @@ def get_all_prompt_titles():
     conn.close()
     return ["---"] + titles # 添加默认空选项
 
+def get_all_prompts_for_export():
+    """获取所有 prompts 用于导出，返回字典列表"""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT title, content FROM prompts ORDER BY title")
+    prompts = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return prompts
+
+def import_prompts_from_list(prompts_list):
+    """从字典列表导入 prompts，重复的标题将被覆盖"""
+    if not prompts_list:
+        return 0
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    # 将字典列表转换为元组列表
+    data_to_insert = [(item.get('title'), item.get('content')) for item in prompts_list if item.get('title') and item.get('content')]
+    c.executemany("INSERT OR REPLACE INTO prompts (title, content) VALUES (?, ?)", data_to_insert)
+    count = len(data_to_insert)
+    conn.commit()
+    conn.close()
+    return count
+
 # 初始化
 init_db()

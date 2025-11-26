@@ -69,6 +69,16 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         outputs=[state_api_key, gallery_output_history]
     )
     settings_ui["btn_clear_cache"].click(fn=settings_page.clear_cache)
+    settings_ui["btn_export_prompts"].click(
+        fn=settings_page.export_prompts_logic,
+        inputs=None,
+        outputs=[settings_ui["exported_file"]]
+    )
+    settings_ui["btn_import_prompts"].upload(
+        fn=settings_page.import_prompts_logic,
+        inputs=[settings_ui["btn_import_prompts"]],
+        outputs=[main_ui["prompt_dropdown"]]
+    )
 
 
     # --- 主页: Prompt ---

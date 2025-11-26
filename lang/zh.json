@@ -52,6 +52,9 @@
     "settings_label_language": "语言 / Language",
     "settings_btn_save": "💾 保存配置",
     "settings_btn_clear_cache": "🗑️ 清除缓存",
+    "settings_label_prompt_management": "Prompt 管理",
+    "settings_btn_export_prompts": "导出 Prompts (JSON)",
+    "settings_btn_import_prompts": "导入 Prompts (JSON)",
 
     "logic_error_dirNotFound": "目录 '{path}' 不存在",
     "logic_log_loadDir": "📂 加载目录: {path} (找到 {count} 张图片)",
@@ -84,6 +87,10 @@
     "logic_log_resumingSession": "🔄 正在恢复用户会话...",
     "logic_btn_downloadReady_noFilename": "⬇️ 点击下载高清原图",
     "logic_info_cacheCleared": "✅ 缓存已成功清除",
+    "logic_info_prompts_exported": "✅ 已成功导出 {count} 个 Prompt。",
+    "logic_error_prompts_export_failed": "❌ 导出 Prompts 失败: {error}",
+    "logic_info_prompts_imported": "✅ 成功导入 {count} 个 Prompt。标题重复的已被覆盖。",
+    "logic_error_prompts_import_failed": "❌ 导入 Prompts 失败: {error}",
     
     "api_log_loadingImgs": "📷 正在加载 {count} 张参考图片...",
     "api_log_skipImg": "⚠️ 跳过损坏图片 {path}: {err}",

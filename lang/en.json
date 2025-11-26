@@ -52,6 +52,9 @@
     "settings_label_language": "Language / 语言",
     "settings_btn_save": "💾 Save Config",
     "settings_btn_clear_cache": "🗑️ Clear Cache",
+    "settings_label_prompt_management": "Prompt Management",
+    "settings_btn_export_prompts": "Export Prompts (JSON)",
+    "settings_btn_import_prompts": "Import Prompts (JSON)",
 
     "logic_error_dirNotFound": "Directory '{path}' not found",
     "logic_log_loadDir": "📂 Load Dir: {path} (Found {count} imgs)",
@@ -84,6 +87,10 @@
     "logic_log_resumingSession": "🔄 Resuming user session...",
     "logic_btn_downloadReady_noFilename": "⬇️ Download HD Image",
     "logic_info_cacheCleared": "✅ Cache cleared successfully",
+    "logic_info_prompts_exported": "✅ Successfully exported {count} prompts.",
+    "logic_error_prompts_export_failed": "❌ Failed to export prompts: {error}",
+    "logic_info_prompts_imported": "✅ Successfully imported {count} prompts. Duplicates were overwritten.",
+    "logic_error_prompts_import_failed": "❌ Failed to import prompts: {error}",
 
     "api_log_loadingImgs": "📷 Loading {count} reference images...",
     "api_log_skipImg": "⚠️ Skip corrupted image {path}: {err}",
