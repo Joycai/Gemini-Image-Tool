@@ -83,7 +83,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # --- 主页: 左侧素材 ---
     main_ui["btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, main_ui["dir_input"])
 
-    load_inputs = [main_ui["dir_input"]]
+    load_inputs = [main_ui["dir_input"], main_ui["recursive_checkbox"]]
     load_outputs = [state_current_dir_images, main_ui["info_box"]]
 
     main_ui["dir_input"].change(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
@@ -94,6 +94,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
                                                                                                  state_current_dir_images,
                                                                                                  main_ui[
                                                                                                      "gallery_source"])
+    main_ui["recursive_checkbox"].change(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
+                                                                                                state_current_dir_images,
+                                                                                                main_ui[
+                                                                                                    "gallery_source"])
     
     # 上传逻辑
     main_ui["upload_button"].upload(
@@ -216,7 +220,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         ]
     ).then(
         main_page.load_images_from_dir,
-        inputs=[main_ui["dir_input"]],
+        inputs=[main_ui["dir_input"], main_ui["recursive_checkbox"]],
         outputs=[state_current_dir_images, main_ui["info_box"]]
     ).then(
         lambda x: x,

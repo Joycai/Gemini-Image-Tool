@@ -68,12 +68,21 @@ def open_folder_dialog():
             gr.Warning("Could not open folder dialog. Your system may be missing a graphical backend.")
             return None
 
-def load_images_from_dir(dir_path):
+def load_images_from_dir(dir_path, recursive):
     if not dir_path or not os.path.exists(dir_path):
         return [], i18n.get("logic_error_dirNotFound", path=dir_path)
     db.save_setting("last_dir", dir_path)
-    image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
-                   if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
+    
+    image_files = []
+    if recursive:
+        for root, _, files in os.walk(dir_path):
+            for f in files:
+                if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS:
+                    image_files.append(os.path.join(root, f))
+    else:
+        image_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
+                       if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
+                       
     msg = i18n.get("logic_log_loadDir", path=dir_path, count=len(image_files))
     logger_utils.log(msg)
     return image_files, msg
@@ -259,7 +268,9 @@ def render(state_api_key, gallery_output_history):
                             dir_input = gr.Textbox(value=settings["last_dir"], label=i18n.get("home_assets_label_dirPath"), scale=3)
                             btn_select_dir = gr.Button(i18n.get("home_assets_btn_browse"), scale=0, min_width=50)
                             btn_refresh = gr.Button(i18n.get("home_assets_btn_refresh"), scale=0, min_width=50)
-                        size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("home_assets_label_columns"))
+                        with gr.Row():
+                            recursive_checkbox = gr.Checkbox(label=i18n.get("home_assets_label_recursive"), value=False)
+                            size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("home_assets_label_columns"))
                         gallery_source = gr.Gallery(label=i18n.get("home_assets_label_source"), columns=4, height=480, allow_preview=False, object_fit="contain")
                     
                     with gr.TabItem(i18n.get("home_assets_tab_upload")):
@@ -320,6 +331,7 @@ def render(state_api_key, gallery_output_history):
         "dir_input": dir_input,
         "btn_select_dir": btn_select_dir,
         "btn_refresh": btn_refresh,
+        "recursive_checkbox": recursive_checkbox,
         "size_slider": size_slider,
         "gallery_source": gallery_source,
         "info_box": info_box,

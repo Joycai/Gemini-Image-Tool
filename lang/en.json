@@ -14,6 +14,7 @@
     "home_assets_btn_upload": "Click or Drag & Drop to Upload",
     "home_assets_btn_addToSelected": "➡️ Add to Selected",
     "home_assets_info_ready": "Ready.",
+    "home_assets_label_recursive": "Include Sub-directories",
 
     "home_history_title": "📤 Output History",
     "home_history_btn_open": "📂 Open Folder",

@@ -14,6 +14,7 @@
     "home_assets_btn_upload": "点击或拖拽文件到此处上传",
     "home_assets_btn_addToSelected": "➡️ 发送到已选",
     "home_assets_info_ready": "就绪.",
+    "home_assets_label_recursive": "包含子目录",
 
     "home_history_title": "📤 历史输出归档",
     "home_history_btn_open": "📂 打开文件夹",
