@@ -5,7 +5,7 @@ import database as db
 import i18n
 
 # 导入回调函数和 Ticker 实例
-from app_logic import poll_task_status_callback, start_generation_task, init_app_data
+from app_logic import poll_task_status_callback, start_generation_task, init_app_data, create_genai_client
 from logger_utils import get_logs
 from ticker import ticker_instance
 
@@ -42,6 +42,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     state_main_dir_images = gr.State(value=[])
     # 聊天页面的素材状态
     state_chat_dir_images = gr.State(value=[])
+    # Google GenAI Client 实例
+    state_genai_client = gr.State(value=None)
+    # 聊天会话状态
+    state_chat_session = gr.State(value=None)
 
 
     # 1. 顶部工具栏 (Header)
@@ -69,10 +73,21 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     btn_theme.click(None, None, None, js=js_toggle_theme)
 
     # --- 设置页逻辑 ---
+    def save_and_update_client(key, path, prefix, lang):
+        db.save_setting("api_key", key)
+        db.save_setting("save_path", path)
+        db.save_setting("file_prefix", prefix)
+        db.save_setting("language", lang)
+        app_logic.logger_utils.log(i18n.get("logic_info_configSaved"))
+        gr.Info(i18n.get("logic_info_configSaved"))
+        
+        new_client = create_genai_client(key)
+        return key, new_client, main_page.load_output_gallery()
+
     settings_ui["btn_save"].click(
-        settings_page.save_cfg_wrapper,
+        save_and_update_client,
         inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
-        outputs=[state_api_key, gallery_output_history]
+        outputs=[state_api_key, state_genai_client, gallery_output_history]
     )
     settings_ui["btn_clear_cache"].click(fn=settings_page.clear_cache)
     settings_ui["btn_export_prompts"].click(
@@ -199,6 +214,33 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     main_ui["btn_send"].click(start_generation_task, gen_inputs, None)
     main_ui["btn_retry"].click(start_generation_task, gen_inputs, None)
 
+    # --- 聊天页: 对话逻辑 ---
+    chat_inputs = [
+        chat_ui["chat_input"],
+        chat_ui["chatbot"],
+        state_genai_client,
+        state_chat_session,
+        chat_ui["chat_model_selector"],
+        chat_ui["chat_ar_selector"],
+        chat_ui["chat_res_selector"]
+    ]
+    chat_outputs = [
+        chat_ui["chatbot"],
+        state_chat_session,
+        chat_ui["chat_input"]
+    ]
+    chat_ui["chat_btn_send"].click(
+        chat_page.handle_chat_submission,
+        inputs=chat_inputs,
+        outputs=chat_outputs
+    )
+    chat_ui["chat_btn_clear"].click(
+        chat_page.clear_chat,
+        inputs=None,
+        outputs=[chat_ui["chatbot"], state_chat_session]
+    )
+
+
     # --- 全局定时器 ---
     poll_timer = gr.Timer(1)
     poll_timer.tick(
@@ -226,6 +268,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         outputs=[
             main_ui["dir_input"],
             state_api_key,
+            state_genai_client,
             main_ui["btn_download"],
             main_ui["result_image"],
             settings_ui["path"],

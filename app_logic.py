@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import filedialog
 import gradio as gr
 import shutil
+from google import genai
 
 # 引入模块
 import database as db
@@ -120,8 +121,21 @@ def restart_app():
     python = sys.executable
     os.execl(python, python, *sys.argv)
 
+def create_genai_client(api_key):
+    """创建并返回一个 Google GenAI Client 实例"""
+    if not api_key:
+        return None
+    try:
+        return genai.Client(api_key=api_key)
+    except Exception as e:
+        logger_utils.log(f"Failed to create GenAI Client: {e}")
+        return None
+
 def init_app_data():
     fresh_settings = db.get_all_settings()
+    api_key = fresh_settings["api_key"]
+    genai_client = create_genai_client(api_key)
+    
     logger_utils.log(i18n.get("logic_log_resumingSession"))
     restored_image = None
     if TASK_STATE["status"] == "success" and TASK_STATE["result_path"]:
@@ -134,13 +148,14 @@ def init_app_data():
         current_download_btn = gr.DownloadButton(label=i18n.get("home_preview_btn_download_placeholder"), interactive=False)
     return (
         fresh_settings["last_dir"],
-        fresh_settings["api_key"],
+        api_key,
+        genai_client,
         current_download_btn,
         restored_image,
         fresh_settings["save_path"],
         fresh_settings["file_prefix"],
         fresh_settings["language"],
-        fresh_settings["api_key"]
+        api_key
     )
 
 # # 移除自动注册

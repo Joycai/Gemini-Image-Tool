@@ -1,6 +1,10 @@
 import gradio as gr
 import i18n
 import database as db
+import api_client
+import os
+import time
+from PIL import Image
 from config import (
     MODEL_SELECTOR_CHOICES,
     MODEL_SELECTOR_DEFAULT,
@@ -9,6 +13,86 @@ from config import (
     RES_SELECTOR_CHOICES,
     RES_SELECTOR_DEFAULT
 )
+
+def handle_chat_submission(chat_input, chat_history, genai_client, session_state, model, ar, res):
+    if not chat_input or (not chat_input['text'] and not chat_input['files']):
+        return chat_history, session_state, None
+
+    # --- 会话管理 ---
+    session_id = None
+    chat_obj = None
+    if session_state is None:
+        # 创建新会话
+        session_id = f"chat_{int(time.time())}"
+        chat_obj = None
+        gr.Info("✨ New chat session started.")
+    else:
+        # 恢复现有会话
+        session_id = session_state["id"]
+        chat_obj = session_state["session_obj"]
+
+    # --- 格式化用户输入 (拆分为多条消息) ---
+    if chat_input['files']:
+        for file in chat_input['files']:
+            chat_history.append({"role": "user", "content": gr.Image(value=file, show_label=False, interactive=False)})
+    if chat_input['text']:
+        chat_history.append({"role": "user", "content": chat_input['text']})
+
+    # --- 格式化 API 输入 ---
+    prompt_parts = []
+    if chat_input['files']:
+        for file in chat_input['files']:
+            prompt_parts.append(Image.open(file))
+    if chat_input['text']:
+        prompt_parts.append(chat_input['text'])
+
+    # 调用 API
+    updated_chat_obj, response_parts = api_client.call_google_chat(
+        genai_client, chat_obj, prompt_parts, model, ar, res
+    )
+
+    # 更新会话状态字典
+    updated_session_state = {"id": session_id, "session_obj": updated_chat_obj}
+
+    # --- 处理 API 返回 (拆分为多条消息) ---
+    save_dir = db.get_setting("save_path")
+    if not save_dir:
+        gr.Warning("Save path is not set. Images will not be saved.")
+
+    text_parts = []
+    image_parts = []
+    for part in response_parts:
+        if isinstance(part, str):
+            text_parts.append(part)
+        else:
+            image_parts.append(part)
+
+    if text_parts:
+        combined_text = "\n".join(text_parts)
+        chat_history.append({"role": "assistant", "content": combined_text})
+
+    for img_part in image_parts:
+        if save_dir:
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+                timestamp = int(time.time() * 1000)
+                # 使用稳定、持久的 session_id
+                filename = f"{session_id}_{timestamp}.png"
+                filepath = os.path.join(save_dir, filename)
+                img_part.save(filepath)
+                chat_history.append({"role": "assistant", "content": gr.Image(value=filepath, show_label=False, interactive=False)})
+            except Exception as e:
+                error_msg = f"Failed to save image: {e}"
+                gr.Warning(error_msg)
+                chat_history.append({"role": "assistant", "content": error_msg})
+        else:
+            chat_history.append({"role": "assistant", "content": gr.Image(value=img_part, show_label=False, interactive=False)})
+
+    return chat_history, updated_session_state, None
+
+def clear_chat():
+    """清空聊天记录和会话状态"""
+    return [], None
 
 def render(state_api_key):
     """

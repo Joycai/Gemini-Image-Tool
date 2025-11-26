@@ -6,6 +6,7 @@ from io import BytesIO
 import gradio as gr
 import logger_utils
 import i18n
+import sys
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {
@@ -91,7 +92,10 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
 
-            if not hasattr(response, 'parts'):
+            if not response.parts:
+                if response.prompt_feedback and response.prompt_feedback.block_reason:
+                    reason = response.prompt_feedback.block_reason.name
+                    raise ValueError(f"Request was blocked due to: {reason}")
                 raise ValueError(i18n.get("api_error_noParts"))
 
             for part in response.parts:
@@ -120,6 +124,95 @@ def call_google_genai(prompt, image_paths, api_key, model_id, aspect_ratio, reso
             last_exception = e
             if "401" in str(e) or "403" in str(e):
                 break
+            time.sleep(2 * (attempt + 1))
+            continue
+
+    sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
+    logger_utils.log(sys_err_msg)
+    raise gr.Error(sys_err_msg)
+
+def call_google_chat(genai_client, chat_session, prompt_parts, model_id, aspect_ratio, resolution):
+    if genai_client is None:
+        msg = i18n.get("api_error_apiKey")
+        logger_utils.log(msg)
+        raise gr.Error(msg)
+
+    if not model_id:
+        model_id = "gemini-1.5-pro-image-preview"
+
+    # 如果没有传入会话，则使用传入的 client 创建一个新的
+    if chat_session is None:
+        logger_utils.log("✨ Creating new chat session.")
+        chat_session = genai_client.chats.create(
+            model=model_id,
+            config=types.GenerateContentConfig(
+                response_modalities=['TEXT', 'IMAGE']
+            )
+        )
+
+    # 构建生成配置
+    image_config_dict = {}
+    # 检查模型是否为 flash 系列
+    is_flash_model = "2.5" in model_id or "flash" in model_id
+    
+    if not is_flash_model:
+        if aspect_ratio and aspect_ratio != "ar_none":
+            image_config_dict["aspect_ratio"] = aspect_ratio
+        if resolution:
+            image_config_dict["image_size"] = resolution
+    else:
+        logger_utils.log(i18n.get("api_log_gemini25"))
+
+    gen_config = types.GenerateContentConfig(
+        image_config=types.ImageConfig(**image_config_dict) if image_config_dict else None
+    )
+
+    ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
+    logger_utils.log(f"💬 Sending message to chat | Model: {model_id} | AR: {ar_log_val} | Res: {resolution}")
+
+    max_retries = 3
+    last_exception = None
+
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                logger_utils.log(i18n.get("api_log_networkRetry", attempt=attempt + 1, max_retries=max_retries))
+
+            response = chat_session.send_message(
+                prompt_parts,
+                config=gen_config
+            )
+
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                u = response.usage_metadata
+                logger_utils.log(i18n.get("api_log_tokenUsage", input=u.prompt_token_count,
+                                          output=u.candidates_token_count,
+                                          total=u.total_token_count))
+
+            if not response.parts:
+                if response.prompt_feedback and response.prompt_feedback.block_reason:
+                    reason = response.prompt_feedback.block_reason.name
+                    raise ValueError(f"Request was blocked due to: {reason}")
+                raise ValueError(i18n.get("api_error_noParts"))
+
+            # 收集所有返回的部分
+            response_parts = []
+            for part in response.parts:
+                if part.text is not None:
+                    response_parts.append(part.text)
+                elif image := part.as_image():
+                    response_parts.append(image)
+            
+            if not response_parts:
+                 raise ValueError(i18n.get("api_error_noValidImage"))
+
+            logger_utils.log(f"✅ Received {len(response_parts)} parts from chat.")
+            return chat_session, response_parts
+
+        except Exception as e:
+            last_exception = e
+            if "401" in str(e) or "403" in str(e) or "client has been closed" in str(e): # 不可重试的认证或会话错误
+                break 
             time.sleep(2 * (attempt + 1))
             continue
 
