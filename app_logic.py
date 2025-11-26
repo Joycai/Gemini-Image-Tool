@@ -19,6 +19,7 @@ import subprocess
 
 from component import main_page
 from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR
+# from ticker import ticker_instance # 不再需要在这里导入
 
 # --- 全局任务状态管理 ---
 TASK_STATE = {
@@ -85,7 +86,7 @@ def start_generation_task(prompt: str, img_paths: List[str], key: str, model: st
     gr.Info(i18n.get("logic_info_taskSubmitted"))
 
 
-def poll_task_status():
+def poll_task_status_callback():
     # 状态1：任务正在运行，不需要更新 UI
     if TASK_STATE["status"] == "running":
         return gr.skip(), gr.skip()
@@ -141,3 +142,6 @@ def init_app_data():
         fresh_settings["language"],
         fresh_settings["api_key"]
     )
+
+# # 移除自动注册
+# ticker_instance.register(_poll_task_status_callback)

@@ -3,8 +3,12 @@ import os
 import gradio as gr
 import database as db
 import i18n
-import app_logic
-import logger_utils
+
+# 导入回调函数和 Ticker 实例
+from app_logic import poll_task_status_callback, start_generation_task, init_app_data
+from logger_utils import get_logs
+from ticker import ticker_instance
+
 from component import header, main_page, settings_page
 from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
@@ -21,11 +25,12 @@ if not os.path.exists(UPLOAD_DIR):
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
-# 合并轮询函数
-def combined_poll():
-    img_result, btn_result = app_logic.poll_task_status()
-    log_result = logger_utils.get_logs()
-    return img_result, btn_result, log_result
+# 显式注册回调，确保顺序正确
+# 顺序 1: 任务状态轮询 (返回2个值)
+ticker_instance.register(poll_task_status_callback)
+# 顺序 2: 日志刷新 (返回1个值)
+ticker_instance.register(get_logs)
+
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
@@ -34,8 +39,6 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     settings = db.get_all_settings()
     state_api_key = gr.State(value=settings["api_key"])
     state_current_dir_images = gr.State(value=[])
-    # 移除不再需要的 state_poll_signal
-    # state_poll_signal = gr.State(None)
 
 
     # 1. 顶部工具栏 (Header)
@@ -171,13 +174,16 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     ]
 
     # 1. 点击按钮 -> 仅提交任务 (Start Task)，不等待结果
-    main_ui["btn_send"].click(app_logic.start_generation_task, gen_inputs, None)
-    main_ui["btn_retry"].click(app_logic.start_generation_task, gen_inputs, None)
+    main_ui["btn_send"].click(start_generation_task, gen_inputs, None)
+    main_ui["btn_retry"].click(start_generation_task, gen_inputs, None)
 
-    # 2. 合并后的状态与日志轮询定时器
+    # 2. 使用 Ticker 实例进行轮询
+    # outputs 列表的顺序现在与注册顺序严格对应:
+    # poll_task_status_callback -> [result_image, btn_download]
+    # get_logs -> [log_output]
     poll_timer = gr.Timer(1)
     poll_timer.tick(
-        combined_poll,
+        ticker_instance.tick,
         inputs=None,
         outputs=[
             main_ui["result_image"],
@@ -186,7 +192,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         ]
     )
 
-    # 3. [正确做法] 当预览图更新时，触发历史记录刷新
+    # 3. 当预览图更新时，触发历史记录刷新
     main_ui["result_image"].change(
         fn=main_page.load_output_gallery,
         inputs=None,
@@ -196,7 +202,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # --- 启动加载 ---
     demo.load(
-        app_logic.init_app_data,
+        init_app_data,
         inputs=None,
         outputs=[
             main_ui["dir_input"],

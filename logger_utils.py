@@ -1,4 +1,5 @@
 import datetime
+# from ticker import ticker_instance # 不再需要在这里导入
 
 # 全局日志缓存
 _LOG_BUFFER = []
@@ -33,3 +34,6 @@ def clear_logs():
     """清空日志"""
     _LOG_BUFFER.clear()
     return ""
+
+# # 移除自动注册
+# ticker_instance.register(get_logs)
