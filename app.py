@@ -9,7 +9,7 @@ from app_logic import poll_task_status_callback, start_generation_task, init_app
 from logger_utils import get_logs
 from ticker import ticker_instance
 
-from component import header, main_page, settings_page
+from component import header, main_page, settings_page, chat_page
 from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
@@ -38,7 +38,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # 全局状态
     settings = db.get_all_settings()
     state_api_key = gr.State(value=settings["api_key"])
-    state_current_dir_images = gr.State(value=[])
+    # 主页面的素材状态
+    state_main_dir_images = gr.State(value=[])
+    # 聊天页面的素材状态
+    state_chat_dir_images = gr.State(value=[])
 
 
     # 1. 顶部工具栏 (Header)
@@ -52,6 +55,9 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     with gr.Tabs() as main_tabs:
         with gr.TabItem(i18n.get("app_tab_home"), id="tab_home"):
             main_ui = main_page.render(state_api_key, gallery_output_history)
+        
+        with gr.TabItem(i18n.get("app_tab_chat"), id="tab_chat"):
+            chat_ui = chat_page.render(state_api_key)
 
         with gr.TabItem(i18n.get("app_tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
@@ -93,30 +99,43 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     # --- 主页: 左侧素材 ---
     main_ui["btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, main_ui["dir_input"])
 
-    load_inputs = [main_ui["dir_input"], main_ui["recursive_checkbox"]]
-    load_outputs = [state_current_dir_images, main_ui["info_box"]]
+    main_load_inputs = [main_ui["dir_input"], main_ui["recursive_checkbox"]]
+    main_load_outputs = [state_main_dir_images, main_ui["info_box"]]
 
-    main_ui["dir_input"].change(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
-                                                                                                state_current_dir_images,
-                                                                                                main_ui[
-                                                                                                    "gallery_source"])
-    main_ui["btn_refresh"].click(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
-                                                                                                 state_current_dir_images,
-                                                                                                 main_ui[
-                                                                                                     "gallery_source"])
-    main_ui["recursive_checkbox"].change(main_page.load_images_from_dir, load_inputs, load_outputs).then(lambda x: x,
-                                                                                                state_current_dir_images,
-                                                                                                main_ui[
-                                                                                                    "gallery_source"])
+    main_ui["dir_input"].change(main_page.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                state_main_dir_images,
+                                                                                                main_ui["gallery_source"])
+    main_ui["btn_refresh"].click(main_page.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                 state_main_dir_images,
+                                                                                                 main_ui["gallery_source"])
+    main_ui["recursive_checkbox"].change(main_page.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
+                                                                                                state_main_dir_images,
+                                                                                                main_ui["gallery_source"])
     
-    # 上传逻辑
-    main_ui["upload_button"].upload(
-        main_page.handle_upload,
-        main_ui["upload_button"],
-        main_ui["gallery_upload"]
-    )
+    main_ui["upload_button"].upload(main_page.handle_upload, main_ui["upload_button"], main_ui["gallery_upload"])
+    main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])
 
-    # [新增] 历史画廊交互逻辑
+    # --- 聊天页: 左侧素材 ---
+    chat_ui["chat_btn_select_dir"].click(lambda: main_page.open_folder_dialog() or gr.skip(), None, chat_ui["chat_dir_input"])
+
+    chat_load_inputs = [chat_ui["chat_dir_input"], chat_ui["chat_recursive_checkbox"]]
+    chat_load_outputs = [state_chat_dir_images, chat_ui["chat_info_box"]]
+
+    chat_ui["chat_dir_input"].change(main_page.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+                                                                                                state_chat_dir_images,
+                                                                                                chat_ui["chat_gallery_source"])
+    chat_ui["chat_btn_refresh"].click(main_page.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+                                                                                                 state_chat_dir_images,
+                                                                                                 chat_ui["chat_gallery_source"])
+    chat_ui["chat_recursive_checkbox"].change(main_page.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
+                                                                                                state_chat_dir_images,
+                                                                                                chat_ui["chat_gallery_source"])
+    
+    chat_ui["chat_upload_button"].upload(main_page.handle_upload, chat_ui["chat_upload_button"], chat_ui["chat_gallery_upload"])
+    chat_ui["chat_size_slider"].change(lambda x: gr.Gallery(columns=x), chat_ui["chat_size_slider"], chat_ui["chat_gallery_source"])
+
+
+    # --- 主页: 历史记录 ---
     main_ui["btn_open_out_dir"].click(fn=main_page.open_output_folder)
     gallery_output_history.select(
         main_page.on_gallery_select,
@@ -137,24 +156,15 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         ]
     )
 
-    main_ui["size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["size_slider"], main_ui["gallery_source"])
+    # --- 图片选择与移除 ---
+    # 主页
+    main_ui["gallery_source"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
+    main_ui["gallery_upload"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
+    main_ui["gallery_selected"].select(main_page.mark_for_remove, None, main_ui["state_marked_for_remove"])
+    # 聊天页
+    chat_ui["chat_gallery_source"].select(main_page.mark_for_add, None, chat_ui["state_chat_marked_for_add"])
+    chat_ui["chat_gallery_upload"].select(main_page.mark_for_add, None, chat_ui["state_chat_marked_for_add"])
 
-    # --- 主页: 图片选择与移除 (新逻辑) ---
-    main_ui["gallery_source"].select(
-        main_page.mark_for_add,
-        None,
-        main_ui["state_marked_for_add"]
-    )
-    main_ui["gallery_upload"].select(
-        main_page.mark_for_add,
-        None,
-        main_ui["state_marked_for_add"]
-    )
-    main_ui["gallery_selected"].select(
-        main_page.mark_for_remove,
-        None,
-        main_ui["state_marked_for_remove"]
-    )
 
     main_ui["btn_add_to_selected"].click(
         main_page.add_marked_to_selected,
@@ -186,15 +196,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         main_ui["ar_selector"],
         main_ui["res_selector"]
     ]
-
-    # 1. 点击按钮 -> 仅提交任务 (Start Task)，不等待结果
     main_ui["btn_send"].click(start_generation_task, gen_inputs, None)
     main_ui["btn_retry"].click(start_generation_task, gen_inputs, None)
 
-    # 2. 使用 Ticker 实例进行轮询
-    # outputs 列表的顺序现在与注册顺序严格对应:
-    # poll_task_status_callback -> [result_image, btn_download]
-    # get_logs -> [log_output]
+    # --- 全局定时器 ---
     poll_timer = gr.Timer(1)
     poll_timer.tick(
         ticker_instance.tick,
@@ -206,7 +211,7 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         ]
     )
 
-    # 3. 当预览图更新时，触发历史记录刷新
+    # --- 主页: 结果触发历史刷新 ---
     main_ui["result_image"].change(
         fn=main_page.load_output_gallery,
         inputs=None,
@@ -231,10 +236,10 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     ).then(
         main_page.load_images_from_dir,
         inputs=[main_ui["dir_input"], main_ui["recursive_checkbox"]],
-        outputs=[state_current_dir_images, main_ui["info_box"]]
+        outputs=[state_main_dir_images, main_ui["info_box"]]
     ).then(
         lambda x: x,
-        inputs=[state_current_dir_images],
+        inputs=[state_main_dir_images],
         outputs=[main_ui["gallery_source"]]
     ).then(
         main_page.load_output_gallery,

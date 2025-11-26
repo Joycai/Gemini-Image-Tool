@@ -1,6 +1,7 @@
 {
     "app_title": "🍌 Banana Pro Studio",
     "app_tab_home": "创作工作台",
+    "app_tab_chat": "多模态对话",
     "app_tab_settings": "系统设置",
 
     "home_assets_title": "📂 素材库",
@@ -45,6 +46,13 @@
     "home_preview_label_result": "结果预览",
     "home_preview_btn_download_placeholder": "⬇️ 等待生成...",
     
+    "chat_title": "🤖 多模态聊天",
+    "chat_chatbot_label": "对话历史",
+    "chat_input_label": "发送消息",
+    "chat_input_placeholder": "输入文本或添加图片...",
+    "chat_btn_send": "发送",
+    "chat_btn_clear": "新话题",
+
     "settings_title": "⚙️ 设置面板",
     "settings_label_apiKey": "Google API Key",
     "settings_label_savePath": "自动保存路径",

@@ -1,6 +1,7 @@
 {
     "app_title": "🍌 Banana Pro Studio",
     "app_tab_home": "Workbench",
+    "app_tab_chat": "Multimodal Chat",
     "app_tab_settings": "Settings",
 
     "home_assets_title": "📂 Assets",
@@ -45,6 +46,13 @@
     "home_preview_label_result": "Preview",
     "home_preview_btn_download_placeholder": "⬇️ Waiting for Response...",
     
+    "chat_title": "🤖 Multimodal Chat",
+    "chat_chatbot_label": "Conversation",
+    "chat_input_label": "Send a message",
+    "chat_input_placeholder": "Type a message or add an image...",
+    "chat_btn_send": "Send",
+    "chat_btn_clear": "New Topic",
+
     "settings_title": "Settings",
     "settings_label_apiKey": "Google API Key",
     "settings_label_savePath": "Auto Save Path",
