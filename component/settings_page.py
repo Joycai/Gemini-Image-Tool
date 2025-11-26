@@ -6,17 +6,7 @@ import os
 import json
 import time
 from config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
-import app_logic
 from component import main_page
-
-def save_cfg_wrapper(key, path, prefix, lang):
-    db.save_setting("api_key", key)
-    db.save_setting("save_path", path)
-    db.save_setting("file_prefix", prefix)
-    db.save_setting("language", lang)
-    app_logic.logger_utils.log(i18n.get("logic_info_configSaved"))
-    gr.Info(i18n.get("logic_info_configSaved"))
-    return key, app_logic.load_output_gallery()
 
 def clear_cache():
     """清空 tmp 目录下的 upload 和 output 文件夹"""
@@ -81,15 +71,18 @@ def render():
 
         with gr.Row():
             btn_save_settings = gr.Button(i18n.get("settings_btn_save"), variant="primary", scale=1)
-            btn_clear_cache = gr.Button(i18n.get("settings_btn_clear_cache"), variant="stop", scale=1)
         
         with gr.Accordion(label=i18n.get("settings_label_prompt_management"), open=True):
             with gr.Row():
                 btn_export_prompts = gr.Button(i18n.get("settings_btn_export_prompts"))
                 btn_import_prompts = gr.UploadButton(i18n.get("settings_btn_import_prompts"), file_types=['.json'])
             
-            # 用于接收导出文件的组件，默认不可见
             exported_file = gr.File(label="Exported Prompts", visible=False)
+
+        with gr.Row():
+            btn_clear_cache = gr.Button(i18n.get("settings_btn_clear_cache"), variant="secondary", scale=1)
+            btn_restart = gr.Button("🔄 Restart", variant="stop", scale=1)
+
 
     return {
         "api_key": setting_api_key_input,
@@ -98,15 +91,8 @@ def render():
         "lang": setting_lang,
         "btn_save": btn_save_settings,
         "btn_clear_cache": btn_clear_cache,
+        "btn_restart": btn_restart,
         "btn_export_prompts": btn_export_prompts,
         "btn_import_prompts": btn_import_prompts,
         "exported_file": exported_file
     }
-
-def bind_events(settings_ui, state_api_key, gallery_output_history):
-    settings_ui["btn_save"].click(
-        save_cfg_wrapper,
-        inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
-        outputs=[state_api_key, gallery_output_history]
-    )
-    settings_ui["btn_clear_cache"].click(fn=clear_cache)

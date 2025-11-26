@@ -11,12 +11,14 @@ from app_logic import (
     init_app_data, 
     create_genai_client,
     start_chat_task,
-    poll_chat_task_status_callback
+    poll_chat_task_status_callback,
+    logger_utils as app_logic_logger,
+    restart_app
 )
 from logger_utils import get_logs
 from ticker import ticker_instance
 
-from component import header, main_page, settings_page, chat_page
+from component import header, main_page, settings_page, chat_page, history_page
 from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
@@ -37,6 +39,19 @@ ticker_instance.register(poll_task_status_callback)
 ticker_instance.register(poll_chat_task_status_callback)
 ticker_instance.register(get_logs)
 
+# --- 顶层辅助函数 ---
+def save_and_update_client(key, path, prefix, lang):
+    db.save_setting("api_key", key)
+    db.save_setting("save_path", path)
+    db.save_setting("file_prefix", prefix)
+    db.save_setting("language", lang)
+    app_logic_logger.log(i18n.get("logic_info_configSaved"))
+    gr.Info(i18n.get("logic_info_configSaved"))
+    
+    new_client = create_genai_client(key)
+    # 同时更新历史记录页面
+    return key, new_client, history_page.load_output_gallery()
+
 
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
@@ -56,19 +71,18 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
 
     # 1. 顶部工具栏 (Header)
-    btn_restart, btn_theme = header.render()
-
-    # 预创建输出历史组件 (供 main_page 使用)
-    gallery_output_history = gr.Gallery(label="Outputs", columns=4, height=520, allow_preview=True, interactive=False,
-                                        object_fit="contain", render=False)
+    btn_theme = header.render()
 
     # 2. Tab 容器
     with gr.Tabs() as main_tabs:
         with gr.TabItem(i18n.get("app_tab_home"), id="tab_home"):
-            main_ui = main_page.render(state_api_key, gallery_output_history)
+            main_ui = main_page.render(state_api_key)
         
         with gr.TabItem(i18n.get("app_tab_chat"), id="tab_chat"):
             chat_ui = chat_page.render(state_api_key)
+
+        with gr.TabItem(i18n.get("app_tab_history"), id="tab_history"):
+            history_ui = history_page.render()
 
         with gr.TabItem(i18n.get("app_tab_settings"), id="tab_settings"):
             settings_ui = settings_page.render()
@@ -80,23 +94,13 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     btn_theme.click(None, None, None, js=js_toggle_theme)
 
     # --- 设置页逻辑 ---
-    def save_and_update_client(key, path, prefix, lang):
-        db.save_setting("api_key", key)
-        db.save_setting("save_path", path)
-        db.save_setting("file_prefix", prefix)
-        db.save_setting("language", lang)
-        app_logic.logger_utils.log(i18n.get("logic_info_configSaved"))
-        gr.Info(i18n.get("logic_info_configSaved"))
-        
-        new_client = create_genai_client(key)
-        return key, new_client, main_page.load_output_gallery()
-
     settings_ui["btn_save"].click(
         save_and_update_client,
         inputs=[settings_ui["api_key"], settings_ui["path"], settings_ui["prefix"], settings_ui["lang"]],
-        outputs=[state_api_key, state_genai_client, gallery_output_history]
+        outputs=[state_api_key, state_genai_client, history_ui["gallery_output_history"]]
     )
     settings_ui["btn_clear_cache"].click(fn=settings_page.clear_cache)
+    settings_ui["btn_restart"].click(fn=restart_app, inputs=None, outputs=None)
     settings_ui["btn_export_prompts"].click(
         fn=settings_page.export_prompts_logic,
         inputs=None,
@@ -157,24 +161,25 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     chat_ui["chat_size_slider"].change(lambda x: gr.Gallery(columns=x), chat_ui["chat_size_slider"], chat_ui["chat_gallery_source"])
 
 
-    # --- 主页: 历史记录 ---
-    main_ui["btn_open_out_dir"].click(fn=main_page.open_output_folder)
-    gallery_output_history.select(
-        main_page.on_gallery_select,
-        inputs=[gallery_output_history],
+    # --- 历史记录页 ---
+    history_ui["btn_open_out_dir"].click(fn=history_page.open_output_folder)
+    history_ui["btn_refresh_history"].click(fn=history_page.load_output_gallery, outputs=history_ui["gallery_output_history"])
+    history_ui["gallery_output_history"].select(
+        history_page.on_gallery_select,
+        inputs=[history_ui["gallery_output_history"]],
         outputs=[
-            main_ui["btn_download_hist"],
-            main_ui["btn_delete_hist"],
-            main_ui["state_hist_selected_path"]
+            history_ui["btn_download_hist"],
+            history_ui["btn_delete_hist"],
+            history_ui["state_hist_selected_path"]
         ]
     )
-    main_ui["btn_delete_hist"].click(
-        main_page.delete_output_file,
-        inputs=[main_ui["state_hist_selected_path"]],
+    history_ui["btn_delete_hist"].click(
+        history_page.delete_output_file,
+        inputs=[history_ui["state_hist_selected_path"]],
         outputs=[
-            gallery_output_history,
-            main_ui["btn_download_hist"],
-            main_ui["btn_delete_hist"]
+            history_ui["gallery_output_history"],
+            history_ui["btn_download_hist"],
+            history_ui["btn_delete_hist"]
         ]
     )
 
@@ -182,8 +187,6 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     main_ui["gallery_source"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
     main_ui["gallery_upload"].select(main_page.mark_for_add, None, main_ui["state_marked_for_add"])
     main_ui["gallery_selected"].select(main_page.mark_for_remove, None, main_ui["state_marked_for_remove"])
-    
-    # 聊天页: 从素材库添加图片到输入框
     chat_ui["chat_gallery_source"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
     chat_ui["chat_gallery_upload"].select(chat_page.add_image_to_chat_input, inputs=[chat_ui["chat_input"]], outputs=[chat_ui["chat_input"]])
 
@@ -270,9 +273,9 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # --- 主页: 结果触发历史刷新 ---
     main_ui["result_image"].change(
-        fn=main_page.load_output_gallery,
+        fn=history_page.load_output_gallery,
         inputs=None,
-        outputs=[gallery_output_history]
+        outputs=[history_ui["gallery_output_history"]]
     )
 
 
@@ -300,9 +303,9 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
         inputs=[state_main_dir_images],
         outputs=[main_ui["gallery_source"]]
     ).then(
-        main_page.load_output_gallery,
+        history_page.load_output_gallery,
         inputs=None,
-        outputs=[gallery_output_history]
+        outputs=[history_ui["gallery_output_history"]]
     )
 
 if __name__ == "__main__":

@@ -17,55 +17,31 @@ import shutil
 import platform
 import subprocess
 from typing import List
-import app_logic
 
 # --- Main Page Logic ---
 
 def open_folder_dialog():
-    """
-    Opens a native folder selection dialog.
-    Uses AppleScript on macOS to avoid threading issues with tkinter.
-    Uses tkinter on other systems.
-    """
     system_platform = platform.system()
     if system_platform == "Darwin":
         script = 'POSIX path of (choose folder with prompt "Please select a folder to process")'
         try:
-            # Execute the AppleScript
-            result = subprocess.run(
-                ['osascript', '-e', script],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            # The path is in stdout, with a trailing newline
-            folder_path = result.stdout.strip()
-            return folder_path
-        except subprocess.CalledProcessError:
-            # This error occurs if the user cancels the dialog
-            logger_utils.log("Folder selection cancelled by user.")
-            return None
-        except Exception as e:
-            # This error occurs if 'osascript' is not found or another error happens
-            logger_utils.log(f"Failed to open folder dialog using AppleScript: {e}")
-            gr.Warning("Could not open folder dialog. Please check system configuration.")
+            result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, check=True)
+            return result.stdout.strip()
+        except (subprocess.CalledProcessError, Exception) as e:
+            logger_utils.log(f"Failed to open folder dialog: {e}")
             return None
     else:
-        # Fallback to tkinter for other systems (Windows, Linux)
         import tkinter as tk
         from tkinter import filedialog
         try:
             root = tk.Tk()
             root.withdraw()
-            # Make sure the dialog appears on top of other windows
             root.attributes('-topmost', True)
             folder_path = filedialog.askdirectory()
             root.destroy()
-            # askdirectory returns "" on cancel, convert to None for consistency
             return folder_path if folder_path else None
         except Exception as e:
-            logger_utils.log(f"Failed to open folder dialog using tkinter: {e}")
-            gr.Warning("Could not open folder dialog. Your system may be missing a graphical backend.")
+            logger_utils.log(f"Failed to open folder dialog: {e}")
             return None
 
 def load_images_from_dir(dir_path, recursive):
@@ -88,36 +64,20 @@ def load_images_from_dir(dir_path, recursive):
     return image_files, msg
 
 def handle_upload(files):
-    if not files:
-        return []
-    
+    if not files: return []
     saved_paths = []
     for temp_path in files:
-        if not temp_path:
-            continue
-            
+        if not temp_path: continue
         original_name = os.path.basename(temp_path)
         target_path = os.path.join(UPLOAD_DIR, original_name)
-        
         try:
             shutil.copy(temp_path, target_path)
             saved_paths.append(target_path)
         except Exception as e:
             logger_utils.log(f"Failed to copy uploaded file: {e}")
-
     if saved_paths:
         logger_utils.log(f"Uploaded and saved {len(saved_paths)} files.")
-        
     return saved_paths
-
-def load_output_gallery():
-    save_dir = db.get_setting("save_path")
-    if not save_dir or not os.path.exists(save_dir):
-        return []
-    files = [os.path.join(save_dir, f) for f in os.listdir(save_dir)
-             if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
-    files.sort(key=os.path.getmtime, reverse=True)
-    return files
 
 def mark_for_add(evt: gr.SelectData):
     if evt.value and isinstance(evt.value, dict) and 'image' in evt.value and 'path' in evt.value['image']:
@@ -130,8 +90,7 @@ def mark_for_remove(evt: gr.SelectData):
     return None
 
 def add_marked_to_selected(marked_path: str, current_selected: List[str]):
-    if not marked_path:
-        return current_selected
+    if not marked_path: return current_selected
     if marked_path not in current_selected:
         new_selected = current_selected + [marked_path]
         if len(new_selected) > 5:
@@ -175,88 +134,11 @@ def delete_prompt_from_db(selected_title):
     gr.Info(i18n.get("logic_info_promptDeleted", title=selected_title))
     return refresh_prompt_dropdown()
 
-def open_output_folder():
-    path = db.get_setting("save_path", "outputs")
-    if not os.path.exists(path):
-        try:
-            os.makedirs(path, exist_ok=True)
-        except Exception as e:
-            gr.Warning(i18n.get("logic_error_createDir", error=e))
-            return
-    abs_path = os.path.abspath(path)
-    logger_utils.log(f"嘗試打開目錄: {abs_path}")
-    try:
-        system_platform = platform.system()
-        if system_platform == "Windows":
-            os.startfile(abs_path)
-        elif system_platform == "Darwin":
-            subprocess.run(["open", abs_path])
-        else:
-            subprocess.run(["xdg-open", abs_path])
-    except Exception as e:
-        err_msg = i18n.get("logic_error_openFolder", error=e)
-        logger_utils.log(err_msg)
-        gr.Warning(err_msg)
-
-def on_gallery_select(evt: gr.SelectData, gallery_data):
-    if not gallery_data or evt.index is None:
-        return gr.update(interactive=False), gr.update(interactive=False), None
-    try:
-        selected_item = gallery_data[evt.index]
-        temp_path = None
-        if isinstance(selected_item, (list, tuple)):
-            temp_path = selected_item[0]
-        elif isinstance(selected_item, str):
-            temp_path = selected_item
-        elif hasattr(selected_item, "root") and hasattr(selected_item, "name"):
-            temp_path = selected_item.path
-        else:
-            temp_path = selected_item.get("name") or selected_item.get("path")
-        if temp_path:
-            filename = os.path.basename(temp_path)
-            save_dir = db.get_setting("save_path", "outputs")
-            real_path = os.path.abspath(os.path.join(save_dir, filename))
-            final_path = temp_path
-            if os.path.exists(real_path):
-                final_path = real_path
-            else:
-                logger_utils.log(i18n.get("logic_log_originalFileNotFound", path=real_path))
-            return (
-                gr.DownloadButton(value=final_path, label=i18n.get("home_history_btn_download") + f" ({filename})", interactive=True),
-                gr.Button(interactive=True),
-                final_path
-            )
-    except Exception as e:
-        logger_utils.log(i18n.get("logic_error_gallerySelect", error=e))
-    return gr.update(interactive=False), gr.update(interactive=False), None
-
-
-def delete_output_file(file_path):
-    if not file_path:
-        gr.Warning(i18n.get("logic_warn_noImageSelected"))
-        return gr.skip(), gr.skip(), gr.skip()
-    if os.path.exists(file_path):
-        try:
-            os.remove(file_path)
-            logger_utils.log(i18n.get("logic_log_deletedFile", path=file_path))
-            gr.Info(i18n.get("logic_info_deleteSuccess"))
-        except Exception as e:
-            logger_utils.log(i18n.get("logic_error_deleteFailed", error=e))
-            gr.Warning(i18n.get("logic_warn_deleteFailed", error=e))
-    new_gallery = load_output_gallery()
-    return (
-        new_gallery,
-        gr.DownloadButton(value=None, label=i18n.get("home_history_btn_download"), interactive=False),
-        gr.Button(interactive=False)
-    )
-
 # --- UI Rendering ---
 
-def render(state_api_key, gallery_output_history):
+def render(state_api_key):
     settings = db.get_all_settings()
     initial_prompts = db.get_all_prompt_titles()
-    
-    history_visible = bool(settings.get("save_path"))
 
     with gr.Row(equal_height=False):
         with gr.Column(scale=4):
@@ -271,25 +153,15 @@ def render(state_api_key, gallery_output_history):
                         with gr.Row():
                             recursive_checkbox = gr.Checkbox(label=i18n.get("home_assets_label_recursive"), value=False)
                             size_slider = gr.Slider(2, 6, value=4, step=1, label=i18n.get("home_assets_label_columns"))
-                        gallery_source = gr.Gallery(label=i18n.get("home_assets_label_source"), columns=4, height=480, allow_preview=False, object_fit="contain")
+                        gallery_source = gr.Gallery(label=i18n.get("home_assets_label_source"), columns=4, height="auto", allow_preview=False, object_fit="contain")
                     
                     with gr.TabItem(i18n.get("home_assets_tab_upload")):
                         upload_button = gr.UploadButton(i18n.get("home_assets_btn_upload"), file_types=["image"], file_count="multiple")
-                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height=480, allow_preview=False, object_fit="contain", interactive=True)
+                        gallery_upload = gr.Gallery(label="Uploaded", columns=4, height="auto", allow_preview=False, object_fit="contain", interactive=True)
 
                 btn_add_to_selected = gr.Button(i18n.get("home_assets_btn_addToSelected"), variant="primary")
                 info_box = gr.Markdown(i18n.get("home_assets_info_ready"))
                 state_marked_for_add = gr.State(None)
-
-            with gr.Group(visible=history_visible) as history_group:
-                with gr.Row():
-                    gr.Markdown(f"#### {i18n.get('home_history_title')}")
-                    btn_open_out_dir = gr.Button(i18n.get("home_history_btn_open"), scale=0, size="sm")
-                gallery_output_history.render()
-                with gr.Row():
-                    btn_download_hist = gr.DownloadButton(i18n.get("home_history_btn_download"), size="sm", scale=1, interactive=False)
-                    btn_delete_hist = gr.Button(i18n.get("home_history_btn_delete"), size="sm", variant="stop", scale=1, interactive=False)
-                state_hist_selected_path = gr.State(value=None)
 
         with gr.Column(scale=6):
             with gr.Group():
@@ -350,10 +222,6 @@ def render(state_api_key, gallery_output_history):
         "log_output": log_output,
         "result_image": result_image,
         "btn_download": btn_download,
-        "btn_open_out_dir": btn_open_out_dir,
-        "btn_download_hist": btn_download_hist,
-        "btn_delete_hist": btn_delete_hist,
-        "state_hist_selected_path": state_hist_selected_path,
         "state_selected_images": state_selected_images,
         "btn_add_to_selected": btn_add_to_selected,
         "btn_remove_from_selected": btn_remove_from_selected,
@@ -361,5 +229,4 @@ def render(state_api_key, gallery_output_history):
         "state_marked_for_remove": state_marked_for_remove,
         "upload_button": upload_button,
         "gallery_upload": gallery_upload,
-        "history_group": history_group
     }

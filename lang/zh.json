@@ -1,7 +1,8 @@
 {
     "app_title": "🍌 Banana Pro Studio",
-    "app_tab_home": "创作工作台",
-    "app_tab_chat": "多模态对话",
+    "app_tab_home": "单图编辑",
+    "app_tab_chat": "聊天",
+    "app_tab_history": "历史记录",
     "app_tab_settings": "系统设置",
 
     "home_assets_title": "📂 素材库",

@@ -1,7 +1,8 @@
 {
     "app_title": "🍌 Banana Pro Studio",
-    "app_tab_home": "Workbench",
-    "app_tab_chat": "Multimodal Chat",
+    "app_tab_home": "Single Image Edit",
+    "app_tab_chat": "Chat",
+    "app_tab_history": "History",
     "app_tab_settings": "Settings",
 
     "home_assets_title": "📂 Assets",
