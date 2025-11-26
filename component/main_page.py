@@ -1,6 +1,15 @@
+import os
+import platform
+import shutil
+import subprocess
+from typing import List
+import tkinter as tk
+from tkinter import filedialog
+
 import gradio as gr
-import i18n
+
 import database as db
+import i18n
 import logger_utils
 from config import (
     MODEL_SELECTOR_CHOICES,
@@ -12,11 +21,7 @@ from config import (
     VALID_IMAGE_EXTENSIONS,
     UPLOAD_DIR
 )
-import os
-import shutil
-import platform
-import subprocess
-from typing import List
+
 
 # --- Main Page Logic ---
 
@@ -31,8 +36,6 @@ def open_folder_dialog():
             logger_utils.log(f"Failed to open folder dialog: {e}")
             return None
     else:
-        import tkinter as tk
-        from tkinter import filedialog
         try:
             root = tk.Tk()
             root.withdraw()

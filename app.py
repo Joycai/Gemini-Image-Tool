@@ -1,25 +1,24 @@
-import sys
 import os
+
 import gradio as gr
+
 import database as db
 import i18n
-
 # 导入回调函数和 Ticker 实例
 from app_logic import (
-    poll_task_status_callback, 
-    start_generation_task, 
-    init_app_data, 
+    poll_task_status_callback,
+    start_generation_task,
+    init_app_data,
     create_genai_client,
     start_chat_task,
     poll_chat_task_status_callback,
     logger_utils as app_logic_logger,
     restart_app
 )
-from logger_utils import get_logs
-from ticker import ticker_instance
-
 from component import header, main_page, settings_page, chat_page, history_page
 from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
+from logger_utils import get_logs
+from ticker import ticker_instance
 
 # ⬇️ 新增 JS：用于切换深色模式
 with open("assets/script.js", "r", encoding="utf-8") as f:
@@ -309,7 +308,6 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     )
 
 if __name__ == "__main__":
-    import platform
     import sys
 
 

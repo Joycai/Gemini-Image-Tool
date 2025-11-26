@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+
 import database as db
 
 # 全局变量存储翻译字典

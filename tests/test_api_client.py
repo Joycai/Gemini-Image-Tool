@@ -1,16 +1,17 @@
-import unittest
-from unittest.mock import patch, MagicMock
 import os
 import sys
-from PIL import Image
+import unittest
 from io import BytesIO
+from unittest.mock import patch, MagicMock
+
 import gradio as gr
+from PIL import Image
 
 # 将项目根目录添加到 Python 路径中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import api_client
-from google.genai import types
+
 
 # 修正：模拟 i18n.get 函数，使其签名与真实函数匹配
 def mock_i18n_get(key, default=None, **kwargs):

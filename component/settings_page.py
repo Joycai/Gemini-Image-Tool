@@ -1,12 +1,15 @@
-import gradio as gr
-import i18n
-import database as db
-import shutil
-import os
 import json
+import os
+import shutil
 import time
-from config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+
+import gradio as gr
+
+import database as db
+import i18n
 from component import main_page
+from config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+
 
 def clear_cache():
     """清空 tmp 目录下的 upload 和 output 文件夹"""

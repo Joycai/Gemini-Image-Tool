@@ -1,5 +1,7 @@
 from typing import Callable, List, Tuple, Any
+
 import gradio as gr
+
 
 class Ticker:
     """

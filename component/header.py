@@ -1,5 +1,7 @@
 import gradio as gr
+
 import i18n
+
 
 def render():
     """

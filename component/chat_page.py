@@ -1,12 +1,12 @@
-import gradio as gr
-import i18n
-import database as db
 import os
 import time
-from PIL import Image
 from typing import List, Dict, Tuple, Optional, Any
-from google import genai
 
+import gradio as gr
+from PIL import Image
+
+import database as db
+import i18n
 from config import (
     MODEL_SELECTOR_CHOICES,
     MODEL_SELECTOR_DEFAULT,

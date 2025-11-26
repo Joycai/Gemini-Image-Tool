@@ -1,26 +1,20 @@
-from typing import List, Tuple, Optional, Any, Dict
 import os
-import time
-import sys
-import base64
-import threading
-import tkinter as tk
-from tkinter import filedialog
-import gradio as gr
 import shutil
-from google import genai
-from PIL import Image
+import sys
+import threading
+import time
+from typing import List, Any
 
+import gradio as gr
+from PIL import Image
+from google import genai
+
+import api_client
 # 引入模块
 import database as db
-import api_client
-import logger_utils
 import i18n
-import platform
-import subprocess
-
-from component import main_page
-from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR
+import logger_utils
+from config import OUTPUT_DIR
 
 # --- 主生成任务状态 ---
 TASK_STATE = {

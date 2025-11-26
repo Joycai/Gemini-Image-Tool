@@ -1,12 +1,13 @@
 import time
+from io import BytesIO
+
+import gradio as gr
+from PIL import Image
 from google import genai
 from google.genai import types
-from PIL import Image
-from io import BytesIO
-import gradio as gr
-import logger_utils
+
 import i18n
-import sys
+import logger_utils
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {

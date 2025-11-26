@@ -1,11 +1,14 @@
-import gradio as gr
-import i18n
-import database as db
-import logger_utils
 import os
 import platform
 import subprocess
+
+import gradio as gr
+
+import database as db
+import i18n
+import logger_utils
 from config import VALID_IMAGE_EXTENSIONS
+
 
 # --- History Page Logic ---
 
