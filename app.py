@@ -21,6 +21,12 @@ if not os.path.exists(UPLOAD_DIR):
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
+# 合并轮询函数
+def combined_poll():
+    img_result, btn_result = app_logic.poll_task_status()
+    log_result = logger_utils.get_logs()
+    return img_result, btn_result, log_result
+
 with gr.Blocks(title=i18n.get("app_title")) as demo:
     gr.HTML(f"<style>{custom_css}</style>")
 
@@ -52,10 +58,6 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
 
     # 主题切换
     btn_theme.click(None, None, None, js=js_toggle_theme)
-
-    # 日志刷新
-    log_timer = gr.Timer(1)
-    log_timer.tick(logger_utils.get_logs, outputs=main_ui["log_output"])
 
     # --- 设置页逻辑 ---
     settings_ui["btn_save"].click(
@@ -172,14 +174,15 @@ with gr.Blocks(title=i18n.get("app_title")) as demo:
     main_ui["btn_send"].click(app_logic.start_generation_task, gen_inputs, None)
     main_ui["btn_retry"].click(app_logic.start_generation_task, gen_inputs, None)
 
-    # 2. 状态轮询定时器 (每1秒检查一次)
+    # 2. 合并后的状态与日志轮询定时器
     poll_timer = gr.Timer(1)
     poll_timer.tick(
-        app_logic.poll_task_status,
+        combined_poll,
         inputs=None,
         outputs=[
             main_ui["result_image"],
-            main_ui["btn_download"]
+            main_ui["btn_download"],
+            main_ui["log_output"]
         ]
     )
 
