@@ -1,5 +1,4 @@
 import datetime
-# from ticker import ticker_instance # 不再需要在这里导入
 
 # 全局日志缓存
 _LOG_BUFFER = []

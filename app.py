@@ -16,7 +16,7 @@ from gapp.app_logic import (
 )
 from common import logger_utils as app_logic_logger, database as db, i18n
 from common.logger_utils import get_logs
-from ticker import ticker_instance
+from gapp.ticker import ticker_instance
 
 from gapp.component import history_page, chat_page, main_page, assets_block, settings_page, header
 from common.config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR

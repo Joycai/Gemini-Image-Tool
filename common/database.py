@@ -1,6 +1,5 @@
 import sqlite3
 import os
-import json
 from common import logger_utils
 
 # Define the storage directory and database file path

@@ -2,13 +2,14 @@ import time
 from io import BytesIO
 from typing import List, Any, Optional, Dict
 
-import gradio as gr
 from PIL import Image
 from google import genai
 from google.genai import types
 from google.genai.chats import Chat
+from google.genai.types import PIL_Image
 
 from common import logger_utils, i18n
+from common.config import MODEL_SELECTOR_DEFAULT
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {
@@ -44,7 +45,7 @@ def _get_model_config(model_id: str, aspect_ratio: str, resolution: str) -> type
         image_config=types.ImageConfig(**image_config_dict)
     )
 
-def _process_response_parts(response_parts: List[Any]) -> Image.Image:
+def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
     """处理 API 响应中的图片部分，提取 PIL.Image 对象"""
     for part in response_parts:
         if part.inline_data and part.inline_data.data:
@@ -77,14 +78,14 @@ def call_google_genai(
     model_id: str, 
     aspect_ratio: str, 
     resolution: str
-) -> Image.Image:
+) -> Image.Image | None:
     if not api_key:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
-        raise gr.Error(msg)
+        return None
 
     if not model_id:
-        model_id = "gemini-1.5-pro"
+        model_id = MODEL_SELECTOR_DEFAULT
 
     client = genai.Client(api_key=api_key)
 
@@ -93,7 +94,9 @@ def call_google_genai(
         logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
         for path in image_paths:
             try:
+                logger_utils.log("fir"+path)
                 img = Image.open(path)
+                logger_utils.log("fir2")
                 contents.append(img)
             except (IOError, OSError) as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
@@ -141,7 +144,7 @@ def call_google_genai(
 
     sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
     logger_utils.log(sys_err_msg)
-    raise gr.Error(sys_err_msg)
+    return None
 
 def call_google_chat(
     genai_client: genai.Client, 
@@ -150,11 +153,11 @@ def call_google_chat(
     model_id: str, 
     aspect_ratio: str, 
     resolution: str
-) -> tuple[Chat, List[Any]]:
+) -> Optional[tuple[Chat, List[Any]]]:
     if genai_client is None:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
-        raise gr.Error(msg)
+        return None
 
     if not model_id:
         model_id = "gemini-1.5-pro-image-preview"
@@ -233,4 +236,4 @@ def call_google_chat(
 
     sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
     logger_utils.log(sys_err_msg)
-    raise gr.Error(sys_err_msg)
+    return None

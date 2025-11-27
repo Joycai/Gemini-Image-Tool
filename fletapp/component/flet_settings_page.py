@@ -44,13 +44,13 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     # --- Database Clear Logic ---
     confirm_dialog = None
 
-    def close_dialog(e):
+    def close_confirm_dialog(e):
         if confirm_dialog:
             page.close(confirm_dialog)
 
     def confirm_clear_data(e):
         if confirm_dialog:
-            close_dialog(e)
+            close_confirm_dialog(e)
         try:
             db.clear_all_data()
             show_snackbar(i18n.get("settings_clear_success", "All data has been cleared successfully."))
@@ -71,7 +71,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         actions=[
             ft.TextButton(i18n.get("dialog_btn_confirm", "Confirm"), on_click=confirm_clear_data,
                           style=ft.ButtonStyle(color="red")),
-            ft.TextButton(i18n.get("dialog_btn_cancel", "Cancel"), on_click=close_dialog),
+            ft.TextButton(i18n.get("dialog_btn_cancel", "Cancel"), on_click=close_confirm_dialog),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
@@ -87,6 +87,20 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             except Exception as ex:
                 show_snackbar(i18n.get("settings_export_error", "Error exporting data: {error}", error=ex), is_error=True)
 
+    # import confirm dalog
+    import_dialog = {}
+
+    def close_import_dialog(e):
+        if import_dialog:
+            page.close(import_dialog)
+
+    import_dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text(i18n.get("settings_import_success_title", "Import Successful")),
+        content=ft.Text(i18n.get("settings_import_success_content", "Data has been imported. Please restart the application for all changes to take effect.")),
+        actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_import_dialog)],
+    )
+
     def on_import_result(e: ft.FilePickerResultEvent):
         if e.files and e.files[0].path:
             filepath = e.files[0].path
@@ -94,14 +108,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
                 with open(filepath, "r", encoding="utf-8") as f:
                     data_to_import = json.load(f)
                 db.import_all_data(data_to_import)
-                
-                page.dialog = ft.AlertDialog(
-                    modal=True,
-                    title=ft.Text(i18n.get("settings_import_success_title", "Import Successful")),
-                    content=ft.Text(i18n.get("settings_import_success_content", "Data has been imported. Please restart the application for all changes to take effect.")),
-                    actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_dialog)],
-                )
-                page.dialog.open = True
+                page.open(import_dialog)
                 page.update()
                 
             except Exception as ex:
