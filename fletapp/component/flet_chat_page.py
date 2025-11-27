@@ -12,43 +12,6 @@ from geminiapi import api_client
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 from fletapp.component.flet_image_preview_dialog import ImagePreviewDialog
 
-class Message(ft.Row):
-    def __init__(self, role: str, parts: List[Any]):
-        super().__init__()
-        self.vertical_alignment = ft.CrossAxisAlignment.START
-        
-        content_controls = []
-        for part in parts:
-            if isinstance(part, str):
-                content_controls.append(ft.Markdown(part, selectable=True, extension_set="gitHubWeb", code_theme="atom-one-dark"))
-            elif isinstance(part, ft.Image):
-                content_controls.append(part)
-
-        bubble_content = ft.Column(content_controls, tight=True, spacing=5)
-        
-        if role == "user":
-            self.alignment = ft.MainAxisAlignment.END
-            bubble = ft.Container(
-                content=bubble_content,
-                bgcolor="primaryContainer", # Corrected to use theme color string
-                padding=10,
-                border_radius=10,
-                margin=ft.margin.only(left=50)
-            )
-            icon = ft.Icon(name=ft.Icons.PERSON, size=30)
-            self.controls = [bubble, icon]
-        else: # assistant
-            self.alignment = ft.MainAxisAlignment.START
-            bubble = ft.Container(
-                content=bubble_content,
-                bgcolor="surfaceVariant", # Corrected to use theme color string
-                padding=10,
-                border_radius=10,
-                margin=ft.margin.only(right=50)
-            )
-            icon = ft.Icon(name=ft.Icons.ASSISTANT, size=30)
-            self.controls = [icon, bubble]
-
 def chat_page(page: Page) -> Container:
     # --- State Management ---
     chat_session_state: Dict[str, Any] = {"session_obj": None}
@@ -63,6 +26,51 @@ def chat_page(page: Page) -> Container:
     # --- Controls ---
     def open_chat_image_preview(image_path: str):
         image_previewer.open(image_path=image_path, on_download=download_image)
+
+    class Message(ft.Row):
+        def __init__(self, role: str, parts: List[Any]):
+            super().__init__()
+            self.vertical_alignment = ft.CrossAxisAlignment.START
+            
+            content_controls = []
+            for part in parts:
+                if isinstance(part, str):
+                    content_controls.append(ft.Markdown(part, selectable=True, extension_set="gitHubWeb", code_theme="atom-one-dark"))
+                elif isinstance(part, ft.Image):
+                    # Restore GestureDetector for double-tap preview
+                    part.border_radius = ft.border_radius.all(10)
+                    part.width = 400
+                    content_controls.append(
+                        ft.GestureDetector(
+                            content=part,
+                            on_double_tap=lambda e, p=part.src: open_chat_image_preview(p)
+                        )
+                    )
+
+            bubble_content = ft.Column(content_controls, tight=True, spacing=5)
+            
+            if role == "user":
+                self.alignment = ft.MainAxisAlignment.END
+                bubble = ft.Container(
+                    content=bubble_content,
+                    bgcolor="primaryContainer",
+                    padding=10,
+                    border_radius=10,
+                    margin=ft.margin.only(left=50)
+                )
+                icon = ft.Icon(name=ft.Icons.PERSON, size=30)
+                self.controls = [bubble, icon]
+            else: # assistant
+                self.alignment = ft.MainAxisAlignment.START
+                bubble = ft.Container(
+                    content=bubble_content,
+                    bgcolor="surfaceVariant",
+                    padding=10,
+                    border_radius=10,
+                    margin=ft.margin.only(right=50)
+                )
+                icon = ft.Icon(name=ft.Icons.ASSISTANT, size=30)
+                self.controls = [icon, bubble]
 
     chat_history = ft.ListView(expand=True, spacing=20, auto_scroll=True)
     thumbnail_row = ft.Row(wrap=True, spacing=10)
@@ -113,8 +121,11 @@ def chat_page(page: Page) -> Container:
             updated_chat_obj, response_parts = api_client.call_google_chat(genai_client=api_client.genai.Client(api_key=api_key), chat_session=chat_session_state.get("session_obj"), prompt_parts=prompt_parts, model_id=model, aspect_ratio=ar, resolution=res)
             chat_session_state["session_obj"] = updated_chat_obj
             
-            if chat_history.controls and isinstance(chat_history.controls[-1], Message) and chat_history.controls[-1].controls[1].content.controls[0].value == "🤔 Thinking...":
-                chat_history.controls.pop()
+            if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+                # Check if the last message is the "Thinking..." bubble
+                last_bubble = chat_history.controls[-1].controls[1]
+                if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                    chat_history.controls.pop()
 
             text_parts = [part for part in response_parts if isinstance(part, str)]
             image_parts = [part for part in response_parts if not isinstance(part, str)]
@@ -144,8 +155,10 @@ def chat_page(page: Page) -> Container:
                 page.update()
         except Exception as e:
             logger_utils.log(f"Chat API call failed: {e}")
-            if chat_history.controls and isinstance(chat_history.controls[-1], Message) and chat_history.controls[-1].controls[1].content.controls[0].value == "🤔 Thinking...":
-                chat_history.controls.pop()
+            if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+                last_bubble = chat_history.controls[-1].controls[1]
+                if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                    chat_history.controls.pop()
             chat_history.controls.append(Message(role="assistant", parts=[f"😥 Oops, something went wrong:\n\n{e}"]))
         finally:
             api_task_running.clear()
