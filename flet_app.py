@@ -17,17 +17,32 @@ def main(page: ft.Page):
 
     page.title = i18n.get("app_title")
     page.vertical_alignment = ft.MainAxisAlignment.START
+    
+    # Set initial theme
+    page.theme_mode = ft.ThemeMode.LIGHT
+
+    # --- Theme Toggle Logic ---
+    def toggle_theme(e):
+        if page.theme_mode == ft.ThemeMode.LIGHT:
+            page.theme_mode = ft.ThemeMode.DARK
+            theme_toggle_button.icon = ft.Icons.WB_SUNNY_OUTLINED # Corrected
+        else:
+            page.theme_mode = ft.ThemeMode.LIGHT
+            theme_toggle_button.icon = ft.Icons.DARK_MODE_OUTLINED # Corrected
+        page.update()
+
+    theme_toggle_button = ft.IconButton(
+        icon=ft.Icons.DARK_MODE_OUTLINED, # Corrected
+        tooltip=i18n.get("header_theme_button_tooltip", "Toggle theme"),
+        on_click=toggle_theme
+    )
 
     # Header equivalent
     page.appbar = ft.AppBar(
         title=ft.Text(i18n.get("app_title")),
         center_title=False,
         actions=[
-            ft.IconButton(
-                icon=ft.Icons.COLOR_LENS,
-                tooltip=i18n.get("header_theme_button_tooltip", "Toggle theme"),
-                on_click=lambda e: print("Theme button clicked") # Placeholder for theme toggle logic
-            )
+            theme_toggle_button # Use the created button instance
         ]
     )
 
