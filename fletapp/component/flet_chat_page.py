@@ -37,7 +37,6 @@ def chat_page(page: Page) -> Container:
                 if isinstance(part, str):
                     content_controls.append(ft.Markdown(part, selectable=True, extension_set="gitHubWeb", code_theme="atom-one-dark"))
                 elif isinstance(part, ft.Image):
-                    # Restore GestureDetector for double-tap preview
                     part.border_radius = ft.border_radius.all(10)
                     part.width = 400
                     content_controls.append(
@@ -79,6 +78,58 @@ def chat_page(page: Page) -> Container:
     model_selector = ft.Dropdown(label=i18n.get("home_control_model_label"), options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES], value=MODEL_SELECTOR_CHOICES[0], expand=2)
     ar_selector = ft.Dropdown(label=i18n.get("home_control_ratio_label"), options=[ft.dropdown.Option(key=value, text=text) for text, value in i18n.get_translated_choices(AR_SELECTOR_CHOICES)], value=AR_SELECTOR_CHOICES[0], expand=1)
     res_selector = ft.Dropdown(label=i18n.get("home_control_resolution_label"), options=[ft.dropdown.Option(res) for res in RES_SELECTOR_CHOICES], value=RES_SELECTOR_CHOICES[0], expand=1)
+
+    # --- Prompt Management Controls ---
+    prompt_dropdown = ft.Dropdown(label=i18n.get("home_control_prompt_label_history"), hint_text=i18n.get("home_control_prompt_placeholder"), options=[], expand=True)
+    prompt_title_input = ft.TextField(label=i18n.get("home_control_prompt_save_label"), hint_text=i18n.get("home_control_prompt_save_placeholder"), expand=True)
+
+    # --- Functions ---
+    def show_snackbar(message: str, is_error: bool = False):
+        page.snack_bar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=ft.Colors.ERROR if is_error else ft.Colors.GREEN_700,
+        )
+        page.snack_bar.open = True
+        page.update()
+
+    def refresh_prompts_dropdown():
+        titles = db.get_all_prompt_titles()
+        prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
+        prompt_dropdown.update()
+
+    def load_prompt_handler(e):
+        selected_title = prompt_dropdown.value
+        if not selected_title:
+            show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to load."), is_error=True)
+            return
+        content = db.get_prompt_content(selected_title)
+        user_input.value = content
+        logger_utils.log(i18n.get("logic_log_loadPrompt", title=selected_title))
+        user_input.update()
+
+    def save_prompt_handler(e):
+        title = prompt_title_input.value
+        content = user_input.value
+        if not title or not content:
+            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
+            return
+        db.save_prompt(title, content)
+        logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
+        show_snackbar(i18n.get("logic_info_promptSaved", title=title))
+        prompt_title_input.value = ""
+        prompt_title_input.update()
+        refresh_prompts_dropdown()
+
+    def delete_prompt_handler(e):
+        selected_title = prompt_dropdown.value
+        if not selected_title:
+            show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."), is_error=True)
+            return
+        db.delete_prompt(selected_title)
+        logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
+        show_snackbar(i18n.get("logic_info_promptDeleted", title=selected_title))
+        prompt_dropdown.value = None
+        refresh_prompts_dropdown()
 
     def update_thumbnail_display():
         thumbnail_row.controls.clear()
@@ -122,7 +173,6 @@ def chat_page(page: Page) -> Container:
             chat_session_state["session_obj"] = updated_chat_obj
             
             if chat_history.controls and isinstance(chat_history.controls[-1], Message):
-                # Check if the last message is the "Thinking..." bubble
                 last_bubble = chat_history.controls[-1].controls[1]
                 if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
                     chat_history.controls.pop()
@@ -145,7 +195,6 @@ def chat_page(page: Page) -> Container:
                         try:
                             filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
                             img_part.save(filepath)
-                            
                             flet_image = ft.Image(src=filepath)
                             chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
                         except Exception as e:
@@ -214,12 +263,25 @@ def chat_page(page: Page) -> Container:
         file_picker.on_result = on_save_result
         file_picker.save_file(file_name=os.path.basename(image_path))
 
+    # --- Initialization ---
+    threading.Timer(0.2, refresh_prompts_dropdown).start()
+
     return ft.Container(
         content=ft.Column([
             chat_history,
             ft.Row([model_selector, ar_selector, res_selector]),
+            ft.Divider(),
+            ft.Row([
+                prompt_dropdown,
+                ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_load")),
+                ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_delete")),
+            ]),
             thumbnail_row,
             ft.Row([user_input, upload_button, send_button], vertical_alignment=ft.CrossAxisAlignment.START),
+            ft.Row([
+                prompt_title_input,
+                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE, on_click=save_prompt_handler),
+            ]),
             ft.Row([clear_button])
         ]),
         padding=ft.padding.all(10),
