@@ -15,7 +15,12 @@ class ImagePreviewDialog:
 
         # --- Internal Controls ---
         self.preview_image = ft.Image(
-            fit=ft.ImageFit.CONTAIN,
+            # Let the Image control fill the viewport and handle centering via fit
+            width=self.VIEWPORT_WIDTH,
+            height=self.VIEWPORT_HEIGHT,
+            fit=ft.ImageFit.CONTAIN, 
+            
+            # Transformations start from a neutral state
             scale=self.INITIAL_SCALE,
             left=0,
             top=0,
@@ -32,7 +37,6 @@ class ImagePreviewDialog:
                     height=self.VIEWPORT_HEIGHT,
                     content=ft.Stack(controls=[self.preview_image]),
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    alignment=ft.alignment.center,
                 ),
                 on_scroll=self._on_scroll_zoom,
                 on_pan_update=self._on_pan_update,
@@ -62,8 +66,9 @@ class ImagePreviewDialog:
         self.preview_image.update()
 
     def open(self, image_path: str, on_delete: Callable[[str], None] = None, on_download: Callable[[str], None] = None):
-        # Reset image state
         self.preview_image.src = image_path
+        
+        # Reset all transformations to their initial state
         self.preview_image.scale = self.INITIAL_SCALE
         self.preview_image.left = 0
         self.preview_image.top = 0

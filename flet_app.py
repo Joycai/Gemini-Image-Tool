@@ -9,6 +9,7 @@ from common import i18n
 from fletapp.component.flet_single_edit_tab import single_edit_tab
 from fletapp.component.flet_settings_page import settings_page
 from fletapp.component.flet_history_page import history_page
+from fletapp.component.flet_chat_page import chat_page
 
 
 def main(page: ft.Page):
@@ -58,11 +59,11 @@ def main(page: ft.Page):
             ),
             ft.Tab(
                 text=i18n.get("app_tab_chat"),
-                content=ft.Text("Chat Page Content")
+                content=chat_page(page) # Replaced placeholder
             ),
             ft.Tab(
                 text=i18n.get("app_tab_history"),
-                content=history_page(page) # Replaced placeholder
+                content=history_page(page)
             ),
             ft.Tab(
                 text=i18n.get("app_tab_settings"),
