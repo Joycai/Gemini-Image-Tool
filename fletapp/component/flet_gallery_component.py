@@ -1,12 +1,14 @@
 import os
 from typing import Union, Callable
+import threading
 
 import flet as ft
 from flet.core.container import Container
 from flet.core.page import Page
 
-# Import VALID_IMAGE_EXTENSIONS from config.py
+# Import common modules
 from common.config import VALID_IMAGE_EXTENSIONS
+from common import database as db
 
 def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_select: Callable[[str], None] = None) -> Container:
     # --- Single Image Editor Page Controls and Handlers ---
@@ -57,9 +59,10 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
         image_gallery.controls.clear()
         if not os.path.isdir(directory_path):
             image_gallery.controls.append(ft.Text("Invalid directory."))
-            image_gallery.update()
+            if page: page.update()
             return
 
+        image_paths = []
         if include_subdirectories:
             for root, _, files in os.walk(directory_path):
                 for filename in files:
@@ -67,61 +70,43 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                     if os.path.isfile(file_path):
                         _, ext = os.path.splitext(filename)
                         if ext.lower() in VALID_IMAGE_EXTENSIONS:
-                            # Define on_tap handler
-                            def _on_tap(e, path=file_path):
-                                if on_image_select:
-                                    on_image_select(path)
-
-                            image_gallery.controls.append(
-                                ft.GestureDetector(
-                                    content=ft.Container(
-                                        width=150,
-                                        height=150,
-                                        border_radius=ft.border_radius.all(5),
-                                        content=ft.Image(
-                                            src=file_path,
-                                            fit=ft.ImageFit.CONTAIN,
-                                            tooltip=filename
-                                        ),
-                                        alignment=ft.alignment.center,
-                                    ),
-                                    on_double_tap=lambda e, path=file_path: open_image_preview(e, path),
-                                    on_tap=_on_tap # Add on_tap event
-                                )
-                            )
+                            image_paths.append(file_path)
         else:
             for filename in os.listdir(directory_path):
                 file_path = os.path.join(directory_path, filename)
                 if os.path.isfile(file_path):
                     _, ext = os.path.splitext(filename)
                     if ext.lower() in VALID_IMAGE_EXTENSIONS:
-                        # Define on_tap handler
-                        def _on_tap(e, path=file_path):
-                            if on_image_select:
-                                on_image_select(path)
+                        image_paths.append(file_path)
+        
+        for path in image_paths:
+            def _on_tap(e, p=path):
+                if on_image_select:
+                    on_image_select(p)
 
-                        image_gallery.controls.append(
-                            ft.GestureDetector(
-                                content=ft.Container(
-                                    width=150,
-                                    height=150,
-                                    border_radius=ft.border_radius.all(5),
-                                    content=ft.Image(
-                                        src=file_path,
-                                        fit=ft.ImageFit.CONTAIN,
-                                        tooltip=filename
-                                    ),
-                                    alignment=ft.alignment.center,
-                                ),
-                                on_double_tap=lambda e, path=file_path: open_image_preview(e, path),
-                                on_tap=_on_tap # Add on_tap event
-                            )
-                        )
-        image_gallery.update()
+            image_gallery.controls.append(
+                ft.GestureDetector(
+                    content=ft.Container(
+                        width=150,
+                        height=150,
+                        border_radius=ft.border_radius.all(5),
+                        content=ft.Image(
+                            src=path,
+                            fit=ft.ImageFit.CONTAIN,
+                            tooltip=os.path.basename(path)
+                        ),
+                        alignment=ft.alignment.center,
+                    ),
+                    on_double_tap=lambda e, p=path: open_image_preview(e, p),
+                    on_tap=_on_tap
+                )
+            )
+        if page: page.update()
 
     def on_directory_picked(e: ft.FilePickerResultEvent):
         if e.path:
             selected_directory.value = e.path
+            db.save_setting("last_dir", e.path) # Save the new directory
             selected_directory.update()
             load_images_from_directory(e.path, include_subdirectories_checkbox.value)
         else:
@@ -137,7 +122,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
         file_picker.get_directory_path()
 
     def include_subdirectories_changed(e):
-        if selected_directory.value:
+        if selected_directory.value and os.path.isdir(selected_directory.value):
             load_images_from_directory(selected_directory.value, include_subdirectories_checkbox.value)
 
     # Checkbox to include subdirectories
@@ -146,6 +131,21 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
         value=False,
         on_change=include_subdirectories_changed
     )
+
+    # --- Initialization Logic using threading.Timer ---
+    def delayed_initialize():
+        last_dir = db.get_setting("last_dir")
+        if last_dir and os.path.isdir(last_dir):
+            selected_directory.value = last_dir
+            load_images_from_directory(last_dir, include_subdirectories_checkbox.value)
+        else:
+            selected_directory.value = "No directory selected."
+        
+        # Safely update the page now
+        if page: page.update()
+
+    # Use a timer to run initialization shortly after the UI is built
+    threading.Timer(0.1, delayed_initialize).start()
 
     return ft.Container(
         content=ft.Column(

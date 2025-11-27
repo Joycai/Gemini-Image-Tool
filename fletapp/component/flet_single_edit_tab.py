@@ -2,16 +2,17 @@ import flet as ft
 from flet.core.container import Container
 from flet.core.page import Page
 import os
-from typing import List
+from typing import Callable, List
 import threading
 import time
 import shutil
 
-from fletapp.component.flet_gallery_component import local_gallery_component
 # Custom imports
+from common import database as db, logger_utils, i18n
 from geminiapi import api_client
-from common import logger_utils, database as db, i18n
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+
+from fletapp.component.flet_gallery_component import local_gallery_component
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -82,33 +83,23 @@ def single_edit_tab(page: Page) -> Container:
                 )
             )
             selected_images_grid.update()
-        # else:
-            # Optionally, provide feedback that the image is already selected
-            # print(f"Image {image_path} is already selected.")
 
     # Components for the right-hand side (output/control panel)
     prompt_input = ft.TextField(
-        label="Prompt Input",
+        label=i18n.get("home_control_prompt_input_placeholder"),
         multiline=True,
         min_lines=3,
         max_lines=5,
-        hint_text="Enter your prompt here...",
+        hint_text=i18n.get("home_control_prompt_input_placeholder"),
         expand=True
     )
     
-    log_output_text = ft.Text("Log messages will appear here...", selectable=True)
+    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True)
     api_response_image = ft.Image(
         src="https://via.placeholder.com/300x200?text=API+Response", # Placeholder image
         fit=ft.ImageFit.CONTAIN,
         expand=True
     )
-
-    def _update_log(message: str, append: bool = True):
-        if append:
-            log_output_text.value += "\n" + message
-        else:
-            log_output_text.value = message
-        page.update()
 
     # Threading event to stop the log updater thread
     stop_log_updater = threading.Event()
@@ -136,7 +127,6 @@ def single_edit_tab(page: Page) -> Container:
         api_task_state["result_image_path"] = None
         api_task_state["error_msg"] = None
         logger_utils.log(i18n.get("logic_log_newTask"))
-        logger_utils.log(f"Sending request to Gemini API...")
         
         try:
             generated_image = api_client.call_google_genai(
@@ -160,7 +150,6 @@ def single_edit_tab(page: Page) -> Container:
             api_response_image.src = temp_path
             logger_utils.log(i18n.get("logic_log_saveOk", path=temp_path))
             
-            # Optionally copy to permanent save path if configured
             permanent_dir = db.get_setting("save_path")
             if permanent_dir:
                 try:
@@ -177,11 +166,11 @@ def single_edit_tab(page: Page) -> Container:
             api_task_state["status"] = "error"
             logger_utils.log(i18n.get("logic_warn_taskFailed", error_msg=error_msg))
         finally:
-            page.update() # Ensure UI updates after task completion/error
+            page.update()
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
-            logger_utils.log("An API task is already running. Please wait.")
+            logger_utils.log(i18n.get("logic_warn_taskRunning"))
             return
 
         api_key = db.get_all_settings().get("api_key")
@@ -195,7 +184,7 @@ def single_edit_tab(page: Page) -> Container:
         selected_resolution = resolution_dropdown.value
         
         if not current_prompt and not selected_images_paths:
-            logger_utils.log("Please provide a prompt or select images.")
+            logger_utils.log(i18n.get("logic_warn_promptEmpty"))
             return
 
         threading.Thread(
@@ -235,26 +224,26 @@ def single_edit_tab(page: Page) -> Container:
             original_filename = os.path.basename(api_task_state['result_image_path'])
             file_picker.save_file(
                 file_name=original_filename,
-                allowed_extensions=['png', 'jpg', 'jpeg', 'webp'] # Allow common image extensions
+                allowed_extensions=['png', 'jpg', 'jpeg', 'webp']
             )
         else:
             logger_utils.log("No image available to download.")
 
 
     ratio_dropdown = ft.Dropdown(
-        label="Ratio",
-        options=[ft.dropdown.Option(ar) for ar in AR_SELECTOR_CHOICES],
+        label=i18n.get("home_control_ratio_label"),
+        options=[ft.dropdown.Option(key=value, text=text) for text, value in i18n.get_translated_choices(AR_SELECTOR_CHOICES)],
         value=AR_SELECTOR_CHOICES[0],
         expand=1
     )
     resolution_dropdown = ft.Dropdown(
-        label="Resolution",
+        label=i18n.get("home_control_resolution_label"),
         options=[ft.dropdown.Option(res) for res in RES_SELECTOR_CHOICES],
         value=RES_SELECTOR_CHOICES[0],
         expand=1
     )
     model_selector_dropdown = ft.Dropdown(
-        label="Select Model",
+        label=i18n.get("home_control_model_label"),
         options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
         value=MODEL_SELECTOR_CHOICES[0],
         expand=True
@@ -264,13 +253,12 @@ def single_edit_tab(page: Page) -> Container:
         content=ft.Row(
             [
                 local_gallery_component(page, 4, on_image_select=add_selected_image),
-                ft.VerticalDivider(), # Changed from ft.Divider() for vertical separation
+                ft.VerticalDivider(),
                 ft.Column(
                     [
-                        ft.Text("Selected Images", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
                         selected_images_grid,
                         ft.Divider(),
-                        # Ratio and Resolution Dropdowns
                         ft.Row(
                             [
                                 ratio_dropdown,
@@ -278,21 +266,17 @@ def single_edit_tab(page: Page) -> Container:
                             ],
                             alignment=ft.MainAxisAlignment.START
                         ),
-                        # Prompt Input
                         prompt_input,
-                        # Send Button
                         ft.ElevatedButton(
-                            text="Send Prompt",
+                            text=i18n.get("home_control_btn_send"),
                             icon=ft.Icons.SEND,
                             on_click=send_prompt_handler,
                             expand=True
                         ),
                         ft.Divider(),
-                        # Model Selection
                         model_selector_dropdown,
                         ft.Divider(),
-                        # Log Display
-                        ft.Text("Log Output:", size=14, weight=ft.FontWeight.BOLD),
+                        ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Column(
                                 [
@@ -304,23 +288,21 @@ def single_edit_tab(page: Page) -> Container:
                             border=ft.border.all(1, ft.Colors.GREY_400),
                             border_radius=5,
                             padding=10,
-                            height=150, # Fixed height for log area
+                            height=150,
                             expand=True
                         ),
                         ft.Divider(),
-                        # API Returned Image Preview
-                        ft.Text("Response Preview:", size=14, weight=ft.FontWeight.BOLD),
+                        ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=api_response_image,
                             border=ft.border.all(1, ft.Colors.GREY_400),
                             border_radius=5,
                             padding=5,
-                            height=300, # Fixed height for image preview
+                            height=300,
                             expand=True
                         ),
-                        # Download Button
                         ft.ElevatedButton(
-                            text="Download Original Image",
+                            text=i18n.get("home_preview_btn_download_placeholder"),
                             icon=ft.Icons.DOWNLOAD,
                             on_click=download_image_handler,
                             expand=True
@@ -328,7 +310,7 @@ def single_edit_tab(page: Page) -> Container:
                     ],
                     expand=6,
                     horizontal_alignment=ft.CrossAxisAlignment.START,
-                    scroll=ft.ScrollMode.AUTO # Ensure this column is scrollable if content overflows
+                    scroll=ft.ScrollMode.AUTO
                 )
             ],
             expand=True

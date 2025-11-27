@@ -1,18 +1,19 @@
 import flet as ft
+import sys
+import os
+
+# Add project root to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from common import i18n
 from fletapp.component.flet_single_edit_tab import single_edit_tab
+from fletapp.component.flet_settings_page import settings_page
 
-
-# Removed custom component imports:
-# from component.flet_single_image_editor_page import FletSingleImageEditorPage
-# from component.flet_main_page import FletMainPage
-# from component.flet_chat_page import FletChatPage
-# from component.flet_history_page import FletHistoryPage
-# from component.flet_settings_page import FletSettingsPage
 
 def main(page: ft.Page):
-    # Removed: flet_app_logic.set_flet_page_ref(page)
+    # i18n is automatically initialized when the module is imported.
+    # We may need to explicitly reload it if the language changes in the settings page.
+    i18n.load_language()
 
     page.title = i18n.get("app_title")
     page.vertical_alignment = ft.MainAxisAlignment.START
@@ -30,16 +31,14 @@ def main(page: ft.Page):
         ]
     )
 
-    # --- End Single Image Editor Page Controls and Handlers ---
-
     # Main content area with Tabs
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
         tabs=[
             ft.Tab(
-                text="单图编辑", # Changed tab text
-                content=single_edit_tab(page),
+                text=i18n.get("app_tab_single_edit", "Single Edit"),
+                content=single_edit_tab(page)
             ),
             ft.Tab(
                 text=i18n.get("app_tab_chat"),
@@ -51,7 +50,7 @@ def main(page: ft.Page):
             ),
             ft.Tab(
                 text=i18n.get("app_tab_settings"),
-                content=ft.Text("Settings Page Content")
+                content=settings_page(page) # Replaced placeholder
             ),
         ],
         expand=1
@@ -59,17 +58,6 @@ def main(page: ft.Page):
 
     page.add(main_tabs)
 
-    # Removed: Initial App Data Load
-    # Removed: Apply initial data to UI components
-    # Removed: Update all components after initial data load
-    # Removed: Start periodic UI updates
-    # Removed: Connect FletMainPage and FletChatPage to app_logic functions
-
 
 if __name__ == "__main__":
-    # Ensure necessary directories exist (assuming flet_app_logic still defines these)
-    # These lines are commented out as flet_app_logic is not fully integrated yet.
-    # os.makedirs(flet_app_logic.UPLOAD_DIR, exist_ok=True)
-    # os.makedirs(flet_app_logic.OUTPUT_DIR, exist_ok=True)
-    # os.makedirs(flet_app
     ft.app(target=main)
