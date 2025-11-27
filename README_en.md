@@ -67,11 +67,56 @@ pip install -r requirements.txt
 ```
 
 ### 3. Launch the Application
+
+This project includes two user interfaces (UIs). You can choose one to launch based on your preference.
+
+#### Option A: Gradio Web Interface (Recommended)
 ```bash
 python app.py
 ```
 After launching, the application will automatically open in your default browser at `http://127.0.0.1:7860`.
 
+#### Option B: Flet Native App Interface
+```bash
+flet run flet_app.py
+```
+After launching, a native desktop application window will open.
+
+---
+
+## 📦 Packaging as an Executable
+
+You can package either interface into a standalone desktop application.
+
+### Packaging the Gradio App
+If you want to run this application on a computer without a Python environment, you can package it using PyInstaller.
+
+```bash
+# Make sure PyInstaller is installed: pip install pyinstaller
+
+# Run the packaging command (recommended from the project root)
+pyinstaller app.py --noconsole --onefile --name "BananaProStudio" \
+--add-data "assets;assets" \
+--add-data "lang;lang" \
+--collect-all "gradio_client" \
+--collect-all "quickjs" \
+--collect-all "uvicorn"
+```
+The final executable will be located in the `dist/` directory.
+
+### Packaging the Flet App
+Flet comes with a simpler, built-in packaging tool.
+```bash
+# Run the packaging command
+flet pack flet_app.py
+```
+The final executable will be located in the `dist/` directory.
+
+### Build native Application
+**Windows**
+```bash
+flet build windows --exclude .\storage\database.sqlite
+```
 ---
 
 ## 🧪 Running Tests
@@ -94,7 +139,7 @@ If all tests pass, you will see an "OK" message.
 2.  **Google API Key**: Enter your Gemini API Key (you can get one from [Google AI Studio](https://aistudio.google.com/app/apikey)).
 3.  **Auto Save Path**: Set a directory where your generated images will be permanently saved. The history feature will be disabled if this is left empty.
 4.  **Language**: Choose your preferred interface language.
-5.  Click **"💾 Save Config"**. Language changes require a system restart by clicking the **"♻️ Restart System"** button at the top of the app.
+5.  Click **"💾 Save Config"**. Language changes require a system restart by clicking the **"♻️ Restart Application"** button on the settings page.
 
 ### 2. Basic Workflow
 1.  **Select Assets**:
@@ -109,33 +154,6 @@ If all tests pass, you will see an "OK" message.
 6.  **View Results**:
     *   Upon success, the new image will appear in the "Preview" area on the bottom right.
     *   It will also be automatically added to the "Output History" gallery on the bottom left.
-
----
-
-## 📦 Packaging as an Executable
-
-If you want to run this application on a computer without a Python environment, you can package it using PyInstaller.
-
-```bash
-# Make sure PyInstaller is installed: pip install pyinstaller
-
-# Run the packaging command (recommended from the project root)
-pyinstaller app.py --noconsole --onefile --name "BananaProStudio" \
---add-data "assets;assets" \
---add-data "lang;lang" \
---collect-all "gradio_client" \
---collect-all "quickjs" \
---collect-all "uvicorn"
-```
-
-**Command Breakdown**:
-*   `--noconsole`: (Windows only) Prevents the command-line window from appearing when the app runs.
-*   `--onefile`: Bundles everything into a single executable file.
-*   `--add-data "assets;assets"`: **[Crucial]** Packages the `assets` folder containing CSS and JS files.
-*   `--add-data "lang;lang"`: **[Crucial]** Packages the `lang` folder containing language files.
-*   `--collect-all`: **[Crucial]** Forces PyInstaller to include all necessary dynamic libraries and dependencies for Gradio, preventing "File Not Found" errors at runtime.
-
-The final executable will be located in the `dist/` directory.
 
 ---
 

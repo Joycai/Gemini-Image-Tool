@@ -1,0 +1,33 @@
+[project]
+name = "Gemini-Image-Tool"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "flet==0.28.3",
+    "gradio==5.50.0",
+    "google-genai==1.52.0",
+    "pillow==11.3.0",
+    "requests==2.32.5"
+]
+
+[tool.flet]
+app.path = "."
+app.module = "flet_app"
+
+[tool.uv]
+dev-dependencies = [
+    "flet[all]==0.28.3",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+flet = {extras = ["all"], version = "0.28.3"}
+
+
+[tool.flet.app.boot_screen]
+show = true
+message = "Preparing the app for its first launch…"
