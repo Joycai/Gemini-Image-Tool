@@ -1,24 +1,27 @@
-import flet as ft
-from flet.core.container import Container
-from flet.core.page import Page
 import os
-from typing import Callable, List, Dict, Any
+import shutil
 import threading
 import time
-import shutil
+from typing import List, Dict, Any
+
+import flet as ft
+from flet.core.page import Page
+from flet.core.types import MainAxisAlignment
 
 # Custom imports
 from common import database as db, logger_utils, i18n
-from geminiapi import api_client
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from common.text_encoder import text_encoder
 from fletapp.component.flet_gallery_component import local_gallery_component
+from geminiapi import api_client
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+
 def single_edit_tab(page: Page) -> Dict[str, Any]:
     selected_images_paths: List[str] = []
-    
+
     api_task_state = {
         "status": "idle",
         "result_image_path": None,
@@ -39,14 +42,24 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     )
 
     # --- Main UI Controls ---
-    selected_images_grid = ft.GridView(runs_count=5, max_extent=100, spacing=5, run_spacing=5, child_aspect_ratio=1.0, padding=0, controls=[], expand=True)
-    prompt_input = ft.TextField(label=i18n.get("home_control_prompt_input_placeholder"), multiline=True, min_lines=3, max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=True)
-    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True)
-    api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN, expand=True)
-    ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"), options=[ft.dropdown.Option(key=value, text=text) for text, value in i18n.get_translated_choices(AR_SELECTOR_CHOICES)], value=AR_SELECTOR_CHOICES[0], expand=1)
-    resolution_dropdown = ft.Dropdown(label=i18n.get("home_control_resolution_label"), options=[ft.dropdown.Option(res) for res in RES_SELECTOR_CHOICES], value=RES_SELECTOR_CHOICES[0], expand=1)
-    model_selector_dropdown = ft.Dropdown(label=i18n.get("home_control_model_label"), options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES], value=MODEL_SELECTOR_CHOICES[0], expand=True)
-    
+    selected_images_grid = ft.GridView(runs_count=5, max_extent=100, spacing=5, run_spacing=5, child_aspect_ratio=1.0,
+                                       padding=0, controls=[], expand=True)
+    prompt_input = ft.TextField(label=i18n.get("home_control_prompt_input_placeholder"), multiline=True, min_lines=3,
+                                max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=True)
+    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True, expand=True)
+    api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN,
+                                  expand=True)
+    ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
+                                 options=[ft.dropdown.Option(key=value, text=text) for text, value in
+                                          i18n.get_translated_choices(AR_SELECTOR_CHOICES)],
+                                 value=AR_SELECTOR_CHOICES[0], expand=1)
+    resolution_dropdown = ft.Dropdown(label=i18n.get("home_control_resolution_label"),
+                                      options=[ft.dropdown.Option(res) for res in RES_SELECTOR_CHOICES],
+                                      value=RES_SELECTOR_CHOICES[0], expand=1)
+    model_selector_dropdown = ft.Dropdown(label=i18n.get("home_control_model_label"),
+                                          options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
+                                          value=MODEL_SELECTOR_CHOICES[0], expand=True)
+
     # --- Functions ---
     def show_snackbar(message: str, is_error: bool = False):
         page.snack_bar = ft.SnackBar(
@@ -111,13 +124,17 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         for path in selected_images_paths:
             selected_images_grid.controls.append(
                 ft.GestureDetector(
-                    content=ft.Container(width=100, height=100, border_radius=ft.border_radius.all(5), content=ft.Image(src=path, fit=ft.ImageFit.CONTAIN, tooltip=os.path.basename(path)), alignment=ft.alignment.center),
+                    content=ft.Container(width=100, height=100, border_radius=ft.border_radius.all(5),
+                                         content=ft.Image(src=path, fit=ft.ImageFit.CONTAIN,
+                                                          tooltip=os.path.basename(path)),
+                                         alignment=ft.alignment.center),
                     on_tap=lambda ev, p=path: remove_selected_image(ev, p)
                 )
             )
         selected_images_grid.update()
 
     stop_log_updater = threading.Event()
+
     def _log_updater_thread():
         while not stop_log_updater.is_set():
             current_logs = logger_utils.get_logs()
@@ -125,7 +142,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 log_output_text.value = current_logs
                 page.update()
             time.sleep(1)
-    
+
     log_thread = threading.Thread(target=_log_updater_thread, daemon=True)
     log_thread.start()
     page.on_disconnect = lambda e: stop_log_updater.set()
@@ -134,7 +151,9 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         api_task_state["status"] = "running"
         logger_utils.log(i18n.get("logic_log_newTask"))
         try:
-            generated_image = api_client.call_google_genai(prompt=prompt, image_paths=image_paths, api_key=api_key, model_id=model_id, aspect_ratio=aspect_ratio, resolution=resolution)
+            generated_image = api_client.call_google_genai(prompt=prompt, image_paths=image_paths, api_key=api_key,
+                                                           model_id=model_id, aspect_ratio=aspect_ratio,
+                                                           resolution=resolution)
             prefix = db.get_setting("file_prefix", "gemini_gen")
             filename = f"{prefix}_{int(time.time())}.png"
             temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
@@ -157,17 +176,23 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
-            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True); return
+            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True);
+            return
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
-            show_snackbar(i18n.get("api_error_apiKey"), is_error=True); return
+            show_snackbar(i18n.get("api_error_apiKey"), is_error=True);
+            return
         if not prompt_input.value and not selected_images_paths:
-            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True); return
-        threading.Thread(target=_api_worker, args=(prompt_input.value, selected_images_paths, api_key, model_selector_dropdown.value, ratio_dropdown.value, resolution_dropdown.value)).start()
+            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True);
+            return
+        threading.Thread(target=_api_worker, args=(text_encoder(prompt_input.value), selected_images_paths, api_key,
+                                                   model_selector_dropdown.value, ratio_dropdown.value,
+                                                   resolution_dropdown.value)).start()
         show_snackbar(i18n.get("logic_info_taskSubmitted"))
 
     file_picker = ft.FilePicker(on_result=lambda e: on_file_save_result(e))
     page.overlay.append(file_picker)
+
     def on_file_save_result(e: ft.FilePickerResultEvent):
         if e.path and api_task_state["result_image_path"]:
             try:
@@ -175,9 +200,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 logger_utils.log(f"Image saved to: {e.path}")
             except Exception as ex:
                 logger_utils.log(f"Error saving image: {ex}")
+
     def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
-            file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']), allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
+            file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
+                                  allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
         else:
             show_snackbar(i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
 
@@ -190,33 +217,59 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         content=ft.Row([
             local_gallery_component(page, 4, on_image_select=add_selected_image),
             ft.VerticalDivider(),
-            ft.Column([
-                ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
-                selected_images_grid,
-                ft.Divider(),
-                ft.Row([
-                    prompt_dropdown,
-                    ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_load")),
-                    ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_delete")),
-                ]),
-                prompt_input,
-                ft.Row([
-                    prompt_title_input,
-                    ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE, on_click=save_prompt_handler),
-                ]),
-                ft.Divider(),
-                ft.Row([ratio_dropdown, resolution_dropdown]),
-                model_selector_dropdown,
-                ft.ElevatedButton(text=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND, on_click=send_prompt_handler, expand=True),
-                ft.Divider(),
-                ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
-                ft.Container(content=ft.Column([log_output_text], scroll=ft.ScrollMode.AUTO, expand=True), border=ft.border.all(1, ft.Colors.GREY_400), border_radius=5, padding=10, height=150, expand=True),
-                ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
-                ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400), border_radius=5, padding=5, height=300, expand=True),
-                ft.ElevatedButton(text=i18n.get("home_preview_btn_download_placeholder"), icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
-            ], expand=6, scroll=ft.ScrollMode.AUTO)
-        ], expand=True),
+            ft.Column(
+                [
+                    ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
+                    selected_images_grid,
+                    ft.Divider(),
+                    ft.Row([
+                        prompt_dropdown,
+                        ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
+                                      tooltip=i18n.get("home_control_prompt_btn_load")),
+                        ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
+                                      tooltip=i18n.get("home_control_prompt_btn_delete")),
+                    ]),
+                    prompt_input,
+                    ft.Row([
+                        prompt_title_input,
+                        ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                          on_click=save_prompt_handler),
+                    ]),
+                    ft.Divider(),
+                    ft.Row([ratio_dropdown, resolution_dropdown]),
+                    model_selector_dropdown,
+                    ft.ElevatedButton(text=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
+                                      on_click=send_prompt_handler, expand=True),
+                    ft.Divider(),
+                    ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
+                    ft.Container(
+                        content=ft.Column(
+                            [log_output_text],
+                            scroll=ft.ScrollMode.AUTO,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            expand=1
+                        ),
+                        border=ft.border.all(1, ft.Colors.GREY_400),
+                        border_radius=5,
+                        padding=10,
+                        height=150,
+                        expand=True,
+                    ),
+                    ft.Divider(),
+                    ft.Column(
+                        alignment=MainAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
+                            ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
+                                         border_radius=5, padding=5, height=300, expand=1),
+                            ft.ElevatedButton(text=i18n.get("home_preview_btn_download_placeholder"),
+                                              icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
+                        ],
+                        expand=1
+                    )
+                ], expand=6, scroll=ft.ScrollMode.AUTO)
+        ],expand=True),
         expand=True,
     )
-    
+
     return {"view": view, "init": initialize}

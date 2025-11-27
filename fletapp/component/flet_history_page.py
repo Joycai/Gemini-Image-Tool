@@ -125,10 +125,15 @@ def history_page(page: Page) -> Container:
                 ft.Row(
                     [
                         ft.Text(i18n.get("home_history_title"), size=24, weight=ft.FontWeight.BOLD),
-                        ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=open_output_folder_handler, tooltip=i18n.get("home_history_btn_open")),
-                        ft.IconButton(icon=ft.Icons.REFRESH, on_click=lambda e: load_history_images(), tooltip=i18n.get("home_history_btn_refresh", "Refresh")),
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    ]
+                ),
+                ft.Row(
+                    [
+                        ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=open_output_folder_handler,
+                                      tooltip=i18n.get("home_history_btn_open")),
+                        ft.IconButton(icon=ft.Icons.REFRESH, on_click=lambda e: load_history_images(),
+                                      tooltip=i18n.get("home_history_btn_refresh", "Refresh")),
+                    ]
                 ),
                 history_grid,
             ]

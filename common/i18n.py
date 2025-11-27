@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from common import database as db
+from common import database as db, logger_utils
 
 # 全局变量存储翻译字典
 _TRANSLATIONS = {}
@@ -52,12 +52,12 @@ def get(key, default=None, **kwargs):
         load_language()
 
     fallback = default if default is not None else key
-
     text = _TRANSLATIONS.get(key, fallback)
 
     if kwargs:
         try:
-            return text.format(**kwargs)
+            res = text.format(**kwargs)
+            return res
         except KeyError: # 捕获更具体的 KeyError
             return text
     return text

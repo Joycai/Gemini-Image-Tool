@@ -8,6 +8,7 @@ from typing import List, Any, Dict
 from PIL import Image
 
 from common import database as db, i18n, logger_utils
+from common.text_encoder import text_encoder
 from geminiapi import api_client
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 from fletapp.component.flet_image_preview_dialog import ImagePreviewDialog
@@ -228,7 +229,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
         nonlocal genai_client
         if api_task_running.is_set(): return
         
-        prompt_text = user_input.value
+        prompt_text = text_encoder(user_input.value)
         if not prompt_text and not uploaded_image_paths: return
 
         api_key = db.get_all_settings().get("api_key")

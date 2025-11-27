@@ -1,7 +1,6 @@
 import flet as ft
 import sys
 import os
-from typing import List, Callable
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -77,4 +76,5 @@ def main(page: ft.Page):
     chat_component["init"]()
 
 if __name__ == "__main__":
+    os.environ["PYTHONUTF8"] = "1"
     ft.app(target=main)

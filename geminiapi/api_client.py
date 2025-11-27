@@ -88,15 +88,12 @@ def call_google_genai(
         model_id = MODEL_SELECTOR_DEFAULT
 
     client = genai.Client(api_key=api_key)
-
     contents: List[Any] = [prompt]
     if image_paths:
         logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
         for path in image_paths:
             try:
-                logger_utils.log("fir"+path)
                 img = Image.open(path)
-                logger_utils.log("fir2")
                 contents.append(img)
             except (IOError, OSError) as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
