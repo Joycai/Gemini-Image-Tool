@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Any, Dict
+from typing import List, Optional, Any
 import os
 import time
 import sys
@@ -6,16 +6,14 @@ import threading
 import shutil
 from google import genai
 from PIL import Image
-import flet as ft # Import flet for UI updates
+import flet as ft # Import fletapp for UI updates
 import asyncio # Import asyncio for sleep
 
 # 引入模块
-import database as db
-import api_client
-import logger_utils
-import i18n
+from geminiapi import api_client
+from common import logger_utils, database as db, i18n
 
-from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+from common.config import OUTPUT_DIR
 
 # --- 主生成任务状态 ---
 TASK_STATE = {
@@ -192,7 +190,8 @@ async def poll_flet_ui_updates(interval: float = 0.5):
                 TASK_STATE["ui_updated"] = True
             elif TASK_STATE["status"] == "error":
                 if _FLET_PAGE_REF:
-                    _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(i18n.get("logic_warn_taskFailed", error_msg=TASK_STATE['error_msg'])), open=True)
+                    _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(
+                        i18n.get("logic_warn_taskFailed", error_msg=TASK_STATE['error_msg'])), open=True)
                     _FLET_PAGE_REF.update()
                 if _MAIN_PAGE_REF:
                     _MAIN_PAGE_REF.btn_download.text = TASK_STATE["download_btn_props"]["label"]
@@ -211,7 +210,8 @@ async def poll_flet_ui_updates(interval: float = 0.5):
                 CHAT_TASK_STATE["ui_updated"] = True
             elif CHAT_TASK_STATE["status"] == "error":
                 if _FLET_PAGE_REF:
-                    _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(i18n.get("logic_warn_taskFailed", error_msg=CHAT_TASK_STATE['error_msg'])), open=True)
+                    _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(
+                        i18n.get("logic_warn_taskFailed", error_msg=CHAT_TASK_STATE['error_msg'])), open=True)
                     _FLET_PAGE_REF.update()
                 if _CHAT_PAGE_REF:
                     _CHAT_PAGE_REF.handle_bot_response_update_ui(None, None) # Trigger error handling in UI

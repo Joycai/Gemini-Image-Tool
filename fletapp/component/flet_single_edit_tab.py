@@ -2,17 +2,16 @@ import flet as ft
 from flet.core.container import Container
 from flet.core.page import Page
 import os
-from typing import Callable, List
+from typing import List
 import threading
 import time
 import shutil
 
+from fletapp.component.flet_gallery_component import local_gallery_component
 # Custom imports
-import database as db
-import api_client
-import logger_utils
-import i18n
-from config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from geminiapi import api_client
+from common import logger_utils, database as db, i18n
+from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)

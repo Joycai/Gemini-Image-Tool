@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Any, Dict
+from typing import List, Any
 import os
 import time
 import sys
@@ -9,15 +9,12 @@ from google import genai
 from PIL import Image
 
 # 引入模块
-import database as db
-import api_client
-import logger_utils
-import i18n
+from geminiapi import api_client
+from common import logger_utils, database as db, i18n
 # import platform # 移除未使用的导入
 # import subprocess # 移除未使用的导入
 
-from component import main_page
-from config import VALID_IMAGE_EXTENSIONS, UPLOAD_DIR, OUTPUT_DIR
+from common.config import OUTPUT_DIR
 
 # --- 主生成任务状态 ---
 TASK_STATE = {

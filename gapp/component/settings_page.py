@@ -5,11 +5,9 @@ import time
 
 import gradio as gr
 
-import database as db
-import i18n
-import logger_utils
-from component import main_page
-from config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+from common import logger_utils, database as db, i18n
+from gapp.component import main_page
+from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
 
 
 def clear_cache():

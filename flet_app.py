@@ -1,13 +1,7 @@
 import flet as ft
-from PIL.ImageOps import expand
 
-import i18n
-import database as db
-import flet_app_logic # Import the new app logic module
-import logger_utils # For initial log setup
-import sys # Import the sys module
-import os # Import the os module
-from component.flet_single_edit_tab import single_edit_tab
+from common import i18n
+from fletapp.component.flet_single_edit_tab import single_edit_tab
 
 
 # Removed custom component imports:

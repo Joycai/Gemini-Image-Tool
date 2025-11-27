@@ -1,9 +1,12 @@
 import sqlite3
 
-DB_FILE = "app_data.db"
+from common import logger_utils
+
+DB_FILE = "../app_data.db"
 
 def init_db():
     """初始化数据库表结构"""
+    logger_utils.log("Initializing DB")
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     # 1. 配置表

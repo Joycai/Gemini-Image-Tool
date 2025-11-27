@@ -6,7 +6,7 @@ from flet.core.container import Container
 from flet.core.page import Page
 
 # Import VALID_IMAGE_EXTENSIONS from config.py
-from config import VALID_IMAGE_EXTENSIONS
+from common.config import VALID_IMAGE_EXTENSIONS
 
 def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_select: Callable[[str], None] = None) -> Container:
     # --- Single Image Editor Page Controls and Handlers ---
