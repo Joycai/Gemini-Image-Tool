@@ -1,26 +1,51 @@
 import sqlite3
-
+import os
 from common import logger_utils
 
-DB_FILE = "../app_data.db"
+# Define the storage directory and database file path
+STORAGE_DIR = "storage"
+DB_FILE = os.path.join(STORAGE_DIR, "database.sqlite")
 
-def init_db():
-    """初始化数据库表结构"""
-    logger_utils.log("Initializing DB")
-    conn = sqlite3.connect(DB_FILE)
+def get_db_connection():
+    """Establishes a connection to the database."""
+    return sqlite3.connect(DB_FILE)
+
+def init_db(conn):
+    """Initializes the database table structure."""
+    logger_utils.log("Initializing new database schema.")
     c = conn.cursor()
-    # 1. 配置表
+    # 1. Settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings
                  (key TEXT PRIMARY KEY, value TEXT)''')
-    # 2. Prompt 表 (新增)
+    # 2. Prompt table
     c.execute('''CREATE TABLE IF NOT EXISTS prompts
                  (title TEXT PRIMARY KEY, content TEXT)''')
+    # Add default settings if needed
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("save_path", "outputs"))
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("file_prefix", "gemini_gen"))
     conn.commit()
-    conn.close()
 
-# --- Settings 相关 ---
+def ensure_db_exists():
+    """
+    Ensures the database file and its directory exist.
+    If the database file does not exist, it initializes it.
+    """
+    if not os.path.exists(DB_FILE):
+        logger_utils.log(f"Database file not found at {DB_FILE}. Creating a new one.")
+        try:
+            os.makedirs(STORAGE_DIR, exist_ok=True)
+            conn = get_db_connection()
+            init_db(conn)
+            conn.close()
+            logger_utils.log("Database created and initialized successfully.")
+        except Exception as e:
+            logger_utils.log(f"FATAL: Could not create or initialize the database: {e}")
+            raise
+
+# --- Settings related ---
 def get_setting(key, default=""):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT value FROM settings WHERE key=?", (key,))
     result = c.fetchone()
@@ -28,7 +53,7 @@ def get_setting(key, default=""):
     return result[0] if result else default
 
 def save_setting(key, value):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
     conn.commit()
@@ -40,14 +65,14 @@ def get_all_settings():
         "last_dir": get_setting("last_dir", ""),
         "save_path": get_setting("save_path", "outputs"),
         "file_prefix": get_setting("file_prefix", "gemini_gen"),
-        "language": get_setting("language", "zh") # ⬇️ 新增语言设置
+        "language": get_setting("language", "en")
     }
 
-# --- Prompt 相关 (新增) ---
+# --- Prompt related ---
 def save_prompt(title, content):
     if not title or not content:
         return False
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO prompts (title, content) VALUES (?, ?)", (title, content))
     conn.commit()
@@ -55,14 +80,14 @@ def save_prompt(title, content):
     return True
 
 def delete_prompt(title):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("DELETE FROM prompts WHERE title=?", (title,))
     conn.commit()
     conn.close()
 
 def get_prompt_content(title):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT content FROM prompts WHERE title=?", (title,))
     result = c.fetchone()
@@ -70,17 +95,17 @@ def get_prompt_content(title):
     return result[0] if result else ""
 
 def get_all_prompt_titles():
-    """获取所有 Prompt 标题列表，用于下拉框"""
-    conn = sqlite3.connect(DB_FILE)
+    """Gets all Prompt titles for dropdowns."""
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT title FROM prompts ORDER BY title")
     titles = [row[0] for row in c.fetchall()]
     conn.close()
-    return ["---"] + titles # 添加默认空选项
+    return titles
 
 def get_all_prompts_for_export():
-    """获取所有 prompts 用于导出，返回字典列表"""
-    conn = sqlite3.connect(DB_FILE)
+    """Gets all prompts for export, returns a list of dicts."""
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute("SELECT title, content FROM prompts ORDER BY title")
@@ -89,12 +114,11 @@ def get_all_prompts_for_export():
     return prompts
 
 def import_prompts_from_list(prompts_list):
-    """从字典列表导入 prompts，重复的标题将被覆盖"""
+    """Imports prompts from a list of dicts, overwriting duplicates."""
     if not prompts_list:
         return 0
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
-    # 将字典列表转换为元组列表
     data_to_insert = [(item.get('title'), item.get('content')) for item in prompts_list if item.get('title') and item.get('content')]
     c.executemany("INSERT OR REPLACE INTO prompts (title, content) VALUES (?, ?)", data_to_insert)
     count = len(data_to_insert)
@@ -102,5 +126,6 @@ def import_prompts_from_list(prompts_list):
     conn.close()
     return count
 
-# 初始化
-init_db()
+# --- Initialization ---
+# Ensure the database exists and is initialized when the module is first imported.
+ensure_db_exists()
