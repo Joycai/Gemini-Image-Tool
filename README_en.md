@@ -115,7 +115,7 @@ The final executable will be located in the `dist/` directory.
 ### Build native Application
 **Windows**
 ```bash
-flet build windows --exclude .\storage\database.sqlite
+flet build windows
 ```
 ---
 

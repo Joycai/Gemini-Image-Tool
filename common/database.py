@@ -93,6 +93,25 @@ def import_all_data(data: dict):
     finally:
         conn.close()
 
+def clear_all_data():
+    """Wipes all data from the database and re-initializes it."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("BEGIN TRANSACTION")
+        c.execute("DELETE FROM settings")
+        c.execute("DELETE FROM prompts")
+        conn.commit()
+        # After clearing, re-initialize with default values
+        init_db(conn)
+        logger_utils.log("Successfully cleared all data from the database.")
+    except Exception as e:
+        conn.rollback()
+        logger_utils.log(f"Data clearing failed: {e}")
+        raise
+    finally:
+        conn.close()
+
 # --- Settings related ---
 def get_setting(key, default=""):
     conn = get_db_connection()
