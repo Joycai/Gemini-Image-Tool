@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import json
 from common import logger_utils
 
 # Define the storage directory and database file path
@@ -42,6 +43,55 @@ def ensure_db_exists():
         except Exception as e:
             logger_utils.log(f"FATAL: Could not create or initialize the database: {e}")
             raise
+
+# --- Full Data Import/Export ---
+def export_all_data():
+    """Exports all settings and prompts into a single dictionary."""
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    c.execute("SELECT key, value FROM settings")
+    settings = [dict(row) for row in c.fetchall()]
+    
+    c.execute("SELECT title, content FROM prompts")
+    prompts = [dict(row) for row in c.fetchall()]
+    
+    conn.close()
+    
+    return {"settings": settings, "prompts": prompts}
+
+def import_all_data(data: dict):
+    """Wipes and imports all settings and prompts from a dictionary."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    try:
+        # Start transaction
+        c.execute("BEGIN TRANSACTION")
+        
+        # Wipe existing data
+        c.execute("DELETE FROM settings")
+        c.execute("DELETE FROM prompts")
+        
+        # Insert new settings
+        settings_to_insert = [(item.get('key'), item.get('value')) for item in data.get("settings", [])]
+        c.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", settings_to_insert)
+        
+        # Insert new prompts
+        prompts_to_insert = [(item.get('title'), item.get('content')) for item in data.get("prompts", [])]
+        c.executemany("INSERT INTO prompts (title, content) VALUES (?, ?)", prompts_to_insert)
+        
+        # Commit transaction
+        conn.commit()
+        logger_utils.log(f"Successfully imported {len(settings_to_insert)} settings and {len(prompts_to_insert)} prompts.")
+        
+    except Exception as e:
+        conn.rollback()
+        logger_utils.log(f"Data import failed: {e}")
+        raise
+    finally:
+        conn.close()
 
 # --- Settings related ---
 def get_setting(key, default=""):
@@ -127,5 +177,4 @@ def import_prompts_from_list(prompts_list):
     return count
 
 # --- Initialization ---
-# Ensure the database exists and is initialized when the module is first imported.
 ensure_db_exists()
