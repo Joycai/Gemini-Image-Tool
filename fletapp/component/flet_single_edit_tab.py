@@ -2,7 +2,7 @@ import flet as ft
 from flet.core.container import Container
 from flet.core.page import Page
 import os
-from typing import Callable, List
+from typing import Callable, List, Dict, Any
 import threading
 import time
 import shutil
@@ -16,7 +16,7 @@ from fletapp.component.flet_gallery_component import local_gallery_component
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def single_edit_tab(page: Page) -> Container:
+def single_edit_tab(page: Page) -> Dict[str, Any]:
     selected_images_paths: List[str] = []
     
     api_task_state = {
@@ -123,7 +123,7 @@ def single_edit_tab(page: Page) -> Container:
             current_logs = logger_utils.get_logs()
             if log_output_text.value != current_logs:
                 log_output_text.value = current_logs
-                page.update() # Removed conditional update
+                page.update()
             time.sleep(1)
     
     log_thread = threading.Thread(target=_log_updater_thread, daemon=True)
@@ -153,7 +153,7 @@ def single_edit_tab(page: Page) -> Container:
             api_task_state.update({"error_msg": str(e), "status": "error"})
             logger_utils.log(i18n.get("logic_warn_taskFailed", error_msg=str(e)))
         finally:
-            page.update() # Removed conditional update
+            page.update()
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
@@ -181,11 +181,12 @@ def single_edit_tab(page: Page) -> Container:
         else:
             show_snackbar("No image available to download.", is_error=True)
 
-    # --- Initialization ---
-    threading.Timer(0.2, refresh_prompts_dropdown).start()
+    # --- Initialization function to be called after mount ---
+    def initialize():
+        refresh_prompts_dropdown()
 
     # --- Layout ---
-    return ft.Container(
+    view = ft.Container(
         content=ft.Row([
             local_gallery_component(page, 4, on_image_select=add_selected_image),
             ft.VerticalDivider(),
@@ -215,5 +216,7 @@ def single_edit_tab(page: Page) -> Container:
                 ft.ElevatedButton(text=i18n.get("home_preview_btn_download_placeholder"), icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
             ], expand=6, scroll=ft.ScrollMode.AUTO)
         ], expand=True),
-        expand=True
+        expand=True,
     )
+    
+    return {"view": view, "init": initialize}

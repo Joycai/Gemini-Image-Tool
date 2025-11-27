@@ -12,9 +12,10 @@ from geminiapi import api_client
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 from fletapp.component.flet_image_preview_dialog import ImagePreviewDialog
 
-def chat_page(page: Page) -> Container:
+def chat_page(page: Page) -> Dict[str, Any]:
     # --- State Management ---
     chat_session_state: Dict[str, Any] = {"session_obj": None}
+    genai_client = None # Persistent client instance
     api_task_running = threading.Event()
     uploaded_image_paths: List[str] = []
 
@@ -78,8 +79,6 @@ def chat_page(page: Page) -> Container:
     model_selector = ft.Dropdown(label=i18n.get("home_control_model_label"), options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES], value=MODEL_SELECTOR_CHOICES[0], expand=2)
     ar_selector = ft.Dropdown(label=i18n.get("home_control_ratio_label"), options=[ft.dropdown.Option(key=value, text=text) for text, value in i18n.get_translated_choices(AR_SELECTOR_CHOICES)], value=AR_SELECTOR_CHOICES[0], expand=1)
     res_selector = ft.Dropdown(label=i18n.get("home_control_resolution_label"), options=[ft.dropdown.Option(res) for res in RES_SELECTOR_CHOICES], value=RES_SELECTOR_CHOICES[0], expand=1)
-
-    # --- Prompt Management Controls ---
     prompt_dropdown = ft.Dropdown(label=i18n.get("home_control_prompt_label_history"), hint_text=i18n.get("home_control_prompt_placeholder"), options=[], expand=True)
     prompt_title_input = ft.TextField(label=i18n.get("home_control_prompt_save_label"), hint_text=i18n.get("home_control_prompt_save_placeholder"), expand=True)
 
@@ -158,8 +157,10 @@ def chat_page(page: Page) -> Container:
     upload_button = ft.IconButton(icon=ft.Icons.UPLOAD_FILE, tooltip="Upload Images", on_click=lambda _: file_picker.pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE))
 
     def clear_chat_handler(e):
+        nonlocal genai_client
         chat_history.controls.clear()
         chat_session_state["session_obj"] = None
+        genai_client = None
         uploaded_image_paths.clear()
         update_thumbnail_display()
         logger_utils.log("Chat cleared.")
@@ -167,9 +168,17 @@ def chat_page(page: Page) -> Container:
 
     clear_button = ft.ElevatedButton(text=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
 
-    def _chat_worker(prompt_parts: List[Any], api_key: str, model: str, ar: str, res: str):
+    def _chat_worker(client, prompt_parts: List[Any], model: str, ar: str, res: str):
         try:
-            updated_chat_obj, response_parts = api_client.call_google_chat(genai_client=api_client.genai.Client(api_key=api_key), chat_session=chat_session_state.get("session_obj"), prompt_parts=prompt_parts, model_id=model, aspect_ratio=ar, resolution=res)
+            updated_chat_obj, response_parts = api_client.call_google_chat(
+                genai_client=client,
+                chat_session=chat_session_state.get("session_obj"),
+                prompt_parts=prompt_parts,
+                model_id=model,
+                aspect_ratio=ar,
+                resolution=res,
+            )
+            
             chat_session_state["session_obj"] = updated_chat_obj
             
             if chat_history.controls and isinstance(chat_history.controls[-1], Message):
@@ -216,6 +225,7 @@ def chat_page(page: Page) -> Container:
             page.update()
 
     def send_message_handler():
+        nonlocal genai_client
         if api_task_running.is_set(): return
         
         prompt_text = user_input.value
@@ -224,6 +234,9 @@ def chat_page(page: Page) -> Container:
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
             chat_history.controls.append(Message(role="assistant", parts=[i18n.get("api_error_apiKey")])); page.update(); return
+
+        if genai_client is None:
+            genai_client = api_client.genai.Client(api_key=api_key)
 
         api_task_running.set()
         user_input.disabled = True
@@ -247,7 +260,7 @@ def chat_page(page: Page) -> Container:
         update_thumbnail_display()
         page.update()
 
-        threading.Thread(target=_chat_worker, args=([prompt_parts, api_key, model_selector.value, ar_selector.value, res_selector.value])).start()
+        threading.Thread(target=_chat_worker, args=(genai_client, prompt_parts, model_selector.value, ar_selector.value, res_selector.value)).start()
 
     user_input.on_submit = lambda e: send_message_handler()
 
@@ -263,10 +276,11 @@ def chat_page(page: Page) -> Container:
         file_picker.on_result = on_save_result
         file_picker.save_file(file_name=os.path.basename(image_path))
 
-    # --- Initialization ---
-    threading.Timer(0.2, refresh_prompts_dropdown).start()
+    # --- Initialization function to be called after mount ---
+    def initialize():
+        refresh_prompts_dropdown()
 
-    return ft.Container(
+    view = ft.Container(
         content=ft.Column([
             chat_history,
             ft.Row([model_selector, ar_selector, res_selector]),
@@ -287,3 +301,5 @@ def chat_page(page: Page) -> Container:
         padding=ft.padding.all(10),
         expand=True,
     )
+    
+    return {"view": view, "init": initialize}
