@@ -12,7 +12,6 @@ import database as db
 import api_client
 import logger_utils
 import i18n
-from component.flet_gallery_component import local_gallery_component
 from config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 
 # Ensure OUTPUT_DIR exists
@@ -213,19 +212,32 @@ def single_edit_tab(page: Page) -> Container:
         ).start()
         logger_utils.log(i18n.get("logic_info_taskSubmitted"))
 
+    # FilePicker for saving the generated image
+    file_picker = ft.FilePicker(on_result=lambda e: on_file_save_result(e))
+    page.overlay.append(file_picker)
+
+    def on_file_save_result(e: ft.FilePickerResultEvent):
+        if e.path:
+            try:
+                if api_task_state["result_image_path"]:
+                    shutil.copy(api_task_state["result_image_path"], e.path)
+                    logger_utils.log(f"Image saved to: {e.path}")
+                else:
+                    logger_utils.log("No image available to save.")
+            except Exception as ex:
+                logger_utils.log(f"Error saving image: {ex}")
+        else:
+            logger_utils.log("File save cancelled.")
+        page.update()
+
 
     def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
-            # In a real app, you'd use ft.FilePicker to let the user choose a save location.
-            # For now, we'll just log the path and simulate a download.
-            logger_utils.log(f"Simulating download of: {api_task_state['result_image_path']}")
-            # Example of how you might use a FilePicker for saving:
-            # page.dialog = ft.FilePicker(on_result=lambda e: print(f"Save path: {e.path}"))
-            # page.dialog.save_file(
-            #     file_name=os.path.basename(api_task_state['result_image_path']),
-            #     allowed_extensions=['png']
-            # )
-            # page.update()
+            original_filename = os.path.basename(api_task_state['result_image_path'])
+            file_picker.save_file(
+                file_name=original_filename,
+                allowed_extensions=['png', 'jpg', 'jpeg', 'webp'] # Allow common image extensions
+            )
         else:
             logger_utils.log("No image available to download.")
 
