@@ -8,8 +8,7 @@ from google import genai
 from google.genai import types
 from google.genai.chats import Chat
 
-import i18n
-import logger_utils
+from common import logger_utils, i18n
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {

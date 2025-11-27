@@ -1,28 +1,19 @@
 # pylint: disable=too-many-statements
 import os
-import platform
-import shutil
-import subprocess
 from typing import List, Dict, Any, Optional
-import tkinter as tk
-from tkinter import filedialog
 
 import gradio as gr
 
-import database as db
-import i18n
-import logger_utils
-from config import (
+from common import logger_utils, database as db, i18n
+from common.config import (
     MODEL_SELECTOR_CHOICES,
     MODEL_SELECTOR_DEFAULT,
     AR_SELECTOR_CHOICES,
     AR_SELECTOR_DEFAULT,
     RES_SELECTOR_CHOICES,
-    RES_SELECTOR_DEFAULT,
-    VALID_IMAGE_EXTENSIONS,
-    UPLOAD_DIR
+    RES_SELECTOR_DEFAULT
 )
-from component import assets_block
+from gapp.component import assets_block
 
 
 # --- Main Page Logic ---

@@ -5,10 +5,9 @@ from typing import List, Dict, Tuple, Optional, Any
 import gradio as gr
 from PIL import Image
 
-import database as db
-import i18n
+from common import database as db, i18n
 # import api_client # 移除未使用的导入
-from config import (
+from common.config import (
     MODEL_SELECTOR_CHOICES,
     MODEL_SELECTOR_DEFAULT,
     AR_SELECTOR_CHOICES,
@@ -16,8 +15,7 @@ from config import (
     RES_SELECTOR_CHOICES,
     RES_SELECTOR_DEFAULT
 )
-from component import assets_block
-
+from gapp.component import assets_block
 
 # 定义类型别名
 ChatHistory = List[Dict[str, Any]]

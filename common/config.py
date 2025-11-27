@@ -4,7 +4,7 @@ import platform
 # ==============================================================
 # 路径配置
 # ==============================================================
-TEMP_DIR = "tmp"
+TEMP_DIR = "../tmp"
 UPLOAD_DIR = os.path.join(TEMP_DIR, "upload")
 OUTPUT_DIR = os.path.join(TEMP_DIR, "output")
 

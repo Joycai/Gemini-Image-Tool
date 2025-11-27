@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-import database as db
+from common import database as db
 
 # 全局变量存储翻译字典
 _TRANSLATIONS = {}
@@ -31,7 +31,7 @@ def load_language():
     lang_code = db.get_setting("language", "zh")
     CURRENT_LANG = lang_code
 
-    file_path = get_resource_path(os.path.join("lang", f"{lang_code}.json"))
+    file_path = get_resource_path(os.path.join("../lang", f"{lang_code}.json"))
 
     try:
         if os.path.exists(file_path):

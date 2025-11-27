@@ -1,29 +1,25 @@
 # pylint: disable=no-member
 import sys
 import os
-import platform # pylint: disable=unused-import
 
 import gradio as gr
 
-import database as db
-import i18n
-
 # 导入回调函数和 Ticker 实例
-from app_logic import (
+from gapp.app_logic import (
     poll_task_status_callback,
     start_generation_task,
     init_app_data,
     create_genai_client,
     start_chat_task,
     poll_chat_task_status_callback,
-    logger_utils as app_logic_logger,
     restart_app
 )
-from logger_utils import get_logs
+from common import logger_utils as app_logic_logger, database as db, i18n
+from common.logger_utils import get_logs
 from ticker import ticker_instance
 
-from component import header, main_page, settings_page, chat_page, history_page, assets_block
-from config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
+from gapp.component import history_page, chat_page, main_page, assets_block, settings_page, header
+from common.config import get_allowed_paths, UPLOAD_DIR, OUTPUT_DIR
 
 # ⬇️ 新增 JS：用于切换深色模式
 with open("assets/script.js", "r", encoding="utf-8") as f:
@@ -133,14 +129,14 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
     main_load_outputs = [state_main_dir_images, main_ui["main_info_box"]]
 
     main_ui["main_dir_input"].change(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
-                                                                                                state_main_dir_images,
-                                                                                                main_ui["main_gallery_source"])
+                                                                                                                  state_main_dir_images,
+                                                                                                                  main_ui["main_gallery_source"])
     main_ui["main_btn_refresh"].click(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
-                                                                                                 state_main_dir_images,
-                                                                                                 main_ui["main_gallery_source"])
+                                                                                                                   state_main_dir_images,
+                                                                                                                   main_ui["main_gallery_source"])
     main_ui["main_recursive_checkbox"].change(assets_block.load_images_from_dir, main_load_inputs, main_load_outputs).then(lambda x: x,
-                                                                                                state_main_dir_images,
-                                                                                                main_ui["main_gallery_source"])
+                                                                                                                           state_main_dir_images,
+                                                                                                                           main_ui["main_gallery_source"])
     
     main_ui["main_upload_button"].upload(assets_block.handle_upload, main_ui["main_upload_button"], main_ui["main_gallery_upload"])
     main_ui["main_size_slider"].change(lambda x: gr.Gallery(columns=x), main_ui["main_size_slider"], main_ui["main_gallery_source"])
@@ -152,14 +148,14 @@ with gr.Blocks(title=i18n.get("app_title")) as app:
     chat_load_outputs = [state_chat_dir_images, chat_ui["chat_info_box"]]
 
     chat_ui["chat_dir_input"].change(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
-                                                                                                state_chat_dir_images,
-                                                                                                chat_ui["chat_gallery_source"])
+                                                                                                                  state_chat_dir_images,
+                                                                                                                  chat_ui["chat_gallery_source"])
     chat_ui["chat_btn_refresh"].click(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
-                                                                                                 state_chat_dir_images,
-                                                                                                 chat_ui["chat_gallery_source"])
+                                                                                                                   state_chat_dir_images,
+                                                                                                                   chat_ui["chat_gallery_source"])
     chat_ui["chat_recursive_checkbox"].change(assets_block.load_images_from_dir, chat_load_inputs, chat_load_outputs).then(lambda x: x,
-                                                                                                state_chat_dir_images,
-                                                                                                chat_ui["chat_gallery_source"])
+                                                                                                                           state_chat_dir_images,
+                                                                                                                           chat_ui["chat_gallery_source"])
     
     chat_ui["chat_upload_button"].upload(assets_block.handle_upload, chat_ui["chat_upload_button"], chat_ui["chat_gallery_upload"])
     chat_ui["chat_size_slider"].change(lambda x: gr.Gallery(columns=x), chat_ui["chat_size_slider"], chat_ui["chat_gallery_source"])
