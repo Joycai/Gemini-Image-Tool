@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common import i18n
 from fletapp.component.flet_single_edit_tab import single_edit_tab
 from fletapp.component.flet_settings_page import settings_page
+from fletapp.component.flet_history_page import history_page
 
 
 def main(page: ft.Page):
@@ -25,14 +26,14 @@ def main(page: ft.Page):
     def toggle_theme(e):
         if page.theme_mode == ft.ThemeMode.LIGHT:
             page.theme_mode = ft.ThemeMode.DARK
-            theme_toggle_button.icon = ft.Icons.WB_SUNNY_OUTLINED # Corrected
+            theme_toggle_button.icon = ft.Icons.WB_SUNNY_OUTLINED
         else:
             page.theme_mode = ft.ThemeMode.LIGHT
-            theme_toggle_button.icon = ft.Icons.DARK_MODE_OUTLINED # Corrected
+            theme_toggle_button.icon = ft.Icons.DARK_MODE_OUTLINED
         page.update()
 
     theme_toggle_button = ft.IconButton(
-        icon=ft.Icons.DARK_MODE_OUTLINED, # Corrected
+        icon=ft.Icons.DARK_MODE_OUTLINED,
         tooltip=i18n.get("header_theme_button_tooltip", "Toggle theme"),
         on_click=toggle_theme
     )
@@ -42,7 +43,7 @@ def main(page: ft.Page):
         title=ft.Text(i18n.get("app_title")),
         center_title=False,
         actions=[
-            theme_toggle_button # Use the created button instance
+            theme_toggle_button
         ]
     )
 
@@ -61,11 +62,11 @@ def main(page: ft.Page):
             ),
             ft.Tab(
                 text=i18n.get("app_tab_history"),
-                content=ft.Text("History Page Content")
+                content=history_page(page) # Replaced placeholder
             ),
             ft.Tab(
                 text=i18n.get("app_tab_settings"),
-                content=settings_page(page) # Replaced placeholder
+                content=settings_page(page)
             ),
         ],
         expand=1
