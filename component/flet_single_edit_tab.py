@@ -112,12 +112,33 @@ def single_edit_tab(page: Page) -> Container:
             log_output_text.value = message
         page.update()
 
+    # Threading event to stop the log updater thread
+    stop_log_updater = threading.Event()
+
+    def _log_updater_thread():
+        while not stop_log_updater.is_set():
+            current_logs = logger_utils.get_logs()
+            if log_output_text.value != current_logs:
+                log_output_text.value = current_logs
+                page.update()
+            time.sleep(1) # Update every 1 second
+
+    # Start the log updater thread
+    log_thread = threading.Thread(target=_log_updater_thread, daemon=True)
+    log_thread.start()
+
+    # Register a handler to stop the thread when the page disconnects
+    def on_page_disconnect(e):
+        stop_log_updater.set()
+    page.on_disconnect = on_page_disconnect
+
+
     def _api_worker(prompt: str, image_paths: List[str], api_key: str, model_id: str, aspect_ratio: str, resolution: str):
         api_task_state["status"] = "running"
         api_task_state["result_image_path"] = None
         api_task_state["error_msg"] = None
-        _update_log(i18n.get("logic_log_newTask"), append=False)
-        _update_log(f"Sending request to Gemini API...")
+        logger_utils.log(i18n.get("logic_log_newTask"))
+        logger_utils.log(f"Sending request to Gemini API...")
         
         try:
             generated_image = api_client.call_google_genai(
@@ -139,7 +160,7 @@ def single_edit_tab(page: Page) -> Container:
             api_task_state["status"] = "success"
             
             api_response_image.src = temp_path
-            _update_log(i18n.get("logic_log_saveOk", path=temp_path))
+            logger_utils.log(i18n.get("logic_log_saveOk", path=temp_path))
             
             # Optionally copy to permanent save path if configured
             permanent_dir = db.get_setting("save_path")
@@ -148,26 +169,26 @@ def single_edit_tab(page: Page) -> Container:
                     os.makedirs(permanent_dir, exist_ok=True)
                     permanent_path = os.path.abspath(os.path.join(permanent_dir, filename))
                     shutil.copy(temp_path, permanent_path)
-                    _update_log(f"Copied to permanent storage: {permanent_path}")
+                    logger_utils.log(f"Copied to permanent storage: {permanent_path}")
                 except (IOError, OSError) as e:
-                    _update_log(f"Failed to copy to permanent storage: {e}")
+                    logger_utils.log(f"Failed to copy to permanent storage: {e}")
 
         except Exception as e:
             error_msg = str(e)
             api_task_state["error_msg"] = error_msg
             api_task_state["status"] = "error"
-            _update_log(i18n.get("logic_warn_taskFailed", error_msg=error_msg))
+            logger_utils.log(i18n.get("logic_warn_taskFailed", error_msg=error_msg))
         finally:
             page.update() # Ensure UI updates after task completion/error
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
-            _update_log("An API task is already running. Please wait.", append=False)
+            logger_utils.log("An API task is already running. Please wait.")
             return
 
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
-            _update_log(i18n.get("api_error_apiKey"), append=False)
+            logger_utils.log(i18n.get("api_error_apiKey"))
             return
 
         current_prompt = prompt_input.value
@@ -176,7 +197,7 @@ def single_edit_tab(page: Page) -> Container:
         selected_resolution = resolution_dropdown.value
         
         if not current_prompt and not selected_images_paths:
-            _update_log("Please provide a prompt or select images.", append=False)
+            logger_utils.log("Please provide a prompt or select images.")
             return
 
         threading.Thread(
@@ -190,14 +211,14 @@ def single_edit_tab(page: Page) -> Container:
                 selected_resolution
             )
         ).start()
-        _update_log(i18n.get("logic_info_taskSubmitted"), append=False)
+        logger_utils.log(i18n.get("logic_info_taskSubmitted"))
 
 
     def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
             # In a real app, you'd use ft.FilePicker to let the user choose a save location.
             # For now, we'll just log the path and simulate a download.
-            _update_log(f"Simulating download of: {api_task_state['result_image_path']}")
+            logger_utils.log(f"Simulating download of: {api_task_state['result_image_path']}")
             # Example of how you might use a FilePicker for saving:
             # page.dialog = ft.FilePicker(on_result=lambda e: print(f"Save path: {e.path}"))
             # page.dialog.save_file(
@@ -206,7 +227,7 @@ def single_edit_tab(page: Page) -> Container:
             # )
             # page.update()
         else:
-            _update_log("No image available to download.", append=False)
+            logger_utils.log("No image available to download.")
 
 
     ratio_dropdown = ft.Dropdown(
