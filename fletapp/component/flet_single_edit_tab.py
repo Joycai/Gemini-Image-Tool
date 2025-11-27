@@ -179,7 +179,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
             file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']), allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
         else:
-            show_snackbar("No image available to download.", is_error=True)
+            show_snackbar(i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
 
     # --- Initialization function to be called after mount ---
     def initialize():

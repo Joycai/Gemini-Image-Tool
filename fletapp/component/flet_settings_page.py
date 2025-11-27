@@ -4,10 +4,11 @@ from flet.core.page import Page
 import json
 import time
 import threading
+from typing import Callable
 
 from common import database as db, i18n, logger_utils
 
-def settings_page(page: Page) -> Container:
+def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     # --- Controls ---
     api_key_input = ft.TextField(label=i18n.get("settings_label_apiKey"), password=True, can_reveal_password=True)
     save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
@@ -15,8 +16,8 @@ def settings_page(page: Page) -> Container:
     lang_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_language"),
         options=[
-            ft.dropdown.Option(key="en", text="English"),
-            ft.dropdown.Option(key="zh", text="中文"),
+            ft.dropdown.Option(key="en", text=i18n.get("settings_lang_en", "English")),
+            ft.dropdown.Option(key="zh", text=i18n.get("settings_lang_zh", "中文")),
         ],
     )
 
@@ -51,9 +52,9 @@ def settings_page(page: Page) -> Container:
                 all_data = db.export_all_data()
                 with open(e.path, "w", encoding="utf-8") as f:
                     json.dump(all_data, f, ensure_ascii=False, indent=4)
-                show_snackbar(f"Data successfully exported to {e.path}")
+                show_snackbar(i18n.get("settings_export_success", "Data successfully exported to {path}", path=e.path))
             except Exception as ex:
-                show_snackbar(f"Error exporting data: {ex}", is_error=True)
+                show_snackbar(i18n.get("settings_export_error", "Error exporting data: {error}", error=ex), is_error=True)
 
     def on_import_result(e: ft.FilePickerResultEvent):
         if e.files and e.files[0].path:
@@ -63,18 +64,17 @@ def settings_page(page: Page) -> Container:
                     data_to_import = json.load(f)
                 db.import_all_data(data_to_import)
                 
-                # Show a confirmation dialog instructing user to restart
                 page.dialog = ft.AlertDialog(
                     modal=True,
-                    title=ft.Text("Import Successful"),
-                    content=ft.Text("Data has been imported. Please restart the application for all changes to take effect."),
-                    actions=[ft.TextButton("OK", on_click=close_dialog)],
+                    title=ft.Text(i18n.get("settings_import_success_title", "Import Successful")),
+                    content=ft.Text(i18n.get("settings_import_success_content", "Data has been imported. Please restart the application for all changes to take effect.")),
+                    actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_dialog)],
                 )
                 page.dialog.open = True
                 page.update()
                 
             except Exception as ex:
-                show_snackbar(f"Error importing data: {ex}", is_error=True)
+                show_snackbar(i18n.get("settings_import_error", "Error importing data: {error}", error=ex), is_error=True)
 
     export_picker = ft.FilePicker(on_result=on_export_result)
     import_picker = ft.FilePicker(on_result=on_import_result)
@@ -82,8 +82,9 @@ def settings_page(page: Page) -> Container:
 
     # --- UI Layout ---
     save_button = ft.ElevatedButton(text=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
-    export_button = ft.ElevatedButton("Export All Data", icon=ft.Icons.UPLOAD, on_click=lambda _: export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json", allowed_extensions=["json"]))
-    import_button = ft.ElevatedButton("Import All Data", icon=ft.Icons.DOWNLOAD, on_click=lambda _: import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"]))
+    export_button = ft.ElevatedButton(text=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=lambda _: export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json", allowed_extensions=["json"]))
+    import_button = ft.ElevatedButton(text=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=lambda _: import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"]))
+    restart_button = ft.ElevatedButton(text=i18n.get("settings_btn_restart", "Restart Application"), icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
 
     # --- Initialization Logic ---
     def load_initial_settings():
@@ -94,7 +95,6 @@ def settings_page(page: Page) -> Container:
         lang_dropdown.value = settings.get("language", "en")
         page.update()
 
-    # Use a short timer to ensure the page is ready before loading data
     threading.Timer(0.1, load_initial_settings).start()
 
     return ft.Container(
@@ -107,8 +107,11 @@ def settings_page(page: Page) -> Container:
                 lang_dropdown,
                 save_button,
                 ft.Divider(),
-                ft.Text("Data Management", size=18, weight=ft.FontWeight.BOLD),
+                ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18, weight=ft.FontWeight.BOLD),
                 ft.Row([import_button, export_button], alignment=ft.MainAxisAlignment.START),
+                ft.Divider(),
+                ft.Text(i18n.get("settings_app_management_title", "Application Management"), size=18, weight=ft.FontWeight.BOLD),
+                restart_button,
             ],
             spacing=20,
             scroll=ft.ScrollMode.AUTO,

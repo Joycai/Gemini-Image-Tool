@@ -20,6 +20,11 @@ def main(page: ft.Page):
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.theme_mode = ft.ThemeMode.LIGHT
 
+    def restart_app():
+        """Restarts the current application."""
+        page.window_destroy()
+        os.execl(sys.executable, sys.executable, *sys.argv)
+
     def toggle_theme(e):
         page.theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
         theme_toggle_button.icon = ft.Icons.WB_SUNNY_OUTLINED if page.theme_mode == ft.ThemeMode.DARK else ft.Icons.DARK_MODE_OUTLINED
@@ -38,10 +43,8 @@ def main(page: ft.Page):
     )
 
     # --- Component Creation ---
-    # Each component function now returns a dictionary with 'view' and 'init' keys
     single_edit_component = single_edit_tab(page)
     chat_component = chat_page(page)
-    # history and settings pages are simple enough not to need this pattern (yet)
     
     main_tabs = ft.Tabs(
         selected_index=0,
@@ -61,7 +64,7 @@ def main(page: ft.Page):
             ),
             ft.Tab(
                 text=i18n.get("app_tab_settings"),
-                content=settings_page(page)
+                content=settings_page(page, on_restart=restart_app) # Pass the restart function
             ),
         ],
         expand=1
@@ -70,10 +73,8 @@ def main(page: ft.Page):
     page.add(main_tabs)
 
     # --- Deferred Initialization ---
-    # Call the init functions AFTER the main view has been added to the page
     single_edit_component["init"]()
     chat_component["init"]()
-    # No init needed for history or settings yet
 
 if __name__ == "__main__":
     ft.app(target=main)

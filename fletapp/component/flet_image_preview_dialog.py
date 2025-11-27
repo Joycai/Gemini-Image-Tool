@@ -1,5 +1,6 @@
 import flet as ft
 from typing import Callable
+from common import i18n
 
 class ImagePreviewDialog:
     def __init__(self, page: ft.Page):
@@ -15,22 +16,19 @@ class ImagePreviewDialog:
 
         # --- Internal Controls ---
         self.preview_image = ft.Image(
-            # Let the Image control fill the viewport and handle centering via fit
             width=self.VIEWPORT_WIDTH,
             height=self.VIEWPORT_HEIGHT,
             fit=ft.ImageFit.CONTAIN, 
-            
-            # Transformations start from a neutral state
             scale=self.INITIAL_SCALE,
             left=0,
             top=0,
         )
-        self.delete_button = ft.TextButton("Delete")
-        self.download_button = ft.TextButton("Download")
+        self.delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"))
+        self.download_button = ft.TextButton(i18n.get("dialog_btn_download", "Download"))
 
         self.dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Image Preview"),
+            title=ft.Text(i18n.get("dialog_title_image_preview", "Image Preview")),
             content=ft.GestureDetector(
                 content=ft.Container(
                     width=self.VIEWPORT_WIDTH,
@@ -45,7 +43,7 @@ class ImagePreviewDialog:
             actions=[
                 self.download_button,
                 self.delete_button,
-                ft.TextButton("Close", on_click=self.close),
+                ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=self.close),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -68,12 +66,10 @@ class ImagePreviewDialog:
     def open(self, image_path: str, on_delete: Callable[[str], None] = None, on_download: Callable[[str], None] = None):
         self.preview_image.src = image_path
         
-        # Reset all transformations to their initial state
         self.preview_image.scale = self.INITIAL_SCALE
         self.preview_image.left = 0
         self.preview_image.top = 0
 
-        # Wire up actions
         if on_delete:
             self.delete_button.on_click = lambda _: on_delete(image_path)
             self.delete_button.visible = True
