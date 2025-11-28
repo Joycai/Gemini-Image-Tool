@@ -11,7 +11,7 @@ from common import database as db, i18n, logger_utils
 def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     # --- Controls ---
     api_key_input = ft.TextField(label=i18n.get("settings_label_apiKey"), password=True, can_reveal_password=True)
-    save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
+    save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"), expand=True)
     file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
     lang_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_language"),
@@ -76,7 +76,12 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         actions_alignment=ft.MainAxisAlignment.END,
     )
 
-    # --- Import/Export Logic ---
+    # --- Directory/File Picker Logic ---
+    def on_directory_result(e: ft.FilePickerResultEvent):
+        if e.path:
+            save_path_input.value = e.path
+            page.update()
+
     def on_export_result(e: ft.FilePickerResultEvent):
         if e.path:
             try:
@@ -114,12 +119,18 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             except Exception as ex:
                 show_snackbar(i18n.get("settings_import_error", "Error importing data: {error}", error=ex), is_error=True)
 
+    directory_picker = ft.FilePicker(on_result=on_directory_result)
     export_picker = ft.FilePicker(on_result=on_export_result)
     import_picker = ft.FilePicker(on_result=on_import_result)
-    page.overlay.extend([export_picker, import_picker])
+    page.overlay.extend([directory_picker, export_picker, import_picker])
 
     # --- UI Layout ---
     save_button = ft.ElevatedButton(text=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
+    pick_directory_button = ft.ElevatedButton(
+        text=i18n.get("settings_btn_pick_directory", "Choose..."),
+        icon=ft.Icons.FOLDER_OPEN,
+        on_click=lambda _: directory_picker.get_directory_path(),
+    )
     export_button = ft.ElevatedButton(text=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=lambda _: export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json", allowed_extensions=["json"]))
     import_button = ft.ElevatedButton(text=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=lambda _: import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"]))
     clear_button = ft.ElevatedButton(text=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER, on_click=clear_data_handler, color="white", bgcolor="red")
@@ -141,7 +152,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             [
                 ft.Text(i18n.get("settings_title"), size=24, weight=ft.FontWeight.BOLD),
                 api_key_input,
-                save_path_input,
+                ft.Row([save_path_input, pick_directory_button]),
                 file_prefix_input,
                 lang_dropdown,
                 save_button,

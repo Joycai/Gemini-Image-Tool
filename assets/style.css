@@ -5,11 +5,15 @@
 #fixed_gallery .grid-wrap { grid-template-columns: repeat(6, 1fr) !important; }
 #fixed_gallery .grid-item { height: 100%; } /* 强制子项高度与容器一致，防止单图拉伸 */
 
+.add-top-margin {
+    margin-top: 30px !important; /* 使用 !important 确保覆盖 Gradio 的默认样式 */
+}
+
 /* 顶部工具栏样式 */
 .top-toolbar {
     display: flex;
     align-items: center;
-    padding: 8px var(--block-padding);
+    padding: 8px;
     border-bottom: 1px solid #e5e7eb;
     background-color: var(--background-fill-primary);
     gap: 10px;
@@ -86,7 +90,7 @@ body.dark select,
 body.dark .gr-input {
     background-color: var(--input-background-fill) !important;
     color: var(--input-text-color) !important;
-    border-color: var(--border-color-primary) !importan
+    border-color: var(--border-color-primary) !important;
 }
 
 /* 修复侧边栏和工具栏在深色模式下的背景 */

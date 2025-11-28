@@ -48,7 +48,9 @@ def remove_marked_from_selected(marked_path: str, current_selected: List[str]) -
 
 def refresh_prompt_dropdown() -> gr.Dropdown:
     titles = db.get_all_prompt_titles()
-    return gr.Dropdown(choices=titles, value=i18n.get("home_control_prompt_placeholder"))
+    placeholder = i18n.get("home_control_prompt_placeholder")
+    choices = [placeholder] + titles
+    return gr.Dropdown(choices=choices, value=placeholder)
 
 def load_prompt_to_ui(selected_title: str) -> str:
     if not selected_title or selected_title == i18n.get("home_control_prompt_placeholder"):
@@ -78,7 +80,9 @@ def delete_prompt_from_db(selected_title: str) -> gr.Dropdown:
 
 def render() -> Dict[str, gr.Component]:
     settings: Dict[str, Any] = db.get_all_settings()
-    initial_prompts: List[str] = db.get_all_prompt_titles()
+    
+    placeholder = i18n.get("home_control_prompt_placeholder")
+    initial_prompts: List[str] = [placeholder] + db.get_all_prompt_titles()
 
     with gr.Row(equal_height=False):
         with gr.Column(scale=4):
@@ -98,7 +102,7 @@ def render() -> Dict[str, gr.Component]:
 
                 gr.Markdown(i18n.get("home_control_prompt_title"))
                 with gr.Row():
-                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=i18n.get("home_control_prompt_placeholder"), label=i18n.get("home_control_prompt_label_history"), scale=3, interactive=True)
+                    prompt_dropdown = gr.Dropdown(choices=initial_prompts, value=placeholder, label=i18n.get("home_control_prompt_label_history"), scale=3, interactive=True)
                     btn_load_prompt = gr.Button(i18n.get("home_control_prompt_btn_load"), scale=1)
                     btn_del_prompt = gr.Button(i18n.get("home_control_prompt_btn_delete"), scale=1, variant="stop")
                 prompt_input = gr.Textbox(label="", placeholder=i18n.get("home_control_prompt_input_placeholder"), lines=4, show_label=False)

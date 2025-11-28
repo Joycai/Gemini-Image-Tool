@@ -1,13 +1,46 @@
 import json
 import os
+import platform
 import shutil
+import subprocess
 import time
+import tkinter as tk
+from tkinter import filedialog
+from typing import Optional
 
 import gradio as gr
 
 from common import logger_utils, database as db, i18n
 from gapp.component import main_page
 from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+
+
+def open_folder_dialog() -> Optional[str]:
+    """
+    Opens a native folder selection dialog.
+    Uses AppleScript on macOS to avoid threading issues with tkinter.
+    Uses tkinter on other systems.
+    """
+    system_platform = platform.system()
+    if system_platform == "Darwin":
+        script = 'POSIX path of (choose folder with prompt "Please select a folder to process")'
+        try:
+            result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, check=False)
+            return result.stdout.strip()
+        except (subprocess.CalledProcessError, OSError) as e:
+            logger_utils.log(f"Failed to open folder dialog using AppleScript: {e}")
+            return None
+    else:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            folder_path = filedialog.askdirectory()
+            root.destroy()
+            return folder_path if folder_path else None
+        except (tk.TclError, RuntimeError) as e:
+            logger_utils.log(f"Failed to open folder dialog using tkinter: {e}")
+            return None
 
 
 def clear_cache():
@@ -19,6 +52,7 @@ def clear_cache():
         os.makedirs(d)
     gr.Info(i18n.get("logic_info_cacheCleared"))
 
+
 def export_prompts_logic():
     """导出所有 prompts 到一个 JSON 文件"""
     try:
@@ -26,10 +60,10 @@ def export_prompts_logic():
         timestamp = int(time.time())
         filename = f"prompts_export_{timestamp}.json"
         filepath = os.path.join(TEMP_DIR, filename)
-        
+
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(prompts, f, ensure_ascii=False, indent=4)
-        
+
         gr.Info(i18n.get("logic_info_prompts_exported", count=len(prompts)))
         return gr.File(value=filepath, visible=True)
     except (IOError, OSError, json.JSONDecodeError) as e:
@@ -38,6 +72,7 @@ def export_prompts_logic():
         gr.Error(error_msg)
         return gr.File(visible=False)
 
+
 def import_prompts_logic(file):
     """从 JSON 文件导入 prompts"""
     if file is None:
@@ -45,9 +80,9 @@ def import_prompts_logic(file):
     try:
         with open(file.name, 'r', encoding='utf-8') as f:
             prompts_to_import = json.load(f)
-        
+
         count = db.import_prompts_from_list(prompts_to_import)
-        
+
         gr.Info(i18n.get("logic_info_prompts_imported", count=count))
         return main_page.refresh_prompt_dropdown()
     except (IOError, OSError, json.JSONDecodeError) as e:
@@ -56,17 +91,23 @@ def import_prompts_logic(file):
         gr.Error(error_msg)
         return gr.skip()
 
+
 def render():
     settings = db.get_all_settings()
     with gr.Group():
         gr.Markdown(f"## {i18n.get('settings_title')}")
 
         with gr.Row():
-            setting_api_key_input = gr.Textbox(label=i18n.get("settings_label_apiKey"), value=settings["api_key"], type="password",
+            setting_api_key_input = gr.Textbox(label=i18n.get("settings_label_apiKey"), value=settings["api_key"],
+                                               type="password",
                                                scale=2)
 
         with gr.Row():
-            setting_save_path = gr.Textbox(label=i18n.get("settings_label_savePath"), value=settings["save_path"])
+            setting_save_path = gr.Textbox(label=i18n.get("settings_label_savePath"), value=settings["save_path"],
+                                           scale=3)
+            btn_select_dir = gr.Button(i18n.get("home_assets_btn_browse"), elem_classes="add-top-margin", scale=0, min_width=120)
+
+        with gr.Row():
             setting_prefix = gr.Textbox(label=i18n.get("settings_label_prefix"), value=settings["file_prefix"])
 
         with gr.Row():
@@ -75,18 +116,19 @@ def render():
 
         with gr.Row():
             btn_save_settings = gr.Button(i18n.get("settings_btn_save"), variant="primary", scale=1)
-        
+
         with gr.Accordion(label=i18n.get("settings_label_prompt_management"), open=True):
             with gr.Row():
                 btn_export_prompts = gr.Button(i18n.get("settings_btn_export_prompts"))
                 btn_import_prompts = gr.UploadButton(i18n.get("settings_btn_import_prompts"), file_types=['.json'])
-            
+
             exported_file = gr.File(label="Exported Prompts", visible=False)
 
         with gr.Row():
             btn_clear_cache = gr.Button(i18n.get("settings_btn_clear_cache"), variant="secondary", scale=1)
             btn_restart = gr.Button("🔄 Restart", variant="stop", scale=1)
 
+    btn_select_dir.click(open_folder_dialog, None, setting_save_path)
 
     return {
         "api_key": setting_api_key_input,
