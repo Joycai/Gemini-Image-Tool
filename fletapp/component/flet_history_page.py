@@ -1,11 +1,12 @@
+import os
+import platform
+import subprocess
+import threading
+
 import flet as ft
+from PIL import Image
 from flet.core.container import Container
 from flet.core.page import Page
-import os
-import subprocess
-import platform
-import threading
-from PIL import Image
 
 from common import database as db, i18n, logger_utils
 from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR, AR_SELECTOR_CHOICES
@@ -65,8 +66,7 @@ def history_page(page: Page) -> Container:
     history_grid = ft.GridView(
         expand=True,
         runs_count=5,
-        max_extent=150,
-        child_aspect_ratio=0.87,  # Adjusted for the new text
+        child_aspect_ratio=0.87,
         spacing=10,
         run_spacing=10,
     )
@@ -77,6 +77,21 @@ def history_page(page: Page) -> Container:
     page.overlay.append(file_picker)
 
     # --- Functions ---
+    def update_grid_layout(e):
+        columns = int(e.control.value)
+        history_grid.runs_count = columns
+        if page: page.update()
+
+    zoom_slider = ft.Slider(
+        min=1,
+        max=10,
+        divisions=9,
+        value=5,
+        label="{value}",
+        on_change=update_grid_layout,
+        width=200,
+    )
+
     def load_history_images():
         history_grid.controls.clear()
         save_dir = db.get_setting("save_path", OUTPUT_DIR)
@@ -99,26 +114,29 @@ def history_page(page: Page) -> Container:
                 details_text = get_image_details(img_path)
 
                 thumbnail = ft.Container(
-                    width=150,
-                    height=150,
                     content=ft.Image(src=img_path, fit=ft.ImageFit.CONTAIN, tooltip=os.path.basename(img_path)),
-                    border_radius=ft.border_radius.all(5)
+                    border_radius=ft.border_radius.all(5),
+                    expand=True  # Allow the thumbnail to fill the space
                 )
 
                 details_label = ft.Text(
                     value=details_text,
                     size=10,
                     text_align=ft.TextAlign.CENTER,
-                    width=150
                 )
 
-                image_with_details = ft.Column(
-                    controls=[
-                        thumbnail,
-                        details_label,
-                    ],
-                    spacing=2,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                image_with_details = (
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                thumbnail,
+                                details_label,
+                            ],
+                            spacing=2,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            expand=True,
+                        )
+                    )
                 )
 
                 history_grid.controls.append(
@@ -206,6 +224,8 @@ def history_page(page: Page) -> Container:
                                       tooltip=i18n.get("home_history_btn_open")),
                         ft.IconButton(icon=ft.Icons.REFRESH, on_click=lambda e: load_history_images(),
                                       tooltip=i18n.get("home_history_btn_refresh", "Refresh")),
+                        ft.Text(i18n.get("home_history_zoom", "Zoom:")),
+                        zoom_slider,
                     ]
                 ),
                 history_grid,
