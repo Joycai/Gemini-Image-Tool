@@ -1,11 +1,19 @@
 import flet as ft
-from typing import Callable
+from typing import Callable, List, Optional
 from common import i18n
 
 class ImagePreviewDialog:
     def __init__(self, page: ft.Page):
         self.page = page
         
+        # --- Callbacks ---
+        self.on_delete: Optional[Callable[[str], None]] = None
+        self.on_download: Optional[Callable[[str], None]] = None
+        
+        # --- Image List ---
+        self.image_list: List[str] = []
+        self.current_index: int = 0
+
         # --- Constants for Zoom & Pan ---
         self.INITIAL_SCALE = 1.0
         self.ZOOM_FACTOR = 0.1
@@ -23,8 +31,10 @@ class ImagePreviewDialog:
             left=0,
             top=0,
         )
-        self.delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"))
+        self.prev_button = ft.TextButton(i18n.get("dialog_btn_previous", "Previous"), on_click=self._go_previous)
+        self.next_button = ft.TextButton(i18n.get("dialog_btn_next", "Next"), on_click=self._go_next)
         self.download_button = ft.TextButton(i18n.get("dialog_btn_download", "Download"))
+        self.delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"))
 
         self.dialog = ft.AlertDialog(
             modal=True,
@@ -41,6 +51,8 @@ class ImagePreviewDialog:
                 drag_interval=10,
             ),
             actions=[
+                self.prev_button,
+                self.next_button,
                 self.download_button,
                 self.delete_button,
                 ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=self.close),
@@ -50,11 +62,10 @@ class ImagePreviewDialog:
 
     def _on_scroll_zoom(self, e: ft.ScrollEvent):
         current_scale = self.preview_image.scale or self.INITIAL_SCALE
-        if e.scroll_delta_y < 0:  # Zoom in
+        if e.scroll_delta_y < 0:
             new_scale = min(self.MAX_ZOOM, current_scale + self.ZOOM_FACTOR)
-        else:  # Zoom out
+        else:
             new_scale = max(self.MIN_ZOOM, current_scale - self.ZOOM_FACTOR)
-        
         self.preview_image.scale = new_scale
         self.preview_image.update()
 
@@ -63,25 +74,63 @@ class ImagePreviewDialog:
         self.preview_image.top = (self.preview_image.top or 0) + e.delta_y
         self.preview_image.update()
 
-    def open(self, image_path: str, on_delete: Callable[[str], None] = None, on_download: Callable[[str], None] = None):
+    def _go_previous(self, e):
+        if self.current_index > 0:
+            self._show_image_at_index(self.current_index - 1)
+            self.dialog.update()
+
+    def _go_next(self, e):
+        if self.current_index < len(self.image_list) - 1:
+            self._show_image_at_index(self.current_index + 1)
+            self.dialog.update()
+
+    def _show_image_at_index(self, index: int):
+        self.current_index = index
+        image_path = self.image_list[self.current_index]
+
+        # Reset view and update image source
         self.preview_image.src = image_path
-        
         self.preview_image.scale = self.INITIAL_SCALE
         self.preview_image.left = 0
         self.preview_image.top = 0
 
-        if on_delete:
-            self.delete_button.on_click = lambda _: on_delete(image_path)
-            self.delete_button.visible = True
-        else:
-            self.delete_button.visible = False
+        # Update button callbacks
+        if self.on_download:
+            self.download_button.on_click = lambda _, p=image_path: self.on_download(p)
+        if self.on_delete:
+            self.delete_button.on_click = lambda _, p=image_path: self.on_delete(p)
 
-        if on_download:
-            self.download_button.on_click = lambda _: on_download(image_path)
-            self.download_button.visible = True
-        else:
-            self.download_button.visible = False
+        # Update navigation button visibility
+        if self.prev_button.visible:
+            self.prev_button.disabled = self.current_index == 0
+            self.next_button.disabled = self.current_index == len(self.image_list) - 1
         
+    def open(self, 
+             image_path: Optional[str] = None, 
+             image_list: Optional[List[str]] = None, 
+             current_index: int = 0, 
+             on_delete: Optional[Callable[[str], None]] = None, 
+             on_download: Optional[Callable[[str], None]] = None):
+        
+        if image_path:
+            self.image_list = [image_path]
+            current_index = 0
+            self.prev_button.visible = False
+            self.next_button.visible = False
+        elif image_list:
+            self.image_list = image_list
+            self.prev_button.visible = True
+            self.next_button.visible = True
+        else:
+            raise ValueError("Either image_path or image_list must be provided.")
+
+        self.on_delete = on_delete
+        self.on_download = on_download
+
+        self.delete_button.visible = on_delete is not None
+        self.download_button.visible = on_download is not None
+
+        self._show_image_at_index(current_index)
         self.page.open(self.dialog)
 
     def close(self, e):

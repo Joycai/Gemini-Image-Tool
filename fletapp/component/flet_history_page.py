@@ -1,12 +1,11 @@
-import os
-import platform
-import subprocess
-import threading
-
 import flet as ft
-from PIL import Image
 from flet.core.container import Container
 from flet.core.page import Page
+import os
+import subprocess
+import platform
+import threading
+from PIL import Image
 
 from common import database as db, i18n, logger_utils
 from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR, AR_SELECTOR_CHOICES
@@ -62,6 +61,9 @@ def get_image_details(image_path: str) -> str:
 
 
 def history_page(page: Page) -> Container:
+    # --- Data ---
+    image_files = []
+
     # --- Controls ---
     history_grid = ft.GridView(
         expand=True,
@@ -93,6 +95,7 @@ def history_page(page: Page) -> Container:
     )
 
     def load_history_images():
+        nonlocal image_files
         history_grid.controls.clear()
         save_dir = db.get_setting("save_path", OUTPUT_DIR)
 
@@ -105,18 +108,19 @@ def history_page(page: Page) -> Container:
             files = [os.path.join(save_dir, f) for f in os.listdir(save_dir)
                      if os.path.splitext(f)[1].lower() in VALID_IMAGE_EXTENSIONS]
             files.sort(key=os.path.getmtime, reverse=True)
+            image_files = files
 
-            if not files:
+            if not image_files:
                 history_grid.controls.append(
                     ft.Text(i18n.get("history_no_images_found", "No images found in the output directory.")))
 
-            for img_path in files:
+            for i, img_path in enumerate(image_files):
                 details_text = get_image_details(img_path)
 
                 thumbnail = ft.Container(
                     content=ft.Image(src=img_path, fit=ft.ImageFit.CONTAIN, tooltip=os.path.basename(img_path)),
                     border_radius=ft.border_radius.all(5),
-                    expand=True  # Allow the thumbnail to fill the space
+                    expand=True
                 )
 
                 details_label = ft.Text(
@@ -125,24 +129,20 @@ def history_page(page: Page) -> Container:
                     text_align=ft.TextAlign.CENTER,
                 )
 
-                image_with_details = (
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                thumbnail,
-                                details_label,
-                            ],
-                            spacing=2,
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            expand=True,
-                        )
-                    )
+                image_with_details = ft.Column(
+                    controls=[
+                        thumbnail,
+                        details_label,
+                    ],
+                    spacing=2,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    expand=True,
                 )
 
                 history_grid.controls.append(
                     ft.GestureDetector(
                         content=image_with_details,
-                        on_double_tap=lambda e, path=img_path: open_preview_dialog(path)
+                        on_double_tap=lambda e, index=i: open_preview_dialog(index)
                     )
                 )
         except Exception as e:
@@ -151,9 +151,10 @@ def history_page(page: Page) -> Container:
 
         if page: page.update()
 
-    def open_preview_dialog(image_path: str):
+    def open_preview_dialog(current_index: int):
         image_preview_dialog.open(
-            image_path=image_path,
+            image_list=image_files,
+            current_index=current_index,
             on_delete=delete_image,
             on_download=download_image
         )
