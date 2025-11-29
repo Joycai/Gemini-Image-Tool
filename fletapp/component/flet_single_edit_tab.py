@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 import flet as ft
 from flet.core.page import Page
 from flet.core.types import MainAxisAlignment
+from PIL import Image
 
 # Custom imports
 from common import database as db, logger_utils, i18n
@@ -17,6 +18,54 @@ from geminiapi import api_client
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def get_image_details(image_path: str) -> str:
+    """
+    Gets the closest aspect ratio and resolution for an image.
+    """
+    try:
+        with Image.open(image_path) as img:
+            width, height = img.size
+    except Exception as e:
+        logger_utils.log(f"Error opening image {image_path}: {e}")
+        return "Unknown"
+
+    # Resolution
+    max_dim = max(width, height)
+    if max_dim <= 1024:
+        res_text = "1K"
+    elif max_dim <= 2048:
+        res_text = "2K"
+    else:
+        res_text = "4K"
+
+    # Aspect Ratio
+    if height == 0:
+        return f"{res_text} / ?"
+
+    image_ar = width / height
+
+    best_ar_choice = ""
+    min_diff = float('inf')
+
+    for ar_choice in AR_SELECTOR_CHOICES:
+        if ar_choice == "ar_none":
+            continue
+
+        try:
+            ar_parts = ar_choice.split(':')
+            ar_value = int(ar_parts[0]) / int(ar_parts[1])
+
+            diff = abs(image_ar - ar_value)
+
+            if diff < min_diff:
+                min_diff = diff
+                best_ar_choice = ar_choice
+        except (ValueError, ZeroDivisionError):
+            continue
+
+    return f"{res_text} / {best_ar_choice}"
 
 
 def single_edit_tab(page: Page) -> Dict[str, Any]:
@@ -42,11 +91,12 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     )
 
     # --- Main UI Controls ---
-    selected_images_grid = ft.GridView(runs_count=5, max_extent=100, spacing=5, run_spacing=5, child_aspect_ratio=1.0,
+    selected_images_grid = ft.GridView(runs_count=5, max_extent=120, spacing=5, run_spacing=5, child_aspect_ratio=0.8,
                                        padding=0, controls=[], expand=True)
     prompt_input = ft.TextField(label=i18n.get("home_control_prompt_input_placeholder"), multiline=True, min_lines=3,
                                 max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=True)
-    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True, expand=True)
+    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True,
+                              expand=True)
     api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN,
                                   expand=True)
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
@@ -122,12 +172,39 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     def update_selected_images_display():
         selected_images_grid.controls.clear()
         for path in selected_images_paths:
+            details_text = get_image_details(path)
+
+            thumbnail = ft.Container(
+                width=100,
+                height=100,
+                border_radius=ft.border_radius.all(5),
+                content=ft.Image(
+                    src=path,
+                    fit=ft.ImageFit.CONTAIN,
+                    tooltip=os.path.basename(path)
+                ),
+                alignment=ft.alignment.center
+            )
+
+            details_label = ft.Text(
+                value=details_text,
+                size=10,
+                text_align=ft.TextAlign.CENTER,
+                width=100
+            )
+
+            image_with_details = ft.Column(
+                controls=[
+                    thumbnail,
+                    details_label,
+                ],
+                spacing=2,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            )
+
             selected_images_grid.controls.append(
                 ft.GestureDetector(
-                    content=ft.Container(width=100, height=100, border_radius=ft.border_radius.all(5),
-                                         content=ft.Image(src=path, fit=ft.ImageFit.CONTAIN,
-                                                          tooltip=os.path.basename(path)),
-                                         alignment=ft.alignment.center),
+                    content=image_with_details,
                     on_tap=lambda ev, p=path: remove_selected_image(ev, p)
                 )
             )
@@ -176,14 +253,14 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
-            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True);
+            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True)
             return
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
-            show_snackbar(i18n.get("api_error_apiKey"), is_error=True);
+            show_snackbar(i18n.get("api_error_apiKey"), is_error=True)
             return
         if not prompt_input.value and not selected_images_paths:
-            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True);
+            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         threading.Thread(target=_api_worker, args=(text_encoder(prompt_input.value), selected_images_paths, api_key,
                                                    model_selector_dropdown.value, ratio_dropdown.value,
@@ -268,7 +345,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                         expand=1
                     )
                 ], expand=6, scroll=ft.ScrollMode.AUTO)
-        ],expand=True),
+        ], expand=True),
         expand=True,
     )
 
