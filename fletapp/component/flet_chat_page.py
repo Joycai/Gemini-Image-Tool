@@ -284,19 +284,25 @@ def chat_page(page: Page) -> Dict[str, Any]:
     view = ft.Container(
         content=ft.Column([
             chat_history,
+            ft.Divider(),
             ft.Row([model_selector, ar_selector, res_selector]),
             ft.Divider(),
             ft.Row([
-                prompt_dropdown,
-                ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_load")),
-                ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_delete")),
+                ft.Row([
+                    prompt_dropdown,
+                    ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
+                                  tooltip=i18n.get("home_control_prompt_btn_load")),
+                    ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
+                                  tooltip=i18n.get("home_control_prompt_btn_delete"))
+                ],expand=4),
+                ft.Row([
+                    prompt_title_input,
+                    ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                      on_click=save_prompt_handler)
+                ], expand=2),
             ]),
             thumbnail_row,
             ft.Row([user_input, upload_button, send_button], vertical_alignment=ft.CrossAxisAlignment.START),
-            ft.Row([
-                prompt_title_input,
-                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE, on_click=save_prompt_handler),
-            ]),
             ft.Row([clear_button])
         ]),
         padding=ft.padding.all(10),

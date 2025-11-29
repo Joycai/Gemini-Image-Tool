@@ -94,7 +94,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     selected_images_grid = ft.GridView(runs_count=5, max_extent=120, spacing=5, run_spacing=5, child_aspect_ratio=0.8,
                                        padding=0, controls=[], expand=True)
     prompt_input = ft.TextField(label=i18n.get("home_control_prompt_input_placeholder"), multiline=True, min_lines=3,
-                                max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=True)
+                                max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=4)
     log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True,
                               expand=True)
     api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN,
@@ -108,7 +108,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                       value=RES_SELECTOR_CHOICES[0], expand=1)
     model_selector_dropdown = ft.Dropdown(label=i18n.get("home_control_model_label"),
                                           options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
-                                          value=MODEL_SELECTOR_CHOICES[0], expand=True)
+                                          value=MODEL_SELECTOR_CHOICES[0], expand=2)
 
     # --- Functions ---
     def show_snackbar(message: str, is_error: bool = False):
@@ -299,6 +299,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                     ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
                     selected_images_grid,
                     ft.Divider(),
+                    ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
+                    ft.Divider(),
                     ft.Row([
                         prompt_dropdown,
                         ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
@@ -306,15 +308,17 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                         ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
                                       tooltip=i18n.get("home_control_prompt_btn_delete")),
                     ]),
-                    prompt_input,
-                    ft.Row([
-                        prompt_title_input,
-                        ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
-                                          on_click=save_prompt_handler),
-                    ]),
-                    ft.Divider(),
-                    ft.Row([ratio_dropdown, resolution_dropdown]),
-                    model_selector_dropdown,
+
+                    ft.Row(
+                        controls=[
+                            prompt_input,
+                            ft.Column([
+                                prompt_title_input,
+                                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                                  on_click=save_prompt_handler),
+                            ],expand=1),
+                        ]
+                    ),
                     ft.ElevatedButton(text=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
                                       on_click=send_prompt_handler, expand=True),
                     ft.Divider(),
