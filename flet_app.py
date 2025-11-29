@@ -5,7 +5,7 @@ import os
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common import i18n
+from common import i18n, database as db
 from fletapp.component.flet_single_edit_tab import single_edit_tab
 from fletapp.component.flet_settings_page import settings_page
 from fletapp.component.flet_history_page import history_page
@@ -17,7 +17,10 @@ def main(page: ft.Page):
 
     page.title = i18n.get("app_title")
     page.vertical_alignment = ft.MainAxisAlignment.START
-    page.theme_mode = ft.ThemeMode.LIGHT
+
+    # --- Theme Loading ---
+    saved_theme = db.get_setting("theme_mode", "LIGHT")
+    page.theme_mode = ft.ThemeMode.DARK if saved_theme == "DARK" else ft.ThemeMode.LIGHT
 
     def restart_app():
         """Restarts the current application."""
@@ -25,12 +28,14 @@ def main(page: ft.Page):
         os.execl(sys.executable, sys.executable, *sys.argv)
 
     def toggle_theme(e):
-        page.theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
+        new_theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
+        page.theme_mode = new_theme_mode
+        db.save_setting("theme_mode", "DARK" if new_theme_mode == ft.ThemeMode.DARK else "LIGHT")
         theme_toggle_button.icon = ft.Icons.WB_SUNNY_OUTLINED if page.theme_mode == ft.ThemeMode.DARK else ft.Icons.DARK_MODE_OUTLINED
         page.update()
 
     theme_toggle_button = ft.IconButton(
-        icon=ft.Icons.DARK_MODE_OUTLINED,
+        icon=ft.Icons.WB_SUNNY_OUTLINED if page.theme_mode == ft.ThemeMode.DARK else ft.Icons.DARK_MODE_OUTLINED,
         tooltip=i18n.get("header_theme_button_tooltip", "Toggle theme"),
         on_click=toggle_theme
     )
