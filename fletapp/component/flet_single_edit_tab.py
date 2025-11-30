@@ -124,6 +124,9 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
         prompt_dropdown.update()
 
+    def on_prompts_update(topic: str):
+        refresh_prompts_dropdown()
+
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
         if not selected_title:
@@ -141,11 +144,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         db.save_prompt(title, content)
+        page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
         show_snackbar(i18n.get("logic_info_promptSaved", title=title))
         prompt_title_input.value = ""
         prompt_title_input.update()
-        refresh_prompts_dropdown()
 
     def delete_prompt_handler(e):
         selected_title = prompt_dropdown.value
@@ -153,10 +156,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."), is_error=True)
             return
         db.delete_prompt(selected_title)
+        page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
         show_snackbar(i18n.get("logic_info_promptDeleted", title=selected_title))
         prompt_dropdown.value = None
-        refresh_prompts_dropdown()
 
     # --- Other Functions (Image selection, API calls, etc.) ---
     def remove_selected_image(e, image_path):
@@ -287,6 +290,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     # --- Initialization function to be called after mount ---
     def initialize():
+        page.pubsub.subscribe(on_prompts_update)
         refresh_prompts_dropdown()
 
     # --- Layout ---
