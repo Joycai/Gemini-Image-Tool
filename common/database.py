@@ -1,10 +1,20 @@
 import sqlite3
 import os
 from common import logger_utils
+from appdirs import user_data_dir
 
-# Define the storage directory and database file path
-STORAGE_DIR = "storage"
+# --- App-specific information for appdirs ---
+APP_NAME = "G-AI-Edit"
+APP_AUTHOR = "YourAppName" # Or your name/company
+
+# --- Define the storage directory and database file path ---
+# This will resolve to a path like:
+# Windows: C:\\Users\\<User>\\AppData\\Local\\YourAppName\\G-AI-Edit\\storage
+# macOS:   /Users/<User>/Library/Application Support/G-AI-Edit/storage
+# Linux:   /home/<User>/.local/share/G-AI-Edit/storage
+STORAGE_DIR = os.path.join(user_data_dir(APP_NAME, APP_AUTHOR), "storage")
 DB_FILE = os.path.join(STORAGE_DIR, "database.sqlite")
+
 
 def get_db_connection():
     """Establishes a connection to the database."""
@@ -51,6 +61,7 @@ def ensure_db_exists():
     db_needs_init = not os.path.exists(DB_FILE)
     
     try:
+        # Use os.makedirs to create the full path, including intermediate directories
         os.makedirs(STORAGE_DIR, exist_ok=True)
         conn = get_db_connection()
         

@@ -8,7 +8,8 @@ dependencies = [
     "flet==0.28.3",
     "google-genai==1.52.0",
     "pillow==11.3.0",
-    "requests==2.32.5"
+    "requests==2.32.5",
+    "appdirs>=1.4.3"
 ]
 authors = [
     { name = "joycai", email = "joycai@joycai.cn" }
