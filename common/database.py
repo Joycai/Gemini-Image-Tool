@@ -1,10 +1,20 @@
 import sqlite3
 import os
 from common import logger_utils
+from appdirs import user_data_dir
 
-# Define the storage directory and database file path
-STORAGE_DIR = "storage"
+# --- App-specific information for appdirs ---
+APP_NAME = "G-AI-Edit"
+APP_AUTHOR = "YourAppName" # Or your name/company
+
+# --- Define the storage directory and database file path ---
+# This will resolve to a path like:
+# Windows: C:\\Users\\<User>\\AppData\\Local\\YourAppName\\G-AI-Edit\\storage
+# macOS:   /Users/<User>/Library/Application Support/G-AI-Edit/storage
+# Linux:   /home/<User>/.local/share/G-AI-Edit/storage
+STORAGE_DIR = os.path.join(user_data_dir(APP_NAME, APP_AUTHOR), "storage")
 DB_FILE = os.path.join(STORAGE_DIR, "database.sqlite")
+
 
 def get_db_connection():
     """Establishes a connection to the database."""
@@ -19,29 +29,55 @@ def init_db(conn):
                  (key TEXT PRIMARY KEY, value TEXT)''')
     # 2. Prompt table
     c.execute('''CREATE TABLE IF NOT EXISTS prompts
-                 (title TEXT PRIMARY KEY, content TEXT)''')
+                 (title TEXT PRIMARY KEY, content TEXT, order_id INTEGER)''')
     # Add default settings if needed
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("save_path", "outputs"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("file_prefix", "gemini_gen"))
     conn.commit()
 
+def migrate_db(conn):
+    """Migrates the database schema to the latest version."""
+    c = conn.cursor()
+    c.execute("PRAGMA table_info(prompts)")
+    columns = [row[1] for row in c.fetchall()]
+    if "order_id" not in columns:
+        logger_utils.log("Migrating database: Adding 'order_id' to prompts table.")
+        c.execute("ALTER TABLE prompts ADD COLUMN order_id INTEGER")
+        c.execute("SELECT title FROM prompts")
+        titles = [row[0] for row in c.fetchall()]
+        for i, title in enumerate(titles):
+            c.execute("UPDATE prompts SET order_id = ? WHERE title = ?", (i, title))
+        conn.commit()
+        logger_utils.log("Database migration complete.")
+
+
 def ensure_db_exists():
     """
     Ensures the database file and its directory exist.
     If the database file does not exist, it initializes it.
+    Also handles database migrations.
     """
-    if not os.path.exists(DB_FILE):
-        logger_utils.log(f"Database file not found at {DB_FILE}. Creating a new one.")
-        try:
-            os.makedirs(STORAGE_DIR, exist_ok=True)
-            conn = get_db_connection()
+    db_needs_init = not os.path.exists(DB_FILE)
+    
+    try:
+        # Use os.makedirs to create the full path, including intermediate directories
+        os.makedirs(STORAGE_DIR, exist_ok=True)
+        conn = get_db_connection()
+        
+        if db_needs_init:
+            logger_utils.log(f"Database file not found at {DB_FILE}. Creating a new one.")
             init_db(conn)
-            conn.close()
             logger_utils.log("Database created and initialized successfully.")
-        except Exception as e:
-            logger_utils.log(f"FATAL: Could not create or initialize the database: {e}")
-            raise
+        else:
+            # Database exists, check for migrations
+            migrate_db(conn)
+            
+        conn.close()
+    except Exception as e:
+        logger_utils.log(f"FATAL: Could not create, initialize, or migrate the database: {e}")
+        raise
+
 
 # --- Full Data Import/Export ---
 def export_all_data():
@@ -53,7 +89,7 @@ def export_all_data():
     c.execute("SELECT key, value FROM settings")
     settings = [dict(row) for row in c.fetchall()]
     
-    c.execute("SELECT title, content FROM prompts")
+    c.execute("SELECT title, content FROM prompts ORDER BY order_id")
     prompts = [dict(row) for row in c.fetchall()]
     
     conn.close()
@@ -78,8 +114,10 @@ def import_all_data(data: dict):
         c.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", settings_to_insert)
         
         # Insert new prompts
-        prompts_to_insert = [(item.get('title'), item.get('content')) for item in data.get("prompts", [])]
-        c.executemany("INSERT INTO prompts (title, content) VALUES (?, ?)", prompts_to_insert)
+        prompts_to_insert = []
+        for i, item in enumerate(data.get("prompts", [])):
+            prompts_to_insert.append((item.get('title'), item.get('content'), i))
+        c.executemany("INSERT INTO prompts (title, content, order_id) VALUES (?, ?, ?)", prompts_to_insert)
         
         # Commit transaction
         conn.commit()
@@ -142,10 +180,28 @@ def save_prompt(title, content):
         return False
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO prompts (title, content) VALUES (?, ?)", (title, content))
+    c.execute("SELECT MAX(order_id) FROM prompts")
+    max_order = c.fetchone()[0]
+    new_order = (max_order or 0) + 1
+    c.execute("INSERT OR REPLACE INTO prompts (title, content, order_id) VALUES (?, ?, ?)", (title, content, new_order))
     conn.commit()
     conn.close()
     return True
+
+def update_prompt(old_title, new_title, new_content):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE prompts SET title = ?, content = ? WHERE title = ?", (new_title, new_content, old_title))
+    conn.commit()
+    conn.close()
+
+def update_prompt_order(titles):
+    conn = get_db_connection()
+    c = conn.cursor()
+    for i, title in enumerate(titles):
+        c.execute("UPDATE prompts SET order_id = ? WHERE title = ?", (i, title))
+    conn.commit()
+    conn.close()
 
 def delete_prompt(title):
     conn = get_db_connection()
@@ -166,33 +222,20 @@ def get_all_prompt_titles():
     """Gets all Prompt titles for dropdowns."""
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT title FROM prompts ORDER BY title")
+    c.execute("SELECT title FROM prompts ORDER BY order_id")
     titles = [row[0] for row in c.fetchall()]
     conn.close()
     return titles
 
-def get_all_prompts_for_export():
-    """Gets all prompts for export, returns a list of dicts."""
+def get_all_prompts():
+    """Gets all prompts, returns a list of dicts."""
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT title, content FROM prompts ORDER BY title")
+    c.execute("SELECT title, content, order_id FROM prompts ORDER BY order_id")
     prompts = [dict(row) for row in c.fetchall()]
     conn.close()
     return prompts
-
-def import_prompts_from_list(prompts_list):
-    """Imports prompts from a list of dicts, overwriting duplicates."""
-    if not prompts_list:
-        return 0
-    conn = get_db_connection()
-    c = conn.cursor()
-    data_to_insert = [(item.get('title'), item.get('content')) for item in prompts_list if item.get('title') and item.get('content')]
-    c.executemany("INSERT OR REPLACE INTO prompts (title, content) VALUES (?, ?)", data_to_insert)
-    count = len(data_to_insert)
-    conn.commit()
-    conn.close()
-    return count
 
 # --- Initialization ---
 ensure_db_exists()

@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 import flet as ft
 from flet.core.page import Page
 from flet.core.types import MainAxisAlignment
+from PIL import Image
 
 # Custom imports
 from common import database as db, logger_utils, i18n
@@ -17,6 +18,54 @@ from geminiapi import api_client
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def get_image_details(image_path: str) -> str:
+    """
+    Gets the closest aspect ratio and resolution for an image.
+    """
+    try:
+        with Image.open(image_path) as img:
+            width, height = img.size
+    except Exception as e:
+        logger_utils.log(f"Error opening image {image_path}: {e}")
+        return "Unknown"
+
+    # Resolution
+    max_dim = max(width, height)
+    if max_dim <= 1024:
+        res_text = "1K"
+    elif max_dim <= 2048:
+        res_text = "2K"
+    else:
+        res_text = "4K"
+
+    # Aspect Ratio
+    if height == 0:
+        return f"{res_text} / ?"
+
+    image_ar = width / height
+
+    best_ar_choice = ""
+    min_diff = float('inf')
+
+    for ar_choice in AR_SELECTOR_CHOICES:
+        if ar_choice == "ar_none":
+            continue
+
+        try:
+            ar_parts = ar_choice.split(':')
+            ar_value = int(ar_parts[0]) / int(ar_parts[1])
+
+            diff = abs(image_ar - ar_value)
+
+            if diff < min_diff:
+                min_diff = diff
+                best_ar_choice = ar_choice
+        except (ValueError, ZeroDivisionError):
+            continue
+
+    return f"{res_text} / {best_ar_choice}"
 
 
 def single_edit_tab(page: Page) -> Dict[str, Any]:
@@ -42,11 +91,12 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     )
 
     # --- Main UI Controls ---
-    selected_images_grid = ft.GridView(runs_count=5, max_extent=100, spacing=5, run_spacing=5, child_aspect_ratio=1.0,
+    selected_images_grid = ft.GridView(runs_count=5, max_extent=120, spacing=5, run_spacing=5, child_aspect_ratio=0.8,
                                        padding=0, controls=[], expand=True)
     prompt_input = ft.TextField(label=i18n.get("home_control_prompt_input_placeholder"), multiline=True, min_lines=3,
-                                max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=True)
-    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True, expand=True)
+                                max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=4)
+    log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True,
+                              expand=True)
     api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN,
                                   expand=True)
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
@@ -58,7 +108,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                       value=RES_SELECTOR_CHOICES[0], expand=1)
     model_selector_dropdown = ft.Dropdown(label=i18n.get("home_control_model_label"),
                                           options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
-                                          value=MODEL_SELECTOR_CHOICES[0], expand=True)
+                                          value=MODEL_SELECTOR_CHOICES[0], expand=2)
 
     # --- Functions ---
     def show_snackbar(message: str, is_error: bool = False):
@@ -73,6 +123,9 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         titles = db.get_all_prompt_titles()
         prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
         prompt_dropdown.update()
+
+    def on_prompts_update(topic: str):
+        refresh_prompts_dropdown()
 
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
@@ -91,11 +144,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         db.save_prompt(title, content)
+        page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
         show_snackbar(i18n.get("logic_info_promptSaved", title=title))
         prompt_title_input.value = ""
         prompt_title_input.update()
-        refresh_prompts_dropdown()
 
     def delete_prompt_handler(e):
         selected_title = prompt_dropdown.value
@@ -103,10 +156,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."), is_error=True)
             return
         db.delete_prompt(selected_title)
+        page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
         show_snackbar(i18n.get("logic_info_promptDeleted", title=selected_title))
         prompt_dropdown.value = None
-        refresh_prompts_dropdown()
 
     # --- Other Functions (Image selection, API calls, etc.) ---
     def remove_selected_image(e, image_path):
@@ -122,12 +175,39 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     def update_selected_images_display():
         selected_images_grid.controls.clear()
         for path in selected_images_paths:
+            details_text = get_image_details(path)
+
+            thumbnail = ft.Container(
+                width=100,
+                height=100,
+                border_radius=ft.border_radius.all(5),
+                content=ft.Image(
+                    src=path,
+                    fit=ft.ImageFit.CONTAIN,
+                    tooltip=os.path.basename(path)
+                ),
+                alignment=ft.alignment.center
+            )
+
+            details_label = ft.Text(
+                value=details_text,
+                size=10,
+                text_align=ft.TextAlign.CENTER,
+                width=100
+            )
+
+            image_with_details = ft.Column(
+                controls=[
+                    thumbnail,
+                    details_label,
+                ],
+                spacing=2,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            )
+
             selected_images_grid.controls.append(
                 ft.GestureDetector(
-                    content=ft.Container(width=100, height=100, border_radius=ft.border_radius.all(5),
-                                         content=ft.Image(src=path, fit=ft.ImageFit.CONTAIN,
-                                                          tooltip=os.path.basename(path)),
-                                         alignment=ft.alignment.center),
+                    content=image_with_details,
                     on_tap=lambda ev, p=path: remove_selected_image(ev, p)
                 )
             )
@@ -176,14 +256,14 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
-            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True);
+            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True)
             return
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
-            show_snackbar(i18n.get("api_error_apiKey"), is_error=True);
+            show_snackbar(i18n.get("api_error_apiKey"), is_error=True)
             return
         if not prompt_input.value and not selected_images_paths:
-            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True);
+            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         threading.Thread(target=_api_worker, args=(text_encoder(prompt_input.value), selected_images_paths, api_key,
                                                    model_selector_dropdown.value, ratio_dropdown.value,
@@ -210,6 +290,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     # --- Initialization function to be called after mount ---
     def initialize():
+        page.pubsub.subscribe(on_prompts_update)
         refresh_prompts_dropdown()
 
     # --- Layout ---
@@ -222,6 +303,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                     ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
                     selected_images_grid,
                     ft.Divider(),
+                    ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
+                    ft.Divider(),
                     ft.Row([
                         prompt_dropdown,
                         ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
@@ -229,15 +312,17 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                         ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
                                       tooltip=i18n.get("home_control_prompt_btn_delete")),
                     ]),
-                    prompt_input,
-                    ft.Row([
-                        prompt_title_input,
-                        ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
-                                          on_click=save_prompt_handler),
-                    ]),
-                    ft.Divider(),
-                    ft.Row([ratio_dropdown, resolution_dropdown]),
-                    model_selector_dropdown,
+
+                    ft.Row(
+                        controls=[
+                            prompt_input,
+                            ft.Column([
+                                prompt_title_input,
+                                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                                  on_click=save_prompt_handler),
+                            ],expand=1),
+                        ]
+                    ),
                     ft.ElevatedButton(text=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
                                       on_click=send_prompt_handler, expand=True),
                     ft.Divider(),
@@ -268,7 +353,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                         expand=1
                     )
                 ], expand=6, scroll=ft.ScrollMode.AUTO)
-        ],expand=True),
+        ], expand=True),
         expand=True,
     )
 

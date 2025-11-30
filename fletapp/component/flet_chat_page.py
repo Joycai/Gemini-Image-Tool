@@ -97,6 +97,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
         prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
         prompt_dropdown.update()
 
+    def on_prompts_update(topic: str):
+        refresh_prompts_dropdown()
+
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
         if not selected_title:
@@ -114,11 +117,11 @@ def chat_page(page: Page) -> Dict[str, Any]:
             show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         db.save_prompt(title, content)
+        page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
         show_snackbar(i18n.get("logic_info_promptSaved", title=title))
         prompt_title_input.value = ""
         prompt_title_input.update()
-        refresh_prompts_dropdown()
 
     def delete_prompt_handler(e):
         selected_title = prompt_dropdown.value
@@ -126,10 +129,10 @@ def chat_page(page: Page) -> Dict[str, Any]:
             show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."), is_error=True)
             return
         db.delete_prompt(selected_title)
+        page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
         show_snackbar(i18n.get("logic_info_promptDeleted", title=selected_title))
         prompt_dropdown.value = None
-        refresh_prompts_dropdown()
 
     def update_thumbnail_display():
         thumbnail_row.controls.clear()
@@ -279,24 +282,31 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     # --- Initialization function to be called after mount ---
     def initialize():
+        page.pubsub.subscribe(on_prompts_update)
         refresh_prompts_dropdown()
 
     view = ft.Container(
         content=ft.Column([
             chat_history,
+            ft.Divider(),
             ft.Row([model_selector, ar_selector, res_selector]),
             ft.Divider(),
             ft.Row([
-                prompt_dropdown,
-                ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_load")),
-                ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler, tooltip=i18n.get("home_control_prompt_btn_delete")),
+                ft.Row([
+                    prompt_dropdown,
+                    ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
+                                  tooltip=i18n.get("home_control_prompt_btn_load")),
+                    ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
+                                  tooltip=i18n.get("home_control_prompt_btn_delete"))
+                ],expand=4),
+                ft.Row([
+                    prompt_title_input,
+                    ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                      on_click=save_prompt_handler)
+                ], expand=2),
             ]),
             thumbnail_row,
             ft.Row([user_input, upload_button, send_button], vertical_alignment=ft.CrossAxisAlignment.START),
-            ft.Row([
-                prompt_title_input,
-                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE, on_click=save_prompt_handler),
-            ]),
             ft.Row([clear_button])
         ]),
         padding=ft.padding.all(10),
