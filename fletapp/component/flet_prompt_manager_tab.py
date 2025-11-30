@@ -78,7 +78,7 @@ def prompt_manager_tab(page: ft.Page):
 
         edit_view = ft.Container(
             padding=10,
-            bgcolor=ft.Colors.BLUE_GREY_50,
+            bgcolor="surfaceVariant",
             visible=False,
             content=ft.Column([
                 edit_title_field,
