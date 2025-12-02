@@ -124,7 +124,23 @@ def call_google_genai(
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
 
+            """
+            GenerateContentResponse(
+  automatic_function_calling_history=[],
+  candidates=[
+    Candidate(
+      content=Content(),
+      finish_reason=<FinishReason.PROHIBITED_CONTENT: 'PROHIBITED_CONTENT'>,
+      index=0
+    ),
+  ],
+            """
+
             if not response.parts:
+                if response.candidates and response.candidates[0] :
+                    first_candidate = response.candidates[0]
+                    finish_reason = first_candidate.finish_reason.value
+                    raise ValueError(f"Request was blocked due to: {finish_reason}")
                 if response.prompt_feedback and response.prompt_feedback.block_reason:
                     reason = response.prompt_feedback.block_reason.name
                     raise ValueError(f"Request was blocked due to: {reason}")
