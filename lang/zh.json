@@ -128,6 +128,7 @@
     "api_log_gemini25": "ℹ️ 检测到 Gemini 2.5 模型，已自动忽略宽高比和分辨率设置",
     "api_log_networkRetry": "🔄 网络重试 (第 {attempt}/{max_retries} 次)...",
     "api_log_tokenUsage": "📊 Token 用量: 输入 {input} + 输出 {output} = 总计 {total}",
+    "api_log_gemini_api_error": "Gemini API 发生异常，错误信息: {reason}",
     "api_log_receivedImgInline": "✅ 成功接收图片数据 (Inline Bytes)",
     "api_log_receivedImgSdk": "✅ 通过 SDK helper 成功接收图片",
     "api_error_noParts": "API 响应异常: 缺少 'parts' 属性",

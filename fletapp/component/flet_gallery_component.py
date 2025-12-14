@@ -132,6 +132,10 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
         on_change=include_subdirectories_changed
     )
 
+    def refresh_directory(e):
+        if selected_directory.value and os.path.isdir(selected_directory.value):
+            load_images_from_directory(selected_directory.value, include_subdirectories_checkbox.value)
+
     # --- Initialization Logic using threading.Timer ---
     def delayed_initialize():
         last_dir = db.get_setting("last_dir")
@@ -158,10 +162,19 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                         ),
                         ft.Column(
                             controls=[
-                                ft.ElevatedButton(
-                                    text="Open Directory",
-                                    icon=ft.Icons.FOLDER_OPEN,
-                                    on_click=open_directory_picker
+                                ft.Row(
+                                    controls=[
+                                        ft.ElevatedButton(
+                                            text="Open Directory",
+                                            icon=ft.Icons.FOLDER_OPEN,
+                                            on_click=open_directory_picker
+                                        ),
+                                        ft.IconButton(
+                                            icon=ft.Icons.REFRESH,
+                                            on_click=refresh_directory,
+                                            tooltip="Refresh directory"
+                                        )
+                                    ]
                                 ),
                                 include_subdirectories_checkbox
                             ],
