@@ -128,6 +128,7 @@
     "api_log_gemini25": "ℹ️ Gemini 2.5 detected. Ignoring AR/Res settings.",
     "api_log_networkRetry": "🔄 Network retry ({attempt}/{max_retries})...",
     "api_log_tokenUsage": "📊 Token Usage: Input {input} + Output {output} = Total {total}",
+    "api_log_gemini_api_error": "Gemini API Error: {reason}",
     "api_log_receivedImgInline": "✅ Received Image (Inline Bytes)",
     "api_log_receivedImgSdk": "✅ Received Image (SDK helper)",
     "api_error_noParts": "API Response Error: No 'parts' attribute",
