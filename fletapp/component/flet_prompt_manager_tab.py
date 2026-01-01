@@ -84,7 +84,7 @@ def prompt_manager_tab(page: ft.Page):
                 edit_title_field,
                 edit_content_field,
                 ft.Row([
-                    ft.ElevatedButton(i18n.get("prompt_manager_save"), icon=ft.Icons.SAVE, on_click=save_changes),
+                    ft.Button(content=i18n.get("prompt_manager_save"), icon=ft.Icons.SAVE, on_click=save_changes),
                     ft.TextButton(i18n.get("prompt_manager_cancel"), icon=ft.Icons.CANCEL, on_click=show_display_view),
                 ])
             ])
@@ -137,8 +137,8 @@ def prompt_manager_tab(page: ft.Page):
     prompt_list = ft.ListView(expand=True, spacing=10)
     new_prompt_title_field = ft.TextField(label=i18n.get("prompt_manager_new_prompt_title_label", "New Prompt Title"), expand=True)
     new_prompt_content_field = ft.TextField(label=i18n.get("prompt_manager_new_prompt_content_label", "New Prompt Content"), multiline=True, min_lines=3, max_lines=5, expand=True)
-    add_prompt_button = ft.ElevatedButton(
-        text=i18n.get("prompt_manager_add_button", "Add Prompt"),
+    add_prompt_button = ft.Button(
+        content=i18n.get("prompt_manager_add_button", "Add Prompt"),
         icon=ft.Icons.ADD,
         on_click=add_new_prompt,
     )

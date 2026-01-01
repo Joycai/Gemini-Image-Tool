@@ -1,6 +1,6 @@
 import flet as ft
-from flet.core.container import Container
-from flet.core.page import Page
+from flet import Container, BoxFit
+from flet import Page
 import os
 import subprocess
 import platform
@@ -118,7 +118,7 @@ def history_page(page: Page) -> Container:
                 details_text = get_image_details(img_path)
 
                 thumbnail = ft.Container(
-                    content=ft.Image(src=img_path, fit=ft.ImageFit.CONTAIN, tooltip=os.path.basename(img_path)),
+                    content=ft.Image(src=img_path, fit=BoxFit.CONTAIN, tooltip=os.path.basename(img_path)),
                     border_radius=ft.border_radius.all(5),
                     expand=True
                 )
@@ -170,7 +170,7 @@ def history_page(page: Page) -> Container:
             logger_utils.log(f"Error deleting image {image_path}: {e}")
 
     def download_image(image_path: str):
-        def on_save_result(e: ft.FilePickerResultEvent):
+        def on_save_result(e: ft.FilePickerUploadEvent):
             if e.path:
                 try:
                     import shutil
@@ -179,7 +179,7 @@ def history_page(page: Page) -> Container:
                 except Exception as ex:
                     logger_utils.log(f"Error saving image: {ex}")
 
-        file_picker.on_result = on_save_result
+        file_picker.on_upload = on_save_result
         file_picker.save_file(
             file_name=os.path.basename(image_path),
             allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS]

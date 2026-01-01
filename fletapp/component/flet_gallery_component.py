@@ -3,8 +3,8 @@ from typing import Union, Callable
 import threading
 
 import flet as ft
-from flet.core.container import Container
-from flet.core.page import Page
+from flet import Container, BoxFit
+from flet import Page
 
 # Import common modules
 from common.config import VALID_IMAGE_EXTENSIONS
@@ -20,7 +20,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
     # Image preview dialog components - defined once
     image_preview_image = ft.Image(
         src="",
-        fit=ft.ImageFit.CONTAIN
+        fit=BoxFit.CONTAIN
     )
     image_preview_dialog = ft.AlertDialog(
         modal=True,
@@ -92,7 +92,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                         border_radius=ft.border_radius.all(5),
                         content=ft.Image(
                             src=path,
-                            fit=ft.ImageFit.CONTAIN,
+                            fit=BoxFit.CONTAIN,
                             tooltip=os.path.basename(path)
                         ),
                         alignment=ft.alignment.center,
@@ -103,7 +103,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
             )
         if page: page.update()
 
-    def on_directory_picked(e: ft.FilePickerResultEvent):
+    def on_directory_picked(e: ft.FilePickerUploadEvent):
         if e.path:
             selected_directory.value = e.path
             db.save_setting("last_dir", e.path) # Save the new directory
@@ -115,7 +115,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
             image_gallery.controls.clear()
             image_gallery.update()
 
-    file_picker = ft.FilePicker(on_result=on_directory_picked)
+    file_picker = ft.FilePicker()
     page.overlay.append(file_picker)
 
     def open_directory_picker(e):
@@ -164,8 +164,8 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                             controls=[
                                 ft.Row(
                                     controls=[
-                                        ft.ElevatedButton(
-                                            text="Open Directory",
+                                        ft.Button(
+                                            content="Open Directory",
                                             icon=ft.Icons.FOLDER_OPEN,
                                             on_click=open_directory_picker
                                         ),

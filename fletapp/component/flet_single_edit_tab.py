@@ -5,8 +5,9 @@ import time
 from typing import List, Dict, Any
 
 import flet as ft
-from flet.core.page import Page
-from flet.core.types import MainAxisAlignment
+import flet.controls.core.image
+from flet import Page, BoxFit
+from flet import MainAxisAlignment
 from PIL import Image
 
 # Custom imports
@@ -97,7 +98,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                 max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=4)
     log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True,
                               expand=True)
-    api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN,
+    api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=BoxFit.CONTAIN,
                                   expand=True)
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
@@ -183,7 +184,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 border_radius=ft.border_radius.all(5),
                 content=ft.Image(
                     src=path,
-                    fit=ft.ImageFit.CONTAIN,
+                    fit=BoxFit.CONTAIN,
                     tooltip=os.path.basename(path)
                 ),
                 alignment=ft.alignment.center
@@ -270,10 +271,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                                    resolution_dropdown.value)).start()
         show_snackbar(i18n.get("logic_info_taskSubmitted"))
 
-    file_picker = ft.FilePicker(on_result=lambda e: on_file_save_result(e))
+    file_picker = ft.FilePicker()
     page.overlay.append(file_picker)
 
-    def on_file_save_result(e: ft.FilePickerResultEvent):
+    def on_file_save_result(e: ft.FilePickerUploadEvent):
         if e.path and api_task_state["result_image_path"]:
             try:
                 shutil.copy(api_task_state["result_image_path"], e.path)
@@ -318,12 +319,12 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                             prompt_input,
                             ft.Column([
                                 prompt_title_input,
-                                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
                                                   on_click=save_prompt_handler),
                             ],expand=1),
                         ]
                     ),
-                    ft.ElevatedButton(text=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
+                    ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
                                       on_click=send_prompt_handler, expand=True),
                     ft.Divider(),
                     ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
@@ -347,7 +348,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                             ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
                             ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
                                          border_radius=5, padding=5, height=300, expand=1),
-                            ft.ElevatedButton(text=i18n.get("home_preview_btn_download_placeholder"),
+                            ft.Button(content=i18n.get("home_preview_btn_download_placeholder"),
                                               icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
                         ],
                         expand=1

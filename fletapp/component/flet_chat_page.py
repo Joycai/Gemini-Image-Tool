@@ -1,6 +1,5 @@
 import flet as ft
-from flet.core.container import Container
-from flet.core.page import Page
+from flet import Page, BoxFit
 import threading
 import os
 import time
@@ -140,7 +139,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
             thumbnail_row.controls.append(
                 ft.GestureDetector(
                     on_double_tap=lambda e, p=path: remove_uploaded_image(p),
-                    content=ft.Image(src=path, width=70, height=70, fit=ft.ImageFit.COVER, border_radius=ft.border_radius.all(5))
+                    content=ft.Image(src=path, width=70, height=70, fit=BoxFit.COVER, border_radius=ft.border_radius.all(5))
                 )
             )
         thumbnail_row.update()
@@ -150,14 +149,14 @@ def chat_page(page: Page) -> Dict[str, Any]:
             uploaded_image_paths.remove(path_to_remove)
             update_thumbnail_display()
 
-    def on_files_picked(e: ft.FilePickerResultEvent):
+    def on_files_picked(e: ft.FilePickerUploadEvent):
         if e.files:
             for f in e.files:
                 if f.path not in uploaded_image_paths:
                     uploaded_image_paths.append(f.path)
             update_thumbnail_display()
     
-    file_picker.on_result = on_files_picked
+    file_picker.on_upload = on_files_picked
     upload_button = ft.IconButton(icon=ft.Icons.UPLOAD_FILE, tooltip="Upload Images", on_click=lambda _: file_picker.pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE))
 
     def clear_chat_handler(e):
@@ -170,7 +169,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
         logger_utils.log("Chat cleared.")
         page.update()
 
-    clear_button = ft.ElevatedButton(text=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
+    clear_button = ft.Button(content=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
 
     def _chat_worker(client, prompt_parts: List[Any], model: str, ar: str, res: str):
         try:
@@ -269,7 +268,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
     user_input.on_submit = lambda e: send_message_handler()
 
     def download_image(image_path: str):
-        def on_save_result(e: ft.FilePickerResultEvent):
+        def on_save_result(e: ft.FilePickerUploadEvent):
             if e.path:
                 try:
                     import shutil
@@ -277,7 +276,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                 except Exception as ex:
                     logger_utils.log(f"Error saving image: {ex}")
         
-        file_picker.on_result = on_save_result
+        file_picker.on_upload = on_save_result
         file_picker.save_file(file_name=os.path.basename(image_path))
 
     # --- Initialization function to be called after mount ---
@@ -301,7 +300,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                 ],expand=4),
                 ft.Row([
                     prompt_title_input,
-                    ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                    ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
                                       on_click=save_prompt_handler)
                 ], expand=2),
             ]),

@@ -1,5 +1,8 @@
 import flet as ft
 from typing import Callable, List, Optional
+
+from flet import BoxFit
+
 from common import i18n
 
 class ImagePreviewDialog:
@@ -24,9 +27,10 @@ class ImagePreviewDialog:
 
         # --- Internal Controls ---
         self.preview_image = ft.Image(
+            src=bytes(),
             width=self.VIEWPORT_WIDTH,
             height=self.VIEWPORT_HEIGHT,
-            fit=ft.ImageFit.CONTAIN, 
+            fit=BoxFit.CONTAIN,
             scale=self.INITIAL_SCALE,
             left=0,
             top=0,

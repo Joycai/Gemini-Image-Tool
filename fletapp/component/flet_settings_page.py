@@ -1,6 +1,6 @@
 import flet as ft
-from flet.core.container import Container
-from flet.core.page import Page
+from flet import Container
+from flet import Page
 import json
 import time
 import threading
@@ -77,12 +77,12 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     )
 
     # --- Directory/File Picker Logic ---
-    def on_directory_result(e: ft.FilePickerResultEvent):
+    def on_directory_result(e: ft.FilePickerUploadEvent):
         if e.path:
             save_path_input.value = e.path
             page.update()
 
-    def on_export_result(e: ft.FilePickerResultEvent):
+    def on_export_result(e: ft.FilePickerUploadEvent):
         if e.path:
             try:
                 all_data = db.export_all_data()
@@ -106,7 +106,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_import_dialog)],
     )
 
-    def on_import_result(e: ft.FilePickerResultEvent):
+    def on_import_result(e: ft.FilePickerUploadEvent):
         if e.files and e.files[0].path:
             filepath = e.files[0].path
             try:
@@ -119,22 +119,22 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             except Exception as ex:
                 show_snackbar(i18n.get("settings_import_error", "Error importing data: {error}", error=ex), is_error=True)
 
-    directory_picker = ft.FilePicker(on_result=on_directory_result)
-    export_picker = ft.FilePicker(on_result=on_export_result)
-    import_picker = ft.FilePicker(on_result=on_import_result)
+    directory_picker = ft.FilePicker(on_upload=on_directory_result)
+    export_picker = ft.FilePicker(on_upload=on_export_result)
+    import_picker = ft.FilePicker(on_upload=on_import_result)
     page.overlay.extend([directory_picker, export_picker, import_picker])
 
     # --- UI Layout ---
-    save_button = ft.ElevatedButton(text=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
-    pick_directory_button = ft.ElevatedButton(
-        text=i18n.get("settings_btn_pick_directory", "Choose..."),
+    save_button = ft.Button(content=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
+    pick_directory_button = ft.Button(
+        content=i18n.get("settings_btn_pick_directory", "Choose..."),
         icon=ft.Icons.FOLDER_OPEN,
         on_click=lambda _: directory_picker.get_directory_path(),
     )
-    export_button = ft.ElevatedButton(text=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=lambda _: export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json", allowed_extensions=["json"]))
-    import_button = ft.ElevatedButton(text=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=lambda _: import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"]))
-    clear_button = ft.ElevatedButton(text=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER, on_click=clear_data_handler, color="white", bgcolor="red")
-    restart_button = ft.ElevatedButton(text=i18n.get("settings_btn_restart", "Restart Application"), icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
+    export_button = ft.Button(content=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=lambda _: export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json", allowed_extensions=["json"]))
+    import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=lambda _: import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"]))
+    clear_button = ft.Button(content=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER, on_click=clear_data_handler, color="white", bgcolor="red")
+    restart_button = ft.Button(content=i18n.get("settings_btn_restart", "Restart Application"), icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
 
     # --- Initialization Logic ---
     def load_initial_settings():

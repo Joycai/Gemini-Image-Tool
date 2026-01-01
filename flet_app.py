@@ -55,28 +55,41 @@ def main(page: ft.Page):
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        tabs=[
-            ft.Tab(
-                text=i18n.get("app_tab_single_edit", "Single Edit"),
-                content=single_edit_component["view"]
-            ),
-            ft.Tab(
-                text=i18n.get("app_tab_chat"),
-                content=chat_component["view"]
-            ),
-            ft.Tab(
-                text=i18n.get("app_tab_prompt_manager", "Prompt Manager"),
-                content=prompt_manager_component["view"]
-            ),
-            ft.Tab(
-                text=i18n.get("app_tab_history"),
-                content=history_page(page)
-            ),
-            ft.Tab(
-                text=i18n.get("app_tab_settings"),
-                content=settings_page(page, on_restart=restart_app) # Pass the restart function
-            ),
-        ],
+        length=5,
+        content=ft.Column(
+            expand=True,
+            controls=[
+                ft.TabBar(
+                    tabs=[
+                        ft.Tab(
+                            label=i18n.get("app_tab_single_edit", "Single Edit"),
+                        ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_chat"),
+                        ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_prompt_manager", "Prompt Manager"),
+                        ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_history"),
+                        ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_settings"),
+                        ),
+                    ]
+                ),
+                ft.TabBarView(
+                    expand=True,
+                    controls=[
+                        single_edit_component["view"],
+                        chat_component["view"],
+                        prompt_manager_component["view"],
+                        history_page(page),
+                        settings_page(page, on_restart=restart_app)
+                    ]
+                )
+            ]
+        ),
         expand=1
     )
 
@@ -89,4 +102,4 @@ def main(page: ft.Page):
 
 if __name__ == "__main__":
     os.environ["PYTHONUTF8"] = "1"
-    ft.app(target=main)
+    ft.run(main)
