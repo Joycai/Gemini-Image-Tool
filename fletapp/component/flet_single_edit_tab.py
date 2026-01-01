@@ -20,7 +20,6 @@ from geminiapi import api_client
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-
 def get_image_details(image_path: str) -> str:
     """
     Gets the closest aspect ratio and resolution for an image.
@@ -271,8 +270,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                                    resolution_dropdown.value)).start()
         show_snackbar(i18n.get("logic_info_taskSubmitted"))
 
-    file_picker = ft.FilePicker()
-    page.overlay.append(file_picker)
+    # file_picker = ft.FilePicker()
+    # page.overlay.append(file_picker)
 
     def on_file_save_result(e: ft.FilePickerUploadEvent):
         if e.path and api_task_state["result_image_path"]:
@@ -284,78 +283,81 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
-            file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
-                                  allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
+            pass
+            # file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
+            #                       allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
         else:
             show_snackbar(i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
 
     # --- Initialization function to be called after mount ---
-    def initialize():
-        page.pubsub.subscribe(on_prompts_update)
-        refresh_prompts_dropdown()
+    # def initialize():
+    #     page.pubsub.subscribe(on_prompts_update)
+    #     refresh_prompts_dropdown()
 
     # --- Layout ---
     view = ft.Container(
         content=ft.Row([
             local_gallery_component(page, 4, on_image_select=add_selected_image),
             ft.VerticalDivider(),
-            ft.Column(
-                [
-                    ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
-                    selected_images_grid,
-                    ft.Divider(),
-                    ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
-                    ft.Divider(),
-                    ft.Row([
-                        prompt_dropdown,
-                        ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
-                                      tooltip=i18n.get("home_control_prompt_btn_load")),
-                        ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
-                                      tooltip=i18n.get("home_control_prompt_btn_delete")),
-                    ]),
-
-                    ft.Row(
-                        controls=[
-                            prompt_input,
-                            ft.Column([
-                                prompt_title_input,
-                                ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
-                                                  on_click=save_prompt_handler),
-                            ],expand=1),
-                        ]
-                    ),
-                    ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
-                                      on_click=send_prompt_handler, expand=True),
-                    ft.Divider(),
-                    ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
-                    ft.Container(
-                        content=ft.Column(
-                            [log_output_text],
-                            scroll=ft.ScrollMode.AUTO,
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            expand=1
-                        ),
-                        border=ft.border.all(1, ft.Colors.GREY_400),
-                        border_radius=5,
-                        padding=10,
-                        height=150,
-                        expand=True,
-                    ),
-                    ft.Divider(),
-                    ft.Column(
-                        alignment=MainAxisAlignment.CENTER,
-                        controls=[
-                            ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
-                            ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
-                                         border_radius=5, padding=5, height=300, expand=1),
-                            ft.Button(content=i18n.get("home_preview_btn_download_placeholder"),
-                                              icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
-                        ],
-                        expand=1
-                    )
-                ], expand=6, scroll=ft.ScrollMode.AUTO)
-        ], expand=True),
+            # ft.Column(
+            #     [
+            #         ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
+            #         selected_images_grid,
+            #         ft.Divider(),
+            #         ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
+            #         ft.Divider(),
+            #         ft.Row([
+            #             prompt_dropdown,
+            #             ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
+            #                           tooltip=i18n.get("home_control_prompt_btn_load")),
+            #             ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
+            #                           tooltip=i18n.get("home_control_prompt_btn_delete")),
+            #         ]),
+            #
+            #         ft.Row(
+            #             controls=[
+            #                 prompt_input,
+            #                 ft.Column([
+            #                     prompt_title_input,
+            #                     ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+            #                                       on_click=save_prompt_handler),
+            #                 ],expand=1),
+            #             ]
+            #         ),
+            #         ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
+            #                           on_click=send_prompt_handler, expand=True),
+            #         ft.Divider(),
+            #         ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
+            #         ft.Container(
+            #             content=ft.Column(
+            #                 [log_output_text],
+            #                 scroll=ft.ScrollMode.AUTO,
+            #                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            #                 expand=1
+            #             ),
+            #             border=ft.border.all(1, ft.Colors.GREY_400),
+            #             border_radius=5,
+            #             padding=10,
+            #             height=150,
+            #             expand=True,
+            #         ),
+            #         ft.Divider(),
+            #         ft.Column(
+            #             alignment=MainAxisAlignment.CENTER,
+            #             controls=[
+            #                 ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
+            #                 ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
+            #                              border_radius=5, padding=5, height=300, expand=1),
+            #                 ft.Button(content=i18n.get("home_preview_btn_download_placeholder"),
+            #                                   icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
+            #             ],
+            #             expand=1
+            #         )
+            #     ], expand=6, scroll=ft.ScrollMode.AUTO)
+        ],
+            expand=True),
         expand=True,
     )
 
-    return {"view": view, "init": initialize}
+    return {"view": view}
+    # return {"view": view, "init": initialize}

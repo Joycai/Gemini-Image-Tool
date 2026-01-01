@@ -10,7 +10,7 @@ APP_AUTHOR = "YourAppName" # Or your name/company
 # --- Define the storage directory and database file path ---
 # This will resolve to a path like:
 # Windows: C:\\Users\\<User>\\AppData\\Local\\YourAppName\\G-AI-Edit\\storage
-# macOS:   /Users/<User>/Library/Application Support/G-AI-Edit/storage
+# macOS:   brary/Application Support/G-AI-Edit/storage
 # Linux:   /home/<User>/.local/share/G-AI-Edit/storage
 STORAGE_DIR = os.path.join(user_data_dir(APP_NAME, APP_AUTHOR), "storage")
 DB_FILE = os.path.join(STORAGE_DIR, "database.sqlite")

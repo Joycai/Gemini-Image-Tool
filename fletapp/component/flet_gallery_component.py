@@ -1,14 +1,23 @@
 import os
+from dataclasses import dataclass
 from typing import Union, Callable
 import threading
-
 import flet as ft
-from flet import Container, BoxFit
+from flet import Container, BoxFit, Alignment
 from flet import Page
 
 # Import common modules
 from common.config import VALID_IMAGE_EXTENSIONS
 from common import database as db
+
+@dataclass
+class State:
+    file_picker: ft.FilePicker | None = None
+    current_directory: str | None = None
+    include_subdirectories: bool = False
+
+
+state = State()
 
 def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_select: Callable[[str], None] = None) -> Container:
     # --- Single Image Editor Page Controls and Handlers ---
@@ -22,6 +31,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
         src="",
         fit=BoxFit.CONTAIN
     )
+
     image_preview_dialog = ft.AlertDialog(
         modal=True,
         title=ft.Text("Image Preview"),
@@ -38,10 +48,10 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
 
     def open_image_preview(e, image_path):
         image_preview_image.src = image_path
-        page.open(image_preview_dialog)  # Correct way to open dialog
+        page.show_dialog(image_preview_dialog)  # Correct way to open dialog
 
     def close_image_preview(e):
-        page.close(image_preview_dialog)  # Correct way to close dialog
+        page.pop_dialog()  # Correct way to close dialog
 
     image_gallery = ft.GridView(
         runs_count=5,  # 每行显示5张图片
@@ -51,8 +61,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
         child_aspect_ratio=1.0,
         padding=0,
         controls=[],
-        expand=True,
-        height=700
+        expand=True
     )
 
     def load_images_from_directory(directory_path: str, include_subdirectories: bool):
@@ -95,7 +104,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                             fit=BoxFit.CONTAIN,
                             tooltip=os.path.basename(path)
                         ),
-                        alignment=ft.alignment.center,
+                        alignment=Alignment.CENTER,
                     ),
                     on_double_tap=lambda e, p=path: open_image_preview(e, p),
                     on_tap=_on_tap
@@ -103,27 +112,20 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
             )
         if page: page.update()
 
-    def on_directory_picked(e: ft.FilePickerUploadEvent):
-        if e.path:
-            selected_directory.value = e.path
-            db.save_setting("last_dir", e.path) # Save the new directory
-            selected_directory.update()
-            load_images_from_directory(e.path, include_subdirectories_checkbox.value)
-        else:
-            selected_directory.value = "No directory selected."
-            selected_directory.update()
-            image_gallery.controls.clear()
-            image_gallery.update()
+    async def open_directory_picker(e: ft.Event[ft.Button]):
+        if not state.file_picker:
+            state.file_picker = ft.FilePicker()
+        pick_directory = await state.file_picker.get_directory_path(initial_directory=state.current_directory)
+        if pick_directory and pick_directory != state.file_picker:
+            db.save_setting("last_dir", pick_directory)
+            state.current_directory = pick_directory
+            selected_directory.value = state.current_directory
+            refresh_directory(e)
 
-    file_picker = ft.FilePicker()
-    page.overlay.append(file_picker)
-
-    def open_directory_picker(e):
-        file_picker.get_directory_path()
-
-    def include_subdirectories_changed(e):
-        if selected_directory.value and os.path.isdir(selected_directory.value):
-            load_images_from_directory(selected_directory.value, include_subdirectories_checkbox.value)
+    def include_subdirectories_changed(e: ft.Event[ft.Checkbox]):
+        if e.control.value is not None:
+            state.include_subdirectories=e.control.value
+        refresh_directory(e)
 
     # Checkbox to include subdirectories
     include_subdirectories_checkbox = ft.Checkbox(
@@ -133,23 +135,22 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
     )
 
     def refresh_directory(e):
-        if selected_directory.value and os.path.isdir(selected_directory.value):
-            load_images_from_directory(selected_directory.value, include_subdirectories_checkbox.value)
+        if state.current_directory and os.path.isdir(state.current_directory):
+            load_images_from_directory(state.current_directory, state.include_subdirectories)
 
     # --- Initialization Logic using threading.Timer ---
     def delayed_initialize():
         last_dir = db.get_setting("last_dir")
         if last_dir and os.path.isdir(last_dir):
             selected_directory.value = last_dir
-            load_images_from_directory(last_dir, include_subdirectories_checkbox.value)
+            state.current_directory = last_dir
+            refresh_directory(None)
         else:
             selected_directory.value = "No directory selected."
-        
         # Safely update the page now
         if page: page.update()
 
-    # Use a timer to run initialization shortly after the UI is built
-    threading.Timer(0.1, delayed_initialize).start()
+    delayed_initialize()
 
     return ft.Container(
         content=ft.Column(
@@ -167,12 +168,13 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                                         ft.Button(
                                             content="Open Directory",
                                             icon=ft.Icons.FOLDER_OPEN,
-                                            on_click=open_directory_picker
+                                            on_click=open_directory_picker,
+                                            tooltip="Open Directory"
                                         ),
                                         ft.IconButton(
                                             icon=ft.Icons.REFRESH,
                                             on_click=refresh_directory,
-                                            tooltip="Refresh directory"
+                                            tooltip="Refresh Directory"
                                         )
                                     ]
                                 ),
@@ -182,10 +184,14 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                         )
                     ]
                 ),
-                image_gallery,
+                ft.Column(
+                    controls=[image_gallery],
+                    expand=True,
+                    scroll=ft.ScrollMode.AUTO
+                )
             ],
-            scroll=ft.ScrollMode.AUTO
+            expand=True,
         ),
         padding=ft.padding.all(10),
-        expand=expand
+        expand=expand,
     )
