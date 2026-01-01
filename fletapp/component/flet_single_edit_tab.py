@@ -2,11 +2,12 @@ import os
 import shutil
 import threading
 import time
+from dataclasses import dataclass
 from typing import List, Dict, Any
 
 import flet as ft
 import flet.controls.core.image
-from flet import Page, BoxFit
+from flet import Page, BoxFit, Alignment
 from flet import MainAxisAlignment
 from PIL import Image
 
@@ -19,6 +20,14 @@ from geminiapi import api_client
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+@dataclass
+class State:
+    selected_images_paths: List[str] | None = None
+    file_picker: ft.FilePicker | None = None
+    last_save_path: str | None = None
+
+state = State()
 
 def get_image_details(image_path: str) -> str:
     """
@@ -33,12 +42,14 @@ def get_image_details(image_path: str) -> str:
 
     # Resolution
     max_dim = max(width, height)
-    if max_dim <= 1024:
+    if 1024 <= max_dim < 2048:
         res_text = "1K"
-    elif max_dim <= 2048:
+    elif 2048 <= max_dim < 4096:
         res_text = "2K"
-    else:
+    elif max_dim >= 4096:
         res_text = "4K"
+    else:
+        res_text = f"{height}p"
 
     # Aspect Ratio
     if height == 0:
@@ -69,7 +80,8 @@ def get_image_details(image_path: str) -> str:
 
 
 def single_edit_tab(page: Page) -> Dict[str, Any]:
-    selected_images_paths: List[str] = []
+    if state.selected_images_paths is None:
+        state.selected_images_paths = []
 
     api_task_state = {
         "status": "idle",
@@ -163,18 +175,18 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     # --- Other Functions (Image selection, API calls, etc.) ---
     def remove_selected_image(e, image_path):
-        if image_path in selected_images_paths:
-            selected_images_paths.remove(image_path)
+        if image_path in state.selected_images_paths:
+            state.selected_images_paths.remove(image_path)
             update_selected_images_display()
 
     def add_selected_image(image_path: str):
-        if image_path not in selected_images_paths:
-            selected_images_paths.append(image_path)
+        if image_path not in state.selected_images_paths:
+            state.selected_images_paths.append(image_path)
             update_selected_images_display()
 
     def update_selected_images_display():
         selected_images_grid.controls.clear()
-        for path in selected_images_paths:
+        for path in state.selected_images_paths:
             details_text = get_image_details(path)
 
             thumbnail = ft.Container(
@@ -186,7 +198,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                     fit=BoxFit.CONTAIN,
                     tooltip=os.path.basename(path)
                 ),
-                alignment=ft.alignment.center
+                alignment=Alignment.CENTER
             )
 
             details_label = ft.Text(
@@ -262,102 +274,91 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         if not api_key:
             show_snackbar(i18n.get("api_error_apiKey"), is_error=True)
             return
-        if not prompt_input.value and not selected_images_paths:
+        if not prompt_input.value and not state.selected_images_paths:
             show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
-        threading.Thread(target=_api_worker, args=(text_encoder(prompt_input.value), selected_images_paths, api_key,
+        threading.Thread(target=_api_worker, args=(text_encoder(prompt_input.value), state.selected_images_paths, api_key,
                                                    model_selector_dropdown.value, ratio_dropdown.value,
                                                    resolution_dropdown.value)).start()
         show_snackbar(i18n.get("logic_info_taskSubmitted"))
 
-    # file_picker = ft.FilePicker()
-    # page.overlay.append(file_picker)
-
-    def on_file_save_result(e: ft.FilePickerUploadEvent):
-        if e.path and api_task_state["result_image_path"]:
-            try:
-                shutil.copy(api_task_state["result_image_path"], e.path)
-                logger_utils.log(f"Image saved to: {e.path}")
-            except Exception as ex:
-                logger_utils.log(f"Error saving image: {ex}")
-
     def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
-            pass
-            # file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
-            #                       allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
+            if state.file_picker is None:
+                state.file_picker = ft.FilePicker()
+            state.file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
+                                  allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
         else:
             show_snackbar(i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
 
     # --- Initialization function to be called after mount ---
-    # def initialize():
-    #     page.pubsub.subscribe(on_prompts_update)
-    #     refresh_prompts_dropdown()
+    def initialize():
+        page.pubsub.subscribe(on_prompts_update)
+        refresh_prompts_dropdown()
 
     # --- Layout ---
     view = ft.Container(
         content=ft.Row([
             local_gallery_component(page, 4, on_image_select=add_selected_image),
             ft.VerticalDivider(),
-            # ft.Column(
-            #     [
-            #         ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
-            #         selected_images_grid,
-            #         ft.Divider(),
-            #         ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
-            #         ft.Divider(),
-            #         ft.Row([
-            #             prompt_dropdown,
-            #             ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
-            #                           tooltip=i18n.get("home_control_prompt_btn_load")),
-            #             ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
-            #                           tooltip=i18n.get("home_control_prompt_btn_delete")),
-            #         ]),
-            #
-            #         ft.Row(
-            #             controls=[
-            #                 prompt_input,
-            #                 ft.Column([
-            #                     prompt_title_input,
-            #                     ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
-            #                                       on_click=save_prompt_handler),
-            #                 ],expand=1),
-            #             ]
-            #         ),
-            #         ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
-            #                           on_click=send_prompt_handler, expand=True),
-            #         ft.Divider(),
-            #         ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
-            #         ft.Container(
-            #             content=ft.Column(
-            #                 [log_output_text],
-            #                 scroll=ft.ScrollMode.AUTO,
-            #                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            #                 expand=1
-            #             ),
-            #             border=ft.border.all(1, ft.Colors.GREY_400),
-            #             border_radius=5,
-            #             padding=10,
-            #             height=150,
-            #             expand=True,
-            #         ),
-            #         ft.Divider(),
-            #         ft.Column(
-            #             alignment=MainAxisAlignment.CENTER,
-            #             controls=[
-            #                 ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
-            #                 ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
-            #                              border_radius=5, padding=5, height=300, expand=1),
-            #                 ft.Button(content=i18n.get("home_preview_btn_download_placeholder"),
-            #                                   icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
-            #             ],
-            #             expand=1
-            #         )
-            #     ], expand=6, scroll=ft.ScrollMode.AUTO)
+            ft.Column(
+                [
+                    ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
+                    selected_images_grid,
+                    ft.Divider(),
+                    ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
+                    ft.Divider(),
+                    ft.Row([
+                        prompt_dropdown,
+                        ft.IconButton(icon=ft.Icons.DOWNLOAD, on_click=load_prompt_handler,
+                                      tooltip=i18n.get("home_control_prompt_btn_load")),
+                        ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
+                                      tooltip=i18n.get("home_control_prompt_btn_delete")),
+                    ]),
+
+                    ft.Row(
+                        controls=[
+                            prompt_input,
+                            ft.Column([
+                                prompt_title_input,
+                                ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                                  on_click=save_prompt_handler),
+                            ],expand=1),
+                        ]
+                    ),
+                    ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
+                                      on_click=send_prompt_handler, expand=True),
+                    ft.Divider(),
+                    ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
+                    ft.Container(
+                        content=ft.Column(
+                            [log_output_text],
+                            scroll=ft.ScrollMode.AUTO,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            expand=1
+                        ),
+                        border=ft.border.all(1, ft.Colors.GREY_400),
+                        border_radius=5,
+                        padding=10,
+                        height=150,
+                        expand=True,
+                    ),
+                    ft.Divider(),
+                    ft.Column(
+                        alignment=MainAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
+                            ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
+                                         border_radius=5, padding=5, height=300, expand=1),
+                            ft.Button(content=i18n.get("home_preview_btn_download_placeholder"),
+                                              icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
+                        ],
+                        expand=1
+                    )
+                ], expand=6, scroll=ft.ScrollMode.AUTO)
         ],
             expand=True),
         expand=True,
     )
 
-    return {"view": view}
-    # return {"view": view, "init": initialize}
+    return {"view": view, "init": initialize}

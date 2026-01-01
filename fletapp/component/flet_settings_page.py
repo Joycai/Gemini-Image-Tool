@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import flet as ft
 from flet import Container
 from flet import Page
@@ -7,6 +9,15 @@ import threading
 from typing import Callable
 
 from common import database as db, i18n, logger_utils
+
+@dataclass
+class State:
+    output_picker: ft.FilePicker | None = None
+    export_picker: ft.FilePicker | None = None
+    import_picker: ft.FilePicker | None = None
+    last_save_path: str|None =None
+
+state = State()
 
 def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     # --- Controls ---
@@ -20,7 +31,6 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             ft.dropdown.Option(key="zh", text=i18n.get("settings_lang_zh", "中文")),
         ],
     )
-
 
     def show_snackbar(message: str, is_error: bool = False):
         page.snack_bar = ft.SnackBar(
@@ -76,28 +86,12 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         actions_alignment=ft.MainAxisAlignment.END,
     )
 
-    # --- Directory/File Picker Logic ---
-    def on_directory_result(e: ft.FilePickerUploadEvent):
-        if e.path:
-            save_path_input.value = e.path
-            page.update()
-
-    def on_export_result(e: ft.FilePickerUploadEvent):
-        if e.path:
-            try:
-                all_data = db.export_all_data()
-                with open(e.path, "w", encoding="utf-8") as f:
-                    json.dump(all_data, f, ensure_ascii=False, indent=4)
-                show_snackbar(i18n.get("settings_export_success", "Data successfully exported to {path}", path=e.path))
-            except Exception as ex:
-                show_snackbar(i18n.get("settings_export_error", "Error exporting data: {error}", error=ex), is_error=True)
-
     # import confirm dalog
     import_dialog = {}
 
     def close_import_dialog(e):
         if import_dialog:
-            page.close(import_dialog)
+            page.pop_dialog()
 
     import_dialog = ft.AlertDialog(
         modal=True,
@@ -106,33 +100,50 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_import_dialog)],
     )
 
-    def on_import_result(e: ft.FilePickerUploadEvent):
-        if e.files and e.files[0].path:
-            filepath = e.files[0].path
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data_to_import = json.load(f)
-                db.import_all_data(data_to_import)
-                page.open(import_dialog)
-                page.update()
-                
-            except Exception as ex:
-                show_snackbar(i18n.get("settings_import_error", "Error importing data: {error}", error=ex), is_error=True)
+    async def export_btn_handler():
+        if state.export_picker is None:
+            state.export_picker = ft.FilePicker()
+        try:
+            all_data = db.export_all_data()
+            json_bytes = json.dumps(all_data, ensure_ascii=False).encode('utf-8')
+            save_file_path = await state.export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json",
+                                                                 allowed_extensions=["json"],
+                                                                 src_bytes=json_bytes
+                                                                 )
+            show_snackbar(i18n.get("settings_export_success", "Data successfully exported to {path}", path=save_file_path))
+        except Exception as ex:
+            show_snackbar(i18n.get("settings_export_error", "Error exporting data: {error}", error=ex), is_error=True)
 
-    directory_picker = ft.FilePicker(on_upload=on_directory_result)
-    export_picker = ft.FilePicker(on_upload=on_export_result)
-    import_picker = ft.FilePicker(on_upload=on_import_result)
-    page.overlay.extend([directory_picker, export_picker, import_picker])
+    async def import_btn_handler():
+        if state.import_picker is None:
+            state.import_picker = ft.FilePicker()
+        files = await state.import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"])
+        try:
+            with open(files[0].path, "r", encoding="utf-8") as f:
+                data_to_import = json.load(f)
+            db.import_all_data(data_to_import)
+            page.show_dialog(import_dialog)
+
+        except Exception as ex:
+            show_snackbar(i18n.get("settings_import_error", "Error importing data: {error}", error=ex), is_error=True)
+
+    async def pick_output_directory_btn_handler():
+        if state.output_picker is None:
+            state.output_picker = ft.FilePicker()
+        output_directory = await state.output_picker.get_directory_path()
+        if output_directory:
+            save_path_input.value = output_directory
+            db.save_setting("save_path",output_directory)
 
     # --- UI Layout ---
-    save_button = ft.Button(content=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
-    pick_directory_button = ft.Button(
+    pick_output_directory_btn = ft.Button(
         content=i18n.get("settings_btn_pick_directory", "Choose..."),
         icon=ft.Icons.FOLDER_OPEN,
-        on_click=lambda _: directory_picker.get_directory_path(),
+        on_click=pick_output_directory_btn_handler
     )
-    export_button = ft.Button(content=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=lambda _: export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json", allowed_extensions=["json"]))
-    import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=lambda _: import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"]))
+    save_button = ft.Button(content=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
+    export_button = ft.Button(content=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=export_btn_handler)
+    import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=import_btn_handler)
     clear_button = ft.Button(content=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER, on_click=clear_data_handler, color="white", bgcolor="red")
     restart_button = ft.Button(content=i18n.get("settings_btn_restart", "Restart Application"), icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
 
@@ -152,7 +163,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             [
                 ft.Text(i18n.get("settings_title"), size=24, weight=ft.FontWeight.BOLD),
                 api_key_input,
-                ft.Row([save_path_input, pick_directory_button]),
+                ft.Row([save_path_input,pick_output_directory_btn]),
                 file_prefix_input,
                 lang_dropdown,
                 save_button,

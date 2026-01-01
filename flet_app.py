@@ -55,7 +55,7 @@ def main(page: ft.Page):
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        length=1,
+        length=2,
         content=ft.Column(
             expand=True,
             controls=[
@@ -73,9 +73,9 @@ def main(page: ft.Page):
                         # ft.Tab(
                         #     label=i18n.get("app_tab_history"),
                         # ),
-                        # ft.Tab(
-                        #     label=i18n.get("app_tab_settings"),
-                        # ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_settings"),
+                        ),
                     ]
                 ),
                 ft.TabBarView(
@@ -85,7 +85,7 @@ def main(page: ft.Page):
                         # chat_component["view"],
                         # prompt_manager_component["view"],
                         # history_page(page),
-                        # settings_page(page, on_restart=restart_app)
+                        settings_page(page, on_restart=restart_app)
                     ]
                 )
             ]
@@ -96,7 +96,7 @@ def main(page: ft.Page):
     page.add(main_tabs)
 
     # --- Deferred Initialization ---
-    # single_edit_component["init"]()
+    single_edit_component["init"]()
     # chat_component["init"]()
     # prompt_manager_component["init"]()
 

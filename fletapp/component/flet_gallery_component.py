@@ -23,7 +23,8 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
     # --- Single Image Editor Page Controls and Handlers ---
     selected_directory = ft.TextField(
         label="Selected Directory",
-        read_only=True
+        read_only=True,
+        expand=True,
     )
 
     # Image preview dialog components - defined once
@@ -155,33 +156,26 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
     return ft.Container(
         content=ft.Column(
             [
-                ft.Row(
+                ft.Column(
                     controls=[
-                        ft.Column(
-                            controls=[selected_directory],
-                            expand=6
-                        ),
-                        ft.Column(
+                        selected_directory,
+                        ft.Row(
                             controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Button(
-                                            content="Open Directory",
-                                            icon=ft.Icons.FOLDER_OPEN,
-                                            on_click=open_directory_picker,
-                                            tooltip="Open Directory"
-                                        ),
-                                        ft.IconButton(
-                                            icon=ft.Icons.REFRESH,
-                                            on_click=refresh_directory,
-                                            tooltip="Refresh Directory"
-                                        )
-                                    ]
+                                ft.Button(
+                                    content="Open Directory",
+                                    icon=ft.Icons.FOLDER_OPEN,
+                                    on_click=open_directory_picker,
+                                    tooltip="Open Directory"
                                 ),
-                                include_subdirectories_checkbox
+                                ft.IconButton(
+                                    icon=ft.Icons.REFRESH,
+                                    on_click=refresh_directory,
+                                    tooltip="Refresh Directory"
+                                )
                             ],
-                            expand=4
-                        )
+                            expand=True
+                        ),
+                        include_subdirectories_checkbox
                     ]
                 ),
                 ft.Column(
