@@ -60,6 +60,18 @@
     "chat_btn_send": "发送",
     "chat_btn_clear": "新话题",
 
+    "prompt_manager_add_new_title": "添加新提示词",
+    "prompt_manager_existing_prompts_title": "已有提示词",
+    "prompt_manager_new_prompt_title_label": "新提示词标题",
+    "prompt_manager_new_prompt_content_label": "新提示词内容",
+    "prompt_manager_save": "保存",
+    "prompt_manager_cancel": "取消",
+    "prompt_manager_add_button": "添加提示词",
+    "prompt_manager_move_up": "上移",
+    "prompt_manager_move_down": "下移",
+    "prompt_manager_edit": "编辑提示词",
+    "prompt_manager_delete": "删除提示词",
+
     "settings_title": "⚙️ 设置面板",
     "settings_label_apiKey": "Google API Key",
     "settings_label_savePath": "自动保存路径",

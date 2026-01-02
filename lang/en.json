@@ -60,6 +60,18 @@
     "chat_btn_send": "Send",
     "chat_btn_clear": "New Topic",
 
+    "prompt_manager_add_new_title": "Add New Prompt",
+    "prompt_manager_existing_prompts_title": "Existing Prompts",
+    "prompt_manager_new_prompt_title_label": "New Prompt Title",
+    "prompt_manager_new_prompt_content_label": "New Prompt Content",
+    "prompt_manager_save": "save",
+    "prompt_manager_cancel": "cancel",
+    "prompt_manager_add_button": "Add Prompt",
+    "prompt_manager_move_up": "Move up",
+    "prompt_manager_move_down": "Move down",
+    "prompt_manager_edit": "Edit the prompt",
+    "prompt_manager_delete": "Delete the prompt",
+
     "settings_title": "Settings",
     "settings_label_apiKey": "Google API Key",
     "settings_label_savePath": "Auto Save Path",

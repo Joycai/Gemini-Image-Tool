@@ -47,7 +47,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         label=i18n.get("home_control_prompt_label_history"),
         hint_text=i18n.get("home_control_prompt_placeholder"),
         options=[],
-        expand=True
+        width=300,
     )
     prompt_title_input = ft.TextField(
         label=i18n.get("home_control_prompt_save_label"),
@@ -270,6 +270,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                       tooltip=i18n.get("home_control_prompt_btn_load")),
                         ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
                                       tooltip=i18n.get("home_control_prompt_btn_delete")),
+                        ft.Container(expand=True)
                     ]),
 
                     ft.Row(
