@@ -110,22 +110,6 @@ def history_page(page: Page) -> Container:
             ),
             on_deleted_callback_fnc=load_history_images)
         page.show_dialog(image_preview_dialog)
-        # image_preview_dialog.open(
-        #     image_list=image_files,
-        #     current_index=current_index,
-        #     on_delete=delete_image,
-        #     on_download=download_image_handler
-        # )
-
-    # def delete_image(image_path: str):
-    #     try:
-    #         if os.path.exists(image_path):
-    #             os.remove(image_path)
-    #             logger_utils.log(i18n.get("logic_log_deletedFile", path=image_path))
-    #         image_preview_dialog.close(None)
-    #         load_history_images()  # Refresh the grid
-    #     except Exception as e:
-    #         logger_utils.log(f"Error deleting image {image_path}: {e}")
 
     def open_output_folder_handler(e):
         path = db.get_setting("save_path", OUTPUT_DIR)

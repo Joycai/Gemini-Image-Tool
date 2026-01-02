@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Union, Callable
 
 import flet as ft
-from flet import Container, BoxFit, Alignment
+from flet import Container, BoxFit, Alignment, ControlEventHandler, Slider
 from flet import Page
 
 from common import database as db, i18n
@@ -17,6 +17,7 @@ class State:
     file_picker: ft.FilePicker | None = None
     current_directory: str | None = None
     include_subdirectories: bool = False
+    row_count: int = 2
 
 
 state = State()
@@ -31,44 +32,36 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         expand=True,
     )
 
-    # Image preview dialog components - defined once
-    # image_preview_image = ft.Image(
-    #     src="",
-    #     fit=BoxFit.CONTAIN
-    # )
-    #
-    # image_preview_dialog = ft.AlertDialog(
-    #     modal=True,
-    #     title=ft.Text("Image Preview"),
-    #     content=ft.Container(
-    #         content=image_preview_image,
-    #         width=800,  # Adjust as needed
-    #         height=600,  # Adjust as needed
-    #     ),
-    #     actions=[
-    #         ft.TextButton("Close", on_click=lambda e: close_image_preview(e)),
-    #     ],
-    #     actions_alignment=ft.MainAxisAlignment.END,
-    # )
-
     def open_image_preview(e, image_path):
         page.show_dialog(preview_dialog(page, PreviewDialogData(
             image_list=[image_path],
             current_index=0,
         ), None, True))
 
-    def close_image_preview(e):
-        page.pop_dialog()  # Correct way to close dialog
-
     image_gallery = ft.GridView(
-        runs_count=5,  # 每行显示5张图片
-        max_extent=150,  # 每张图片的最大宽度
+        runs_count=state.row_count,  # 每行显示5张图片
         spacing=10,
         run_spacing=10,
-        child_aspect_ratio=1.0,
+        child_aspect_ratio=0.87,
         padding=0,
         controls=[],
         expand=True
+    )
+
+    def update_grid_layout(e: ft.Event[ft.Slider]):
+        columns = int(e.control.value)
+        state.row_count = columns
+        image_gallery.runs_count = columns
+        image_gallery.update()
+
+    zoom_slider = ft.Slider(
+        min=1,
+        max=5,
+        divisions=4,
+        value=state.row_count,
+        label="{value}",
+        on_change=update_grid_layout,
+        width=200,
     )
 
     def load_images_from_directory(directory_path: str, include_subdirectories: bool):
@@ -181,7 +174,9 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                             ],
                             expand=True
                         ),
-                        include_subdirectories_checkbox
+                        include_subdirectories_checkbox,
+                        ft.Row([ft.Text(i18n.get("home_history_zoom", "Column Num:")),
+                                zoom_slider]),
                     ]
                 ),
                 ft.Column(
