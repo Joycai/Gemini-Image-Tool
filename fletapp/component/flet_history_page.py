@@ -1,15 +1,14 @@
-import flet as ft
-from flet import Container, BoxFit, FilePickerFileType
-from flet import Page
 import os
-import subprocess
 import platform
-import threading
+import subprocess
+
+import flet as ft
+from flet import Container, BoxFit
+from flet import Page
 
 from common import database as db, i18n, logger_utils
 from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR
 from common.image_util import get_image_details
-from fletapp.component.flet_image_preview_dialog import ImagePreviewDialog
 from fletapp.component.flet_image_preview_dialog_new import PreviewDialogData, preview_dialog
 
 
