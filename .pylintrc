@@ -9,6 +9,10 @@ py-version=3.12
 # plugins=
 #     pylint.extensions.spelling
 
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E1101 when accessed.
+generated-members=ft.*,flet.*
+
 [MESSAGES CONTROL]
 # 禁用一些过于严格或不适用于本项目的检查
 disable=
@@ -17,7 +21,8 @@ disable=
     missing-function-docstring,
     invalid-name,  # 允许使用像 c, f, e 这样的短变量名
     too-few-public-methods, # 允许类中只有少量公共方法
-    line-too-long # 暂时禁用，如果需要可以启用并设置 max-line-length
+    line-too-long, # 暂时禁用，如果需要可以启用并设置 max-line-length
+    no-member # Flet 动态属性较多，可能误报
 
 [FORMAT]
 # 设置单行最大字符数
