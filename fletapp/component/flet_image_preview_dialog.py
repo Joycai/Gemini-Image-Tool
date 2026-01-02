@@ -1,156 +1,112 @@
+import os
+from dataclasses import dataclass
+from typing import Callable, List, Optional
+
 import flet as ft
-from typing import Callable, List, Optional, Awaitable
+from flet import BoxFit, FilePickerFileType
 
-from flet import BoxFit, PointerDeviceType, TapEvent, GestureDetector, DragUpdateEvent, TapMoveEvent
+from common import i18n, logger_utils
+from common.config import VALID_IMAGE_EXTENSIONS
 
-from common import i18n
+
+@dataclass
+class PreviewDialogData:
+    image_list: List[str] | None = None
+    current_index: int = 0
 
 
-class ImagePreviewDialog:
+def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Optional[Callable[[], None]] = None):
+    # UI elements
+    preview_image = ft.Image(
+        src=data_state.image_list[data_state.current_index],
+        fit=BoxFit.CONTAIN,
+    )
 
-    def __init__(self, page: ft.Page):
-        self.page = page
+    def close_handler():
+        page.pop_dialog()
 
-        # --- Callbacks ---
-        self.on_delete: Optional[Callable[[str], None]] = None
-        self.on_download: Optional[Callable[[str], Awaitable[None]]] = None
+    def go_next():
+        if data_state.current_index < len(data_state.image_list) - 1:
+            _show_image_at_index(data_state.current_index + 1)
 
-        # --- Image List ---
-        self.image_list: List[str] = []
-        self.current_index: int = 0
+    def go_previous(e):
+        if data_state.current_index > 0:
+            _show_image_at_index(data_state.current_index - 1)
 
-        # --- Constants for Zoom & Pan ---
-        self.INITIAL_SCALE = 1.0
-        self.ZOOM_FACTOR = 0.1
-        self.MAX_ZOOM = 3.0
-        self.MIN_ZOOM = 0.5
-        self.VIEWPORT_WIDTH = 800
-        self.VIEWPORT_HEIGHT = 600
+    def on_delete_handler():
+        d_image_path = data_state.image_list[data_state.current_index]
+        try:
+            if os.path.exists(d_image_path):
+                os.remove(d_image_path)
+                if data_state.current_index == len(data_state.image_list) - 1:
+                    data_state.current_index -= 1
+                if data_state.current_index < 0:
+                    if on_deleted:
+                        on_deleted()
+                    data_state.image_list.remove(d_image_path)
+                    page.pop_dialog()
+                    return
+                data_state.image_list.remove(d_image_path)
+                _show_image_at_index(data_state.current_index)
+                if on_deleted:
+                    on_deleted()
+                logger_utils.log(i18n.get("logic_log_deletedFile", path=d_image_path))
+        except Exception as e:
+            logger_utils.log(f"Error deleting image {d_image_path}: {e}")
 
-        # --- Internal Controls ---
-        self.preview_image = ft.Image(
-            src="",
-            width=self.VIEWPORT_WIDTH,
-            height=self.VIEWPORT_HEIGHT,
-            fit=BoxFit.CONTAIN,
-            scale=self.INITIAL_SCALE,
-            left=0,
-            top=0,
-        )
-        self.prev_button = ft.TextButton(i18n.get("dialog_btn_previous", "Previous"), on_click=self._go_previous)
-        self.next_button = ft.TextButton(i18n.get("dialog_btn_next", "Next"), on_click=self._go_next)
-        self.download_button = ft.TextButton(i18n.get("dialog_btn_download", "Download"))
-        self.delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"))
+    async def on_download_handler():
+        try:
+            d_image_path = data_state.image_list[data_state.current_index]
+            # 'rb' mode is crucial here
+            with open(d_image_path, 'rb') as f:
+                file_bytes = f.read()
+            saved_path = await ft.FilePicker().save_file(
+                file_name=os.path.basename(d_image_path),
+                allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS],
+                src_bytes=file_bytes,
+                file_type=FilePickerFileType.IMAGE
+            )
+        except FileNotFoundError:
+            logger_utils.log("File not found.")
+        except PermissionError:
+            logger_utils.log("Permission denied.")
 
-        self.dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(i18n.get("dialog_title_image_preview", "Image Preview")),
-            content=ft.GestureDetector(
-                allowed_devices=[PointerDeviceType.MOUSE, PointerDeviceType.TOUCH, PointerDeviceType.TRACKPAD],
-                content=ft.Container(
-                    width=self.VIEWPORT_WIDTH,
-                    height=self.VIEWPORT_HEIGHT,
-                    content=ft.Stack(controls=[self.preview_image]),
-                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                ),
-                # on_tap_move=self._on_tap_move,
-                on_scroll=self._on_scroll_zoom,
-                on_pan_update=self._on_pan_update,
-                drag_interval=10,
-            ),
-            actions=[
-                self.prev_button,
-                self.next_button,
-                self.download_button,
-                self.delete_button,
-                ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=self.close),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
+    prev_button = ft.TextButton(i18n.get("dialog_btn_previous", "Previous"), on_click=go_previous)
+    next_button = ft.TextButton(i18n.get("dialog_btn_next", "Next"), on_click=go_next)
+    download_button = ft.TextButton(i18n.get("dialog_btn_download", "Download"), on_click=on_download_handler)
 
-    def _on_scroll_zoom(self, e: ft.ScrollEvent):
-        current_scale = self.preview_image.scale or self.INITIAL_SCALE
-        if e.scroll_delta.y < 0:
-            new_scale = min(self.MAX_ZOOM, current_scale + self.ZOOM_FACTOR)
-        else:
-            new_scale = max(self.MIN_ZOOM, current_scale - self.ZOOM_FACTOR)
-        self.preview_image.scale = new_scale
-        self.preview_image.update()
+    delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"), on_click=on_delete_handler)
 
-    def _on_pan_update(self, e: DragUpdateEvent[GestureDetector]):
-        self.preview_image.left = (self.preview_image.left or 0) + e.local_delta.x
-        self.preview_image.top = (self.preview_image.top or 0) + e.local_delta.y
-        self.preview_image.update()
+    if on_deleted is None:
+        delete_button.disabled = True
 
-    def _on_tap_move(self, e: TapMoveEvent[GestureDetector]):
-        # self.preview_image.left = (self.preview_image.left or 0) + e.delta.x
-        # self.preview_image.top = (self.preview_image.top or 0) + e.delta.y
-        self.preview_image.update()
-
-    def _go_previous(self, e):
-        if self.current_index > 0:
-            self._show_image_at_index(self.current_index - 1)
-            self.dialog.update()
-
-    def _go_next(self, e):
-        if self.current_index < len(self.image_list) - 1:
-            self._show_image_at_index(self.current_index + 1)
-            self.dialog.update()
-
-    def _show_image_at_index(self, index: int):
-        self.current_index = index
-        image_path = self.image_list[self.current_index]
+    def _show_image_at_index(index: int):
+        data_state.current_index = index
+        image_path = data_state.image_list[data_state.current_index]
 
         # Reset view and update image source
-        self.preview_image.src = image_path
-        self.preview_image.scale = self.INITIAL_SCALE
-        self.preview_image.left = 0
-        self.preview_image.top = 0
-
-        # Update button callbacks
-        if self.on_download:
-            async def download_image():
-                p = image_path
-                if self.on_download:
-                    await self.on_download(p)
-
-            self.download_button.on_click = download_image
-        if self.on_delete:
-            self.delete_button.on_click = lambda _, p=image_path: self.on_delete(p)
+        preview_image.src = image_path
 
         # Update navigation button visibility
-        if self.prev_button.visible:
-            self.prev_button.disabled = self.current_index == 0
-            self.next_button.disabled = self.current_index == len(self.image_list) - 1
-        self.preview_image.update()
+        if prev_button.visible:
+            prev_button.disabled = data_state.current_index == 0
+            next_button.disabled = data_state.current_index == len(data_state.image_list) - 1
+        preview_image.update()
 
-    def open(self,
-             image_path: Optional[str] = None,
-             image_list: Optional[List[str]] = None,
-             current_index: int = 0,
-             on_delete: Optional[Callable[[str], None]] = None,
-             on_download: Optional[Callable[[str], Awaitable[None]]] = None):
-
-        if image_path:
-            self.image_list = [image_path]
-            current_index = 0
-            self.prev_button.visible = False
-            self.next_button.visible = False
-        elif image_list:
-            self.image_list = image_list
-            self.prev_button.visible = True
-            self.next_button.visible = True
-        else:
-            raise ValueError("Either image_path or image_list must be provided.")
-
-        self.on_delete = on_delete
-        self.on_download = on_download
-
-        self.delete_button.visible = on_delete is not None
-        self.download_button.visible = on_download is not None
-
-        self._show_image_at_index(current_index)
-        self.page.show_dialog(self.dialog)
-
-    def close(self, e):
-        self.page.pop_dialog()
+    return ft.AlertDialog(
+        modal=True,
+        title=ft.Text(i18n.get("dialog_title_image_preview", "Image Preview")),
+        content=ft.InteractiveViewer(
+            min_scale=0.1,
+            max_scale=16,
+            content=preview_image
+        ),
+        actions=[
+            prev_button,
+            next_button,
+            download_button,
+            delete_button,
+            ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=close_handler),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )

@@ -26,6 +26,7 @@ app.module = "flet_app"
 [tool.uv]
 dev-dependencies = [
     "flet[all]==0.80.0",
+    "pylint>=4.0.3"
 ]
 
 [tool.poetry]

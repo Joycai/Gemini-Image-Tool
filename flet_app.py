@@ -1,6 +1,7 @@
-import flet as ft
-import sys
 import os
+import sys
+
+import flet as ft
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -11,7 +12,6 @@ from fletapp.component.flet_settings_page import settings_page
 from fletapp.component.flet_history_page import history_page
 from fletapp.component.flet_chat_page import chat_page
 from fletapp.component.flet_prompt_manager_tab import prompt_manager_tab
-
 
 def main(page: ft.Page):
     i18n.load_language()
@@ -28,7 +28,7 @@ def main(page: ft.Page):
         page.window_destroy()
         os.execl(sys.executable, sys.executable, *sys.argv)
 
-    def toggle_theme(e):
+    def toggle_theme():
         new_theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
         page.theme_mode = new_theme_mode
         db.save_setting("theme_mode", "DARK" if new_theme_mode == ft.ThemeMode.DARK else "LIGHT")
@@ -51,7 +51,7 @@ def main(page: ft.Page):
     single_edit_component = single_edit_tab(page)
     chat_component = chat_page(page)
     prompt_manager_component = prompt_manager_tab(page)
-    
+
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
@@ -99,6 +99,7 @@ def main(page: ft.Page):
     single_edit_component["init"]()
     chat_component["init"]()
     prompt_manager_component["init"]()
+
 
 if __name__ == "__main__":
     os.environ["PYTHONUTF8"] = "1"

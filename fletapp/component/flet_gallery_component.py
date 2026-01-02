@@ -1,14 +1,15 @@
 import os
 from dataclasses import dataclass
 from typing import Union, Callable
-import threading
+
 import flet as ft
 from flet import Container, BoxFit, Alignment
 from flet import Page
 
+from common import database as db
 # Import common modules
 from common.config import VALID_IMAGE_EXTENSIONS
-from common import database as db
+
 
 @dataclass
 class State:
@@ -19,7 +20,9 @@ class State:
 
 state = State()
 
-def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_select: Callable[[str], None] = None) -> Container:
+
+def local_gallery_component(page: Page, expand: Union[None, bool, int],
+                            on_image_select: Callable[[str], None] = None) -> Container:
     # --- Single Image Editor Page Controls and Handlers ---
     selected_directory = ft.TextField(
         label="Selected Directory",
@@ -88,7 +91,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
                     _, ext = os.path.splitext(filename)
                     if ext.lower() in VALID_IMAGE_EXTENSIONS:
                         image_paths.append(file_path)
-        
+
         for path in image_paths:
             def _on_tap(e, p=path):
                 if on_image_select:
@@ -125,7 +128,7 @@ def local_gallery_component(page: Page, expand: Union[None,bool,int], on_image_s
 
     def include_subdirectories_changed(e: ft.Event[ft.Checkbox]):
         if e.control.value is not None:
-            state.include_subdirectories=e.control.value
+            state.include_subdirectories = e.control.value
         refresh_directory(e)
 
     # Checkbox to include subdirectories

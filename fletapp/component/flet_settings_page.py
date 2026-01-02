@@ -1,29 +1,33 @@
+import json
+import threading
+import time
 from dataclasses import dataclass
+from typing import Callable
 
 import flet as ft
 from flet import Container
 from flet import Page
-import json
-import time
-import threading
-from typing import Callable
 
-from common import database as db, i18n, logger_utils
+from common import database as db, i18n
+
 
 @dataclass
 class State:
     output_picker: ft.FilePicker | None = None
     export_picker: ft.FilePicker | None = None
     import_picker: ft.FilePicker | None = None
-    last_save_path: str|None =None
+    last_save_path: str | None = None
+
 
 state = State()
 
+
 def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     # --- Controls ---
-    api_key_input = ft.TextField(label=i18n.get("settings_label_apiKey"), password=True, can_reveal_password=True)
-    save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"), expand=True)
-    file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
+    api_key_input = ft.TextField(
+        label=i18n.get("settings_label_apiKey"),
+        password=True,
+        can_reveal_password=True)
     lang_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_language"),
         options=[
@@ -31,6 +35,8 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             ft.dropdown.Option(key="zh", text=i18n.get("settings_lang_zh", "中文")),
         ],
     )
+    save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
+    file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
 
     def show_snackbar(message: str, is_error: bool = False):
         page.snack_bar = ft.SnackBar(
@@ -96,7 +102,8 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     import_dialog = ft.AlertDialog(
         modal=True,
         title=ft.Text(i18n.get("settings_import_success_title", "Import Successful")),
-        content=ft.Text(i18n.get("settings_import_success_content", "Data has been imported. Please restart the application for all changes to take effect.")),
+        content=ft.Text(i18n.get("settings_import_success_content",
+                                 "Data has been imported. Please restart the application for all changes to take effect.")),
         actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_import_dialog)],
     )
 
@@ -110,7 +117,8 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
                                                                  allowed_extensions=["json"],
                                                                  src_bytes=json_bytes
                                                                  )
-            show_snackbar(i18n.get("settings_export_success", "Data successfully exported to {path}", path=save_file_path))
+            show_snackbar(
+                i18n.get("settings_export_success", "Data successfully exported to {path}", path=save_file_path))
         except Exception as ex:
             show_snackbar(i18n.get("settings_export_error", "Error exporting data: {error}", error=ex), is_error=True)
 
@@ -133,7 +141,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         output_directory = await state.output_picker.get_directory_path()
         if output_directory:
             save_path_input.value = output_directory
-            db.save_setting("save_path",output_directory)
+            db.save_setting("save_path", output_directory)
 
     # --- UI Layout ---
     pick_output_directory_btn = ft.Button(
@@ -142,10 +150,14 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         on_click=pick_output_directory_btn_handler
     )
     save_button = ft.Button(content=i18n.get("settings_btn_save"), on_click=save_settings_handler, icon=ft.Icons.SAVE)
-    export_button = ft.Button(content=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD, on_click=export_btn_handler)
-    import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD, on_click=import_btn_handler)
-    clear_button = ft.Button(content=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER, on_click=clear_data_handler, color="white", bgcolor="red")
-    restart_button = ft.Button(content=i18n.get("settings_btn_restart", "Restart Application"), icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
+    export_button = ft.Button(content=i18n.get("settings_btn_export", "Export All Data"), icon=ft.Icons.UPLOAD,
+                              on_click=export_btn_handler)
+    import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD,
+                              on_click=import_btn_handler)
+    clear_button = ft.Button(content=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER,
+                             on_click=clear_data_handler, color="white", bgcolor="red")
+    restart_button = ft.Button(content=i18n.get("settings_btn_restart", "Restart Application"),
+                               icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
 
     # --- Initialization Logic ---
     def load_initial_settings():
@@ -162,16 +174,18 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         content=ft.Column(
             [
                 ft.Text(i18n.get("settings_title"), size=24, weight=ft.FontWeight.BOLD),
-                api_key_input,
-                ft.Row([save_path_input,pick_output_directory_btn]),
-                file_prefix_input,
                 lang_dropdown,
+                ft.Row(controls=[api_key_input, ft.Container(expand=True)]),
+                file_prefix_input,
+                ft.Row([save_path_input, pick_output_directory_btn]),
                 save_button,
                 ft.Divider(),
-                ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18, weight=ft.FontWeight.BOLD),
+                ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18,
+                        weight=ft.FontWeight.BOLD),
                 ft.Row([import_button, export_button, clear_button], alignment=ft.MainAxisAlignment.START),
                 ft.Divider(),
-                ft.Text(i18n.get("settings_app_management_title", "Application Management"), size=18, weight=ft.FontWeight.BOLD),
+                ft.Text(i18n.get("settings_app_management_title", "Application Management"), size=18,
+                        weight=ft.FontWeight.BOLD),
                 restart_button,
             ],
             spacing=20,

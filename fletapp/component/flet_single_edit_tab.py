@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 
 import flet as ft
-from flet import Page, BoxFit, Alignment
 from flet import MainAxisAlignment
+from flet import Page, BoxFit, Alignment
 
 # Custom imports
 from common import database as db, logger_utils, i18n

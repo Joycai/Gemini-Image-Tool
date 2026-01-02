@@ -1,17 +1,17 @@
-import flet as ft
-from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
-import threading
 import os
+import threading
 import time
 from typing import List, Any, Dict
+
+import flet as ft
 from PIL import Image
+from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
 
 from common import database as db, i18n, logger_utils
-from common.text_encoder import text_encoder
-from fletapp.component.flet_image_preview_dialog_new import preview_dialog, PreviewDialogData
-from geminiapi import api_client
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
-from fletapp.component.flet_image_preview_dialog import ImagePreviewDialog
+from common.text_encoder import text_encoder
+from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewDialogData
+from geminiapi import api_client
 
 
 def chat_page(page: Page) -> Dict[str, Any]:

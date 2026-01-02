@@ -1,7 +1,10 @@
 # 🍌 Banana Pro Studio (Gemini Image Tool)
 
+[![Version](https://img.shields.io/badge/Version-0.2.1-brightgreen.svg)](pyproject.toml)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
-[![Gradio](https://img.shields.io/badge/UI-Gradio-orange.svg)](https://gradio.app/)
+[![Gradio](https://img.shields.io/badge/Gradio-5.49.1-orange.svg)](https://gradio.app/)
+[![Flet](https://img.shields.io/badge/Flet-0.80.0-blueviolet.svg)](https://flet.dev)
+[![Google GenAI](https://img.shields.io/badge/Google%20GenAI-1.56.0-4285F4.svg)](https://ai.google.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Banana Pro Studio** is a local AI image processing workbench built with Python and Gradio. It leverages the powerful vision capabilities of the Google Gemini model family to provide users with a seamless experience for image generation, editing, and management.

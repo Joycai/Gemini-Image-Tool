@@ -9,7 +9,7 @@ from flet import Page
 from common import database as db, i18n, logger_utils
 from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR
 from common.image_util import get_image_details
-from fletapp.component.flet_image_preview_dialog_new import PreviewDialogData, preview_dialog
+from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
 
 
 def history_page(page: Page) -> Container:
