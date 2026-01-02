@@ -2,17 +2,19 @@ import os
 import shutil
 import threading
 import time
+from dataclasses import dataclass
 from typing import List, Dict, Any
 
 import flet as ft
-from flet.core.page import Page
-from flet.core.types import MainAxisAlignment
-from PIL import Image
+from flet import MainAxisAlignment
+from flet import Page, BoxFit, Alignment
 
 # Custom imports
 from common import database as db, logger_utils, i18n
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from common.image_util import get_image_details
 from common.text_encoder import text_encoder
+from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_gallery_component import local_gallery_component
 from geminiapi import api_client
 
@@ -20,56 +22,19 @@ from geminiapi import api_client
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def get_image_details(image_path: str) -> str:
-    """
-    Gets the closest aspect ratio and resolution for an image.
-    """
-    try:
-        with Image.open(image_path) as img:
-            width, height = img.size
-    except Exception as e:
-        logger_utils.log(f"Error opening image {image_path}: {e}")
-        return "Unknown"
+@dataclass
+class State:
+    selected_images_paths: List[str] | None = None
+    file_picker: ft.FilePicker | None = None
+    last_save_path: str | None = None
 
-    # Resolution
-    max_dim = max(width, height)
-    if max_dim <= 1024:
-        res_text = "1K"
-    elif max_dim <= 2048:
-        res_text = "2K"
-    else:
-        res_text = "4K"
 
-    # Aspect Ratio
-    if height == 0:
-        return f"{res_text} / ?"
-
-    image_ar = width / height
-
-    best_ar_choice = ""
-    min_diff = float('inf')
-
-    for ar_choice in AR_SELECTOR_CHOICES:
-        if ar_choice == "ar_none":
-            continue
-
-        try:
-            ar_parts = ar_choice.split(':')
-            ar_value = int(ar_parts[0]) / int(ar_parts[1])
-
-            diff = abs(image_ar - ar_value)
-
-            if diff < min_diff:
-                min_diff = diff
-                best_ar_choice = ar_choice
-        except (ValueError, ZeroDivisionError):
-            continue
-
-    return f"{res_text} / {best_ar_choice}"
+state = State()
 
 
 def single_edit_tab(page: Page) -> Dict[str, Any]:
-    selected_images_paths: List[str] = []
+    if state.selected_images_paths is None:
+        state.selected_images_paths = []
 
     api_task_state = {
         "status": "idle",
@@ -82,7 +47,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         label=i18n.get("home_control_prompt_label_history"),
         hint_text=i18n.get("home_control_prompt_placeholder"),
         options=[],
-        expand=True
+        width=300,
     )
     prompt_title_input = ft.TextField(
         label=i18n.get("home_control_prompt_save_label"),
@@ -97,7 +62,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                 max_lines=5, hint_text=i18n.get("home_control_prompt_input_placeholder"), expand=4)
     log_output_text = ft.Text(i18n.get("log_initial_message", "Log messages will appear here..."), selectable=True,
                               expand=True)
-    api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=ft.ImageFit.CONTAIN,
+    api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=BoxFit.CONTAIN,
                                   expand=True)
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
@@ -110,15 +75,6 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                           options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
                                           value=MODEL_SELECTOR_CHOICES[0], expand=2)
 
-    # --- Functions ---
-    def show_snackbar(message: str, is_error: bool = False):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=ft.Colors.ERROR if is_error else ft.Colors.GREEN_700,
-        )
-        page.snack_bar.open = True
-        page.update()
-
     def refresh_prompts_dropdown():
         titles = db.get_all_prompt_titles()
         prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
@@ -130,7 +86,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
         if not selected_title:
-            show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to load."), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_promptNotSelected", "Please select a prompt to load."),
+                          is_error=True)
             return
         content = db.get_prompt_content(selected_title)
         prompt_input.value = content
@@ -141,40 +98,41 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         title = prompt_title_input.value
         content = prompt_input.value
         if not title or not content:
-            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         db.save_prompt(title, content)
         page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
-        show_snackbar(i18n.get("logic_info_promptSaved", title=title))
+        show_snackbar(page, i18n.get("logic_info_promptSaved", title=title))
         prompt_title_input.value = ""
         prompt_title_input.update()
 
     def delete_prompt_handler(e):
         selected_title = prompt_dropdown.value
         if not selected_title:
-            show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."),
+                          is_error=True)
             return
         db.delete_prompt(selected_title)
         page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
-        show_snackbar(i18n.get("logic_info_promptDeleted", title=selected_title))
+        show_snackbar(page, i18n.get("logic_info_promptDeleted", title=selected_title))
         prompt_dropdown.value = None
 
     # --- Other Functions (Image selection, API calls, etc.) ---
     def remove_selected_image(e, image_path):
-        if image_path in selected_images_paths:
-            selected_images_paths.remove(image_path)
+        if image_path in state.selected_images_paths:
+            state.selected_images_paths.remove(image_path)
             update_selected_images_display()
 
     def add_selected_image(image_path: str):
-        if image_path not in selected_images_paths:
-            selected_images_paths.append(image_path)
+        if image_path not in state.selected_images_paths:
+            state.selected_images_paths.append(image_path)
             update_selected_images_display()
 
     def update_selected_images_display():
         selected_images_grid.controls.clear()
-        for path in selected_images_paths:
+        for path in state.selected_images_paths:
             details_text = get_image_details(path)
 
             thumbnail = ft.Container(
@@ -183,10 +141,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 border_radius=ft.border_radius.all(5),
                 content=ft.Image(
                     src=path,
-                    fit=ft.ImageFit.CONTAIN,
+                    fit=BoxFit.CONTAIN,
                     tooltip=os.path.basename(path)
                 ),
-                alignment=ft.alignment.center
+                alignment=Alignment.CENTER
             )
 
             details_label = ft.Text(
@@ -231,9 +189,13 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         api_task_state["status"] = "running"
         logger_utils.log(i18n.get("logic_log_newTask"))
         try:
-            generated_image = api_client.call_google_genai(prompt=prompt, image_paths=image_paths, api_key=api_key,
-                                                           model_id=model_id, aspect_ratio=aspect_ratio,
-                                                           resolution=resolution)
+            generated_image = api_client.call_google_genai(
+                prompt=prompt,
+                image_paths=image_paths,
+                api_key=api_key,
+                model_id=model_id,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution)
             prefix = db.get_setting("file_prefix", "gemini_gen")
             filename = f"{prefix}_{int(time.time())}.png"
             temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
@@ -256,37 +218,34 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def send_prompt_handler(e):
         if api_task_state["status"] == "running":
-            show_snackbar(i18n.get("logic_warn_taskRunning"), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_taskRunning"), is_error=True)
             return
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
-            show_snackbar(i18n.get("api_error_apiKey"), is_error=True)
+            show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
             return
-        if not prompt_input.value and not selected_images_paths:
-            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
+        if not prompt_input.value and not state.selected_images_paths:
+            show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
-        threading.Thread(target=_api_worker, args=(text_encoder(prompt_input.value), selected_images_paths, api_key,
-                                                   model_selector_dropdown.value, ratio_dropdown.value,
-                                                   resolution_dropdown.value)).start()
-        show_snackbar(i18n.get("logic_info_taskSubmitted"))
-
-    file_picker = ft.FilePicker(on_result=lambda e: on_file_save_result(e))
-    page.overlay.append(file_picker)
-
-    def on_file_save_result(e: ft.FilePickerResultEvent):
-        if e.path and api_task_state["result_image_path"]:
-            try:
-                shutil.copy(api_task_state["result_image_path"], e.path)
-                logger_utils.log(f"Image saved to: {e.path}")
-            except Exception as ex:
-                logger_utils.log(f"Error saving image: {ex}")
+        threading.Thread(target=_api_worker,
+                         args=(
+                             text_encoder(prompt_input.value),
+                             state.selected_images_paths,
+                             api_key,
+                             model_selector_dropdown.value,
+                             ratio_dropdown.value,
+                             resolution_dropdown.value)).start()
+        show_snackbar(page, i18n.get("logic_info_taskSubmitted"))
 
     def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
-            file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
-                                  allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
+            if state.file_picker is None:
+                state.file_picker = ft.FilePicker()
+            state.file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
+                                        allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
         else:
-            show_snackbar(i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_noImageToDownload", "No image available to download."),
+                          is_error=True)
 
     # --- Initialization function to be called after mount ---
     def initialize():
@@ -311,6 +270,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                       tooltip=i18n.get("home_control_prompt_btn_load")),
                         ft.IconButton(icon=ft.Icons.DELETE_FOREVER, on_click=delete_prompt_handler,
                                       tooltip=i18n.get("home_control_prompt_btn_delete")),
+                        ft.Container(expand=True)
                     ]),
 
                     ft.Row(
@@ -318,13 +278,13 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                             prompt_input,
                             ft.Column([
                                 prompt_title_input,
-                                ft.ElevatedButton(i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
-                                                  on_click=save_prompt_handler),
-                            ],expand=1),
+                                ft.Button(content=i18n.get("home_control_prompt_btn_save"), icon=ft.Icons.SAVE,
+                                          on_click=save_prompt_handler),
+                            ], expand=1),
                         ]
                     ),
-                    ft.ElevatedButton(text=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
-                                      on_click=send_prompt_handler, expand=True),
+                    ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
+                              on_click=send_prompt_handler, expand=True),
                     ft.Divider(),
                     ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
                     ft.Container(
@@ -347,13 +307,14 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                             ft.Text(i18n.get("home_preview_title"), size=14, weight=ft.FontWeight.BOLD),
                             ft.Container(content=api_response_image, border=ft.border.all(1, ft.Colors.GREY_400),
                                          border_radius=5, padding=5, height=300, expand=1),
-                            ft.ElevatedButton(text=i18n.get("home_preview_btn_download_placeholder"),
-                                              icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
+                            ft.Button(content=i18n.get("home_preview_btn_download_placeholder"),
+                                      icon=ft.Icons.DOWNLOAD, on_click=download_image_handler, expand=True)
                         ],
                         expand=1
                     )
                 ], expand=6, scroll=ft.ScrollMode.AUTO)
-        ], expand=True),
+        ],
+            expand=True),
         expand=True,
     )
 
