@@ -108,7 +108,7 @@ def history_page(page: Page) -> Container:
                 image_list=image_files,
                 current_index=current_index
             ),
-            on_deleted=load_history_images)
+            on_deleted_callback_fnc=load_history_images)
         page.show_dialog(image_preview_dialog)
         # image_preview_dialog.open(
         #     image_list=image_files,
@@ -163,8 +163,8 @@ def history_page(page: Page) -> Container:
                         ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=open_output_folder_handler,
                                       tooltip=i18n.get("home_history_btn_open")),
                         ft.IconButton(icon=ft.Icons.REFRESH, on_click=lambda e: load_history_images(),
-                                      tooltip=i18n.get("home_history_btn_refresh", "Refresh")),
-                        ft.Text(i18n.get("home_history_zoom", "Zoom:")),
+                                      tooltip=i18n.get("home_history_btn_refresh_tooltip", "Refresh")),
+                        ft.Text(i18n.get("home_history_zoom", "Column Num:")),
                         zoom_slider,
                     ]
                 ),

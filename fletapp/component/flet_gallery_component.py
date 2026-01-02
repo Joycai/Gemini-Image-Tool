@@ -6,9 +6,10 @@ import flet as ft
 from flet import Container, BoxFit, Alignment
 from flet import Page
 
-from common import database as db
+from common import database as db, i18n
 # Import common modules
 from common.config import VALID_IMAGE_EXTENSIONS
+from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
 
 
 @dataclass
@@ -31,28 +32,30 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
     )
 
     # Image preview dialog components - defined once
-    image_preview_image = ft.Image(
-        src="",
-        fit=BoxFit.CONTAIN
-    )
-
-    image_preview_dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("Image Preview"),
-        content=ft.Container(
-            content=image_preview_image,
-            width=800,  # Adjust as needed
-            height=600,  # Adjust as needed
-        ),
-        actions=[
-            ft.TextButton("Close", on_click=lambda e: close_image_preview(e)),
-        ],
-        actions_alignment=ft.MainAxisAlignment.END,
-    )
+    # image_preview_image = ft.Image(
+    #     src="",
+    #     fit=BoxFit.CONTAIN
+    # )
+    #
+    # image_preview_dialog = ft.AlertDialog(
+    #     modal=True,
+    #     title=ft.Text("Image Preview"),
+    #     content=ft.Container(
+    #         content=image_preview_image,
+    #         width=800,  # Adjust as needed
+    #         height=600,  # Adjust as needed
+    #     ),
+    #     actions=[
+    #         ft.TextButton("Close", on_click=lambda e: close_image_preview(e)),
+    #     ],
+    #     actions_alignment=ft.MainAxisAlignment.END,
+    # )
 
     def open_image_preview(e, image_path):
-        image_preview_image.src = image_path
-        page.show_dialog(image_preview_dialog)  # Correct way to open dialog
+        page.show_dialog(preview_dialog(page, PreviewDialogData(
+            image_list=[image_path],
+            current_index=0,
+        ), None, True))
 
     def close_image_preview(e):
         page.pop_dialog()  # Correct way to close dialog
@@ -133,7 +136,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
 
     # Checkbox to include subdirectories
     include_subdirectories_checkbox = ft.Checkbox(
-        label="Include Subdirectories",
+        label=i18n.get("home_assets_label_recursive", "Include Sub-directories"),
         value=False,
         on_change=include_subdirectories_changed
     )
@@ -165,15 +168,15 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                         ft.Row(
                             controls=[
                                 ft.Button(
-                                    content="Open Directory",
+                                    content=i18n.get("home_assets_btn_browse", "Browse"),
                                     icon=ft.Icons.FOLDER_OPEN,
                                     on_click=open_directory_picker,
-                                    tooltip="Open Directory"
+                                    tooltip=i18n.get("home_assets_btn_browse_tooltip", "Browse a Directory"),
                                 ),
                                 ft.IconButton(
                                     icon=ft.Icons.REFRESH,
                                     on_click=refresh_directory,
-                                    tooltip="Refresh Directory"
+                                    tooltip=i18n.get("home_assets_btn_refresh_tooltip", "Refresh the Gallery"),
                                 )
                             ],
                             expand=True

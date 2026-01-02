@@ -10,6 +10,7 @@ from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
 from common import database as db, i18n, logger_utils
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 from common.text_encoder import text_encoder
+from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewDialogData
 from geminiapi import api_client
 
@@ -30,7 +31,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                 image_list=[image_path],
                 current_index=0
             ),
-            on_deleted=None)
+            on_deleted_callback_fnc=None)
         page.show_dialog(image_preview_dialog)
 
     class Message(ft.Row):
@@ -101,13 +102,6 @@ def chat_page(page: Page) -> Dict[str, Any]:
                                       hint_text=i18n.get("home_control_prompt_save_placeholder"), expand=True)
 
     # --- Functions ---
-    def show_snackbar(message: str, is_error: bool = False):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=ft.Colors.ERROR if is_error else ft.Colors.GREEN_700,
-        )
-        page.snack_bar.open = True
-        page.update()
 
     def refresh_prompts_dropdown():
         titles = db.get_all_prompt_titles()
@@ -120,7 +114,8 @@ def chat_page(page: Page) -> Dict[str, Any]:
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
         if not selected_title:
-            show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to load."), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_promptNotSelected", "Please select a prompt to load."),
+                          is_error=True)
             return
         content = db.get_prompt_content(selected_title)
         user_input.value = content
@@ -131,24 +126,25 @@ def chat_page(page: Page) -> Dict[str, Any]:
         title = prompt_title_input.value
         content = user_input.value
         if not title or not content:
-            show_snackbar(i18n.get("logic_warn_promptEmpty"), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         db.save_prompt(title, content)
         page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_savePrompt", title=title))
-        show_snackbar(i18n.get("logic_info_promptSaved", title=title))
+        show_snackbar(page, i18n.get("logic_info_promptSaved", title=title))
         prompt_title_input.value = ""
         prompt_title_input.update()
 
     def delete_prompt_handler(e):
         selected_title = prompt_dropdown.value
         if not selected_title:
-            show_snackbar(i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."), is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_promptNotSelected", "Please select a prompt to delete."),
+                          is_error=True)
             return
         db.delete_prompt(selected_title)
         page.pubsub.send_all("prompts_updated")
         logger_utils.log(i18n.get("logic_log_deletePrompt", title=selected_title))
-        show_snackbar(i18n.get("logic_info_promptDeleted", title=selected_title))
+        show_snackbar(page, i18n.get("logic_info_promptDeleted", title=selected_title))
         prompt_dropdown.value = None
 
     def update_thumbnail_display():
@@ -177,8 +173,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
                     uploaded_image_paths.append(f.path)
             update_thumbnail_display()
 
-    upload_button = ft.IconButton(icon=ft.Icons.UPLOAD_FILE, tooltip="Upload Images",
-                                  on_click=upload_image_handler)
+    upload_button = ft.IconButton(icon=ft.Icons.UPLOAD_FILE,
+                                  on_click=upload_image_handler,
+                                  tooltip=i18n.get("chat_btn_pick_images_tooltip", "select Images"))
 
     def clear_chat_handler(e):
         nonlocal genai_client

@@ -23,11 +23,6 @@ def main(page: ft.Page):
     saved_theme = db.get_setting("theme_mode", "LIGHT")
     page.theme_mode = ft.ThemeMode.DARK if saved_theme == "DARK" else ft.ThemeMode.LIGHT
 
-    def restart_app():
-        """Restarts the current application."""
-        page.window_destroy()
-        os.execl(sys.executable, sys.executable, *sys.argv)
-
     def toggle_theme():
         new_theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
         page.theme_mode = new_theme_mode
@@ -37,7 +32,7 @@ def main(page: ft.Page):
 
     theme_toggle_button = ft.IconButton(
         icon=ft.Icons.WB_SUNNY_OUTLINED if page.theme_mode == ft.ThemeMode.DARK else ft.Icons.DARK_MODE_OUTLINED,
-        tooltip=i18n.get("header_theme_button_tooltip", "Toggle theme"),
+        tooltip=i18n.get("app_theme_button_tooltip", "Toggle theme"),
         on_click=toggle_theme
     )
 
@@ -62,7 +57,7 @@ def main(page: ft.Page):
                 ft.TabBar(
                     tabs=[
                         ft.Tab(
-                            label=i18n.get("app_tab_single_edit", "Single Edit"),
+                            label=i18n.get("app_tab_home", "Single Edit"),
                         ),
                         ft.Tab(
                             label=i18n.get("app_tab_chat"),
@@ -85,7 +80,7 @@ def main(page: ft.Page):
                         chat_component["view"],
                         prompt_manager_component["view"],
                         history_page(page),
-                        settings_page(page, on_restart=restart_app)
+                        settings_page(page)
                     ]
                 )
             ]

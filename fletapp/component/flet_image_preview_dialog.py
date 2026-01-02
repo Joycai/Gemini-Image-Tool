@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 import flet as ft
-from flet import BoxFit, FilePickerFileType
+from flet import BoxFit, FilePickerFileType, Control
 
 from common import i18n, logger_utils
 from common.config import VALID_IMAGE_EXTENSIONS
@@ -15,7 +15,12 @@ class PreviewDialogData:
     current_index: int = 0
 
 
-def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Optional[Callable[[], None]] = None):
+def preview_dialog(
+        page: ft.Page,
+        data_state: PreviewDialogData,
+        on_deleted_callback_fnc: Optional[Callable[[], None]] = None,
+        simple_mode: bool = False
+):
     # UI elements
     preview_image = ft.Image(
         src=data_state.image_list[data_state.current_index],
@@ -41,15 +46,15 @@ def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Opt
                 if data_state.current_index == len(data_state.image_list) - 1:
                     data_state.current_index -= 1
                 if data_state.current_index < 0:
-                    if on_deleted:
-                        on_deleted()
+                    if on_deleted_callback_fnc:
+                        on_deleted_callback_fnc()
                     data_state.image_list.remove(d_image_path)
                     page.pop_dialog()
                     return
                 data_state.image_list.remove(d_image_path)
                 _show_image_at_index(data_state.current_index)
-                if on_deleted:
-                    on_deleted()
+                if on_deleted_callback_fnc:
+                    on_deleted_callback_fnc()
                 logger_utils.log(i18n.get("logic_log_deletedFile", path=d_image_path))
         except Exception as e:
             logger_utils.log(f"Error deleting image {d_image_path}: {e}")
@@ -77,7 +82,7 @@ def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Opt
 
     delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"), on_click=on_delete_handler)
 
-    if on_deleted is None:
+    if on_deleted_callback_fnc is None:
         delete_button.disabled = True
 
     def _show_image_at_index(index: int):
@@ -93,20 +98,24 @@ def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Opt
             next_button.disabled = data_state.current_index == len(data_state.image_list) - 1
         preview_image.update()
 
+    actions: list[Control]= []
+    if not simple_mode:
+        actions.append(prev_button)
+        actions.append(next_button)
+        actions.append(download_button)
+        actions.append(delete_button)
+    actions.append(ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=close_handler))
+
     return ft.AlertDialog(
         modal=True,
         title=ft.Text(i18n.get("dialog_title_image_preview", "Image Preview")),
         content=ft.InteractiveViewer(
+            width=800,
+            height=600,
             min_scale=0.1,
             max_scale=16,
             content=preview_image
         ),
-        actions=[
-            prev_button,
-            next_button,
-            download_button,
-            delete_button,
-            ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=close_handler),
-        ],
+        actions=actions,
         actions_alignment=ft.MainAxisAlignment.END,
     )

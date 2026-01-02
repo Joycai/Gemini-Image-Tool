@@ -2,13 +2,13 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable
 
 import flet as ft
 from flet import Container
 from flet import Page
 
 from common import database as db, i18n
+from fletapp.component.common_component import show_snackbar
 
 
 @dataclass
@@ -22,7 +22,7 @@ class State:
 state = State()
 
 
-def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
+def settings_page(page: Page) -> Container:
     # --- Controls ---
     api_key_input = ft.TextField(
         label=i18n.get("settings_label_apiKey"),
@@ -38,14 +38,6 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
     save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
     file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
 
-    def show_snackbar(message: str, is_error: bool = False):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=ft.Colors.ERROR if is_error else ft.Colors.GREEN_700,
-        )
-        page.snack_bar.open = True
-        page.update()
-
     # --- Save Settings Logic ---
     def save_settings_handler(e):
         try:
@@ -53,31 +45,33 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             db.save_setting("save_path", save_path_input.value or "outputs")
             db.save_setting("file_prefix", file_prefix_input.value or "gemini_gen")
             db.save_setting("language", lang_dropdown.value or "en")
-            show_snackbar(i18n.get("settings_saved_content", "Settings have been saved successfully."))
+            show_snackbar(page, i18n.get("settings_saved_content", "Settings have been saved successfully."))
         except Exception as ex:
-            show_snackbar(f"{i18n.get('settings_saved_error_content', 'Failed to save settings:')} {ex}", is_error=True)
+            show_snackbar(page, f"{i18n.get('settings_saved_error_content', 'Failed to save settings:')} {ex}",
+                          is_error=True)
 
     # --- Database Clear Logic ---
     confirm_dialog = None
 
     def close_confirm_dialog(e):
         if confirm_dialog:
-            page.close(confirm_dialog)
+            page.pop_dialog()
 
     def confirm_clear_data(e):
         if confirm_dialog:
             close_confirm_dialog(e)
         try:
             db.clear_all_data()
-            show_snackbar(i18n.get("settings_clear_success", "All data has been cleared successfully."))
+            show_snackbar(page, i18n.get("settings_clear_success", "All data has been cleared successfully."))
             # Reload settings on the page
             load_initial_settings()
         except Exception as ex:
-            show_snackbar(i18n.get("settings_clear_error", "Error clearing data: {error}", error=ex), is_error=True)
+            show_snackbar(page, i18n.get("settings_clear_error", "Error clearing data: {error}", error=ex),
+                          is_error=True)
 
     def clear_data_handler(e):
         if confirm_dialog:
-            page.open(confirm_dialog)
+            page.show_dialog(confirm_dialog)
 
     confirm_dialog = ft.AlertDialog(
         modal=True,
@@ -85,9 +79,10 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
         content=ft.Text(i18n.get("settings_clear_confirm_content",
                                  "Are you sure you want to delete all data? This action cannot be undone.")),
         actions=[
-            ft.TextButton(i18n.get("dialog_btn_confirm", "Confirm"), on_click=confirm_clear_data,
-                          style=ft.ButtonStyle(color="red")),
-            ft.TextButton(i18n.get("dialog_btn_cancel", "Cancel"), on_click=close_confirm_dialog),
+            ft.TextButton(i18n.get("dialog_btn_confirm", "Confirm"),
+                          on_click=confirm_clear_data),
+            ft.TextButton(i18n.get("dialog_btn_cancel", "Cancel"),
+                          on_click=close_confirm_dialog),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
@@ -117,10 +112,12 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
                                                                  allowed_extensions=["json"],
                                                                  src_bytes=json_bytes
                                                                  )
-            show_snackbar(
-                i18n.get("settings_export_success", "Data successfully exported to {path}", path=save_file_path))
+            show_snackbar(page,
+                          i18n.get("settings_export_success", "Data successfully exported to {path}",
+                                   path=save_file_path))
         except Exception as ex:
-            show_snackbar(i18n.get("settings_export_error", "Error exporting data: {error}", error=ex), is_error=True)
+            show_snackbar(page, i18n.get("settings_export_error", "Error exporting data: {error}", error=ex),
+                          is_error=True)
 
     async def import_btn_handler():
         if state.import_picker is None:
@@ -133,7 +130,8 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
             page.show_dialog(import_dialog)
 
         except Exception as ex:
-            show_snackbar(i18n.get("settings_import_error", "Error importing data: {error}", error=ex), is_error=True)
+            show_snackbar(page, i18n.get("settings_import_error", "Error importing data: {error}", error=ex),
+                          is_error=True)
 
     async def pick_output_directory_btn_handler():
         if state.output_picker is None:
@@ -145,7 +143,7 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
 
     # --- UI Layout ---
     pick_output_directory_btn = ft.Button(
-        content=i18n.get("settings_btn_pick_directory", "Choose..."),
+        content=i18n.get("settings_btn_pick_savePath", "Choose..."),
         icon=ft.Icons.FOLDER_OPEN,
         on_click=pick_output_directory_btn_handler
     )
@@ -154,10 +152,9 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
                               on_click=export_btn_handler)
     import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD,
                               on_click=import_btn_handler)
-    clear_button = ft.Button(content=i18n.get("settings_btn_clear", "Clear All Data"), icon=ft.Icons.DELETE_FOREVER,
+    clear_button = ft.Button(content=i18n.get("settings_btn_clear_cache", "Clear All Data"),
+                             icon=ft.Icons.DELETE_FOREVER,
                              on_click=clear_data_handler, color="white", bgcolor="red")
-    restart_button = ft.Button(content=i18n.get("settings_btn_restart", "Restart Application"),
-                               icon=ft.Icons.RESTART_ALT, on_click=lambda _: on_restart(), color="white", bgcolor="red")
 
     # --- Initialization Logic ---
     def load_initial_settings():
@@ -182,11 +179,11 @@ def settings_page(page: Page, on_restart: Callable[[], None]) -> Container:
                 ft.Divider(),
                 ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18,
                         weight=ft.FontWeight.BOLD),
-                ft.Row([import_button, export_button, clear_button], alignment=ft.MainAxisAlignment.START),
+                ft.Row([import_button, export_button], alignment=ft.MainAxisAlignment.START),
                 ft.Divider(),
                 ft.Text(i18n.get("settings_app_management_title", "Application Management"), size=18,
                         weight=ft.FontWeight.BOLD),
-                restart_button,
+                clear_button
             ],
             spacing=20,
             scroll=ft.ScrollMode.AUTO,
