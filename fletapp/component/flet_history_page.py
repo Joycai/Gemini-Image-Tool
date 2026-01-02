@@ -1,63 +1,16 @@
 import flet as ft
-from flet import Container, BoxFit
+from flet import Container, BoxFit, FilePickerFileType
 from flet import Page
 import os
 import subprocess
 import platform
 import threading
-from PIL import Image
 
 from common import database as db, i18n, logger_utils
-from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR, AR_SELECTOR_CHOICES
+from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR
+from common.image_util import get_image_details
 from fletapp.component.flet_image_preview_dialog import ImagePreviewDialog
-
-
-def get_image_details(image_path: str) -> str:
-    """
-    Gets the closest aspect ratio and resolution for an image.
-    """
-    try:
-        with Image.open(image_path) as img:
-            width, height = img.size
-    except Exception as e:
-        logger_utils.log(f"Error opening image {image_path}: {e}")
-        return "Unknown"
-
-    # Resolution
-    max_dim = max(width, height)
-    if max_dim <= 1024:
-        res_text = "1K"
-    elif max_dim <= 2048:
-        res_text = "2K"
-    else:
-        res_text = "4K"
-
-    # Aspect Ratio
-    if height == 0:
-        return f"{res_text} / ?"
-
-    image_ar = width / height
-
-    best_ar_choice = ""
-    min_diff = float('inf')
-
-    for ar_choice in AR_SELECTOR_CHOICES:
-        if ar_choice == "ar_none":
-            continue
-
-        try:
-            ar_parts = ar_choice.split(':')
-            ar_value = int(ar_parts[0]) / int(ar_parts[1])
-
-            diff = abs(image_ar - ar_value)
-
-            if diff < min_diff:
-                min_diff = diff
-                best_ar_choice = ar_choice
-        except (ValueError, ZeroDivisionError):
-            continue
-
-    return f"{res_text} / {best_ar_choice}"
+from fletapp.component.flet_image_preview_dialog_new import PreviewDialogData, preview_dialog
 
 
 def history_page(page: Page) -> Container:
@@ -74,9 +27,7 @@ def history_page(page: Page) -> Container:
     )
 
     # --- Reusable Components ---
-    image_preview_dialog = ImagePreviewDialog(page)
-    file_picker = ft.FilePicker()
-    page.overlay.append(file_picker)
+    # image_preview_dialog = ImagePreviewDialog(page)
 
     # --- Functions ---
     def update_grid_layout(e):
@@ -152,38 +103,30 @@ def history_page(page: Page) -> Container:
         if page: page.update()
 
     def open_preview_dialog(current_index: int):
-        image_preview_dialog.open(
-            image_list=image_files,
-            current_index=current_index,
-            on_delete=delete_image,
-            on_download=download_image
-        )
+        image_preview_dialog = preview_dialog(
+            page,
+            PreviewDialogData(
+                image_list=image_files,
+                current_index=current_index
+            ),
+            on_deleted=load_history_images)
+        page.show_dialog(image_preview_dialog)
+        # image_preview_dialog.open(
+        #     image_list=image_files,
+        #     current_index=current_index,
+        #     on_delete=delete_image,
+        #     on_download=download_image_handler
+        # )
 
-    def delete_image(image_path: str):
-        try:
-            if os.path.exists(image_path):
-                os.remove(image_path)
-                logger_utils.log(i18n.get("logic_log_deletedFile", path=image_path))
-            image_preview_dialog.close(None)
-            load_history_images()  # Refresh the grid
-        except Exception as e:
-            logger_utils.log(f"Error deleting image {image_path}: {e}")
-
-    def download_image(image_path: str):
-        def on_save_result(e: ft.FilePickerUploadEvent):
-            if e.path:
-                try:
-                    import shutil
-                    shutil.copy(image_path, e.path)
-                    logger_utils.log(f"Image saved to: {e.path}")
-                except Exception as ex:
-                    logger_utils.log(f"Error saving image: {ex}")
-
-        file_picker.on_upload = on_save_result
-        file_picker.save_file(
-            file_name=os.path.basename(image_path),
-            allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS]
-        )
+    # def delete_image(image_path: str):
+    #     try:
+    #         if os.path.exists(image_path):
+    #             os.remove(image_path)
+    #             logger_utils.log(i18n.get("logic_log_deletedFile", path=image_path))
+    #         image_preview_dialog.close(None)
+    #         load_history_images()  # Refresh the grid
+    #     except Exception as e:
+    #         logger_utils.log(f"Error deleting image {image_path}: {e}")
 
     def open_output_folder_handler(e):
         path = db.get_setting("save_path", OUTPUT_DIR)
@@ -206,10 +149,7 @@ def history_page(page: Page) -> Container:
             logger_utils.log(f"Error opening folder: {ex}")
 
     # --- Initialization using threading.Timer ---
-    def delayed_initialize():
-        load_history_images()
-
-    threading.Timer(0.1, delayed_initialize).start()
+    load_history_images()
 
     return ft.Container(
         content=ft.Column(

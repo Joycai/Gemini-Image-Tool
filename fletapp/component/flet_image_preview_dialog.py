@@ -1,18 +1,20 @@
 import flet as ft
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Awaitable
 
-from flet import BoxFit
+from flet import BoxFit, PointerDeviceType, TapEvent, GestureDetector, DragUpdateEvent, TapMoveEvent
 
 from common import i18n
 
+
 class ImagePreviewDialog:
+
     def __init__(self, page: ft.Page):
         self.page = page
-        
+
         # --- Callbacks ---
         self.on_delete: Optional[Callable[[str], None]] = None
-        self.on_download: Optional[Callable[[str], None]] = None
-        
+        self.on_download: Optional[Callable[[str], Awaitable[None]]] = None
+
         # --- Image List ---
         self.image_list: List[str] = []
         self.current_index: int = 0
@@ -27,7 +29,7 @@ class ImagePreviewDialog:
 
         # --- Internal Controls ---
         self.preview_image = ft.Image(
-            src=bytes(),
+            src="",
             width=self.VIEWPORT_WIDTH,
             height=self.VIEWPORT_HEIGHT,
             fit=BoxFit.CONTAIN,
@@ -44,12 +46,14 @@ class ImagePreviewDialog:
             modal=True,
             title=ft.Text(i18n.get("dialog_title_image_preview", "Image Preview")),
             content=ft.GestureDetector(
+                allowed_devices=[PointerDeviceType.MOUSE, PointerDeviceType.TOUCH, PointerDeviceType.TRACKPAD],
                 content=ft.Container(
                     width=self.VIEWPORT_WIDTH,
                     height=self.VIEWPORT_HEIGHT,
                     content=ft.Stack(controls=[self.preview_image]),
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                 ),
+                # on_tap_move=self._on_tap_move,
                 on_scroll=self._on_scroll_zoom,
                 on_pan_update=self._on_pan_update,
                 drag_interval=10,
@@ -66,16 +70,21 @@ class ImagePreviewDialog:
 
     def _on_scroll_zoom(self, e: ft.ScrollEvent):
         current_scale = self.preview_image.scale or self.INITIAL_SCALE
-        if e.scroll_delta_y < 0:
+        if e.scroll_delta.y < 0:
             new_scale = min(self.MAX_ZOOM, current_scale + self.ZOOM_FACTOR)
         else:
             new_scale = max(self.MIN_ZOOM, current_scale - self.ZOOM_FACTOR)
         self.preview_image.scale = new_scale
         self.preview_image.update()
 
-    def _on_pan_update(self, e: ft.DragUpdateEvent):
-        self.preview_image.left = (self.preview_image.left or 0) + e.delta_x
-        self.preview_image.top = (self.preview_image.top or 0) + e.delta_y
+    def _on_pan_update(self, e: DragUpdateEvent[GestureDetector]):
+        self.preview_image.left = (self.preview_image.left or 0) + e.local_delta.x
+        self.preview_image.top = (self.preview_image.top or 0) + e.local_delta.y
+        self.preview_image.update()
+
+    def _on_tap_move(self, e: TapMoveEvent[GestureDetector]):
+        # self.preview_image.left = (self.preview_image.left or 0) + e.delta.x
+        # self.preview_image.top = (self.preview_image.top or 0) + e.delta.y
         self.preview_image.update()
 
     def _go_previous(self, e):
@@ -100,7 +109,12 @@ class ImagePreviewDialog:
 
         # Update button callbacks
         if self.on_download:
-            self.download_button.on_click = lambda _, p=image_path: self.on_download(p)
+            async def download_image():
+                p = image_path
+                if self.on_download:
+                    await self.on_download(p)
+
+            self.download_button.on_click = download_image
         if self.on_delete:
             self.delete_button.on_click = lambda _, p=image_path: self.on_delete(p)
 
@@ -108,14 +122,15 @@ class ImagePreviewDialog:
         if self.prev_button.visible:
             self.prev_button.disabled = self.current_index == 0
             self.next_button.disabled = self.current_index == len(self.image_list) - 1
-        
-    def open(self, 
-             image_path: Optional[str] = None, 
-             image_list: Optional[List[str]] = None, 
-             current_index: int = 0, 
-             on_delete: Optional[Callable[[str], None]] = None, 
-             on_download: Optional[Callable[[str], None]] = None):
-        
+        self.preview_image.update()
+
+    def open(self,
+             image_path: Optional[str] = None,
+             image_list: Optional[List[str]] = None,
+             current_index: int = 0,
+             on_delete: Optional[Callable[[str], None]] = None,
+             on_download: Optional[Callable[[str], Awaitable[None]]] = None):
+
         if image_path:
             self.image_list = [image_path]
             current_index = 0
@@ -135,7 +150,7 @@ class ImagePreviewDialog:
         self.download_button.visible = on_download is not None
 
         self._show_image_at_index(current_index)
-        self.page.open(self.dialog)
+        self.page.show_dialog(self.dialog)
 
     def close(self, e):
-        self.page.close(self.dialog)
+        self.page.pop_dialog()

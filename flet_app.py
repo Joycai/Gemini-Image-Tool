@@ -55,7 +55,7 @@ def main(page: ft.Page):
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        length=2,
+        length=3,
         content=ft.Column(
             expand=True,
             controls=[
@@ -70,9 +70,9 @@ def main(page: ft.Page):
                         # ft.Tab(
                         #     label=i18n.get("app_tab_prompt_manager", "Prompt Manager"),
                         # ),
-                        # ft.Tab(
-                        #     label=i18n.get("app_tab_history"),
-                        # ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_history"),
+                        ),
                         ft.Tab(
                             label=i18n.get("app_tab_settings"),
                         ),
@@ -84,7 +84,7 @@ def main(page: ft.Page):
                         single_edit_component["view"],
                         # chat_component["view"],
                         # prompt_manager_component["view"],
-                        # history_page(page),
+                        history_page(page),
                         settings_page(page, on_restart=restart_app)
                     ]
                 )
