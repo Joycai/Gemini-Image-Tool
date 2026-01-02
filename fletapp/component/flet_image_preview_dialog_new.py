@@ -14,7 +14,7 @@ class PreviewDialogData:
     image_list: List[str] | None = None
     current_index: int = 0
 
-def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Callable[[], None]):
+def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Optional[Callable[[], None]] = None):
     # UI elements
     preview_image = ft.Image(
         src=data_state.image_list[data_state.current_index],
@@ -40,13 +40,15 @@ def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Cal
                 if data_state.current_index == len(data_state.image_list) - 1:
                     data_state.current_index -= 1
                 if data_state.current_index < 0:
-                    on_deleted()
+                    if on_deleted:
+                        on_deleted()
                     data_state.image_list.remove(d_image_path)
                     page.pop_dialog()
                     return
                 data_state.image_list.remove(d_image_path)
                 _show_image_at_index(data_state.current_index)
-                on_deleted()
+                if on_deleted:
+                    on_deleted()
                 logger_utils.log(i18n.get("logic_log_deletedFile", path=d_image_path))
         except Exception as e:
             logger_utils.log(f"Error deleting image {d_image_path}: {e}")
@@ -71,7 +73,11 @@ def preview_dialog(page: ft.Page, data_state: PreviewDialogData, on_deleted: Cal
     prev_button = ft.TextButton(i18n.get("dialog_btn_previous", "Previous"), on_click=go_previous)
     next_button = ft.TextButton(i18n.get("dialog_btn_next", "Next"), on_click=go_next)
     download_button = ft.TextButton(i18n.get("dialog_btn_download", "Download"), on_click=on_download_handler)
+
     delete_button = ft.TextButton(i18n.get("dialog_btn_delete", "Delete"), on_click=on_delete_handler)
+
+    if on_deleted is None:
+        delete_button.disabled=True
 
     def _show_image_at_index(index: int):
         data_state.current_index = index

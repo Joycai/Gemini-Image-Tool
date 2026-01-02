@@ -49,13 +49,13 @@ def main(page: ft.Page):
 
     # --- Component Creation ---
     single_edit_component = single_edit_tab(page)
-    # chat_component = chat_page(page)
+    chat_component = chat_page(page)
     prompt_manager_component = prompt_manager_tab(page)
     
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        length=4,
+        length=5,
         content=ft.Column(
             expand=True,
             controls=[
@@ -64,9 +64,9 @@ def main(page: ft.Page):
                         ft.Tab(
                             label=i18n.get("app_tab_single_edit", "Single Edit"),
                         ),
-                        # ft.Tab(
-                        #     label=i18n.get("app_tab_chat"),
-                        # ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_chat"),
+                        ),
                         ft.Tab(
                             label=i18n.get("app_tab_prompt_manager", "Prompt Manager"),
                         ),
@@ -82,7 +82,7 @@ def main(page: ft.Page):
                     expand=True,
                     controls=[
                         single_edit_component["view"],
-                        # chat_component["view"],
+                        chat_component["view"],
                         prompt_manager_component["view"],
                         history_page(page),
                         settings_page(page, on_restart=restart_app)
@@ -97,7 +97,7 @@ def main(page: ft.Page):
 
     # --- Deferred Initialization ---
     single_edit_component["init"]()
-    # chat_component["init"]()
+    chat_component["init"]()
     prompt_manager_component["init"]()
 
 if __name__ == "__main__":
