@@ -3,7 +3,9 @@
 /app_data.db
 /build/
 /dist/
-*.spec
 /tmp
+/.idea/
+*.spec
 credentials.json
-.idea
+G-AI-edit.iml
+misc.xml
