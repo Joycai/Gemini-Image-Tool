@@ -1,19 +1,8 @@
-import sqlite3
 import os
+import sqlite3
+
 from common import logger_utils
-from appdirs import user_data_dir
-
-# --- App-specific information for appdirs ---
-APP_NAME = "G-AI-Edit"
-APP_AUTHOR = "YourAppName" # Or your name/company
-
-# --- Define the storage directory and database file path ---
-# This will resolve to a path like:
-# Windows: C:\\Users\\<User>\\AppData\\Local\\YourAppName\\G-AI-Edit\\storage
-# macOS:   brary/Application Support/G-AI-Edit/storage
-# Linux:   /home/<User>/.local/share/G-AI-Edit/storage
-STORAGE_DIR = os.path.join(user_data_dir(APP_NAME, APP_AUTHOR), "storage")
-DB_FILE = os.path.join(STORAGE_DIR, "database.sqlite")
+from common.config import DB_FILE, STORAGE_DIR
 
 
 def get_db_connection():
@@ -59,12 +48,12 @@ def ensure_db_exists():
     Also handles database migrations.
     """
     db_needs_init = not os.path.exists(DB_FILE)
-    
+
     try:
         # Use os.makedirs to create the full path, including intermediate directories
         os.makedirs(STORAGE_DIR, exist_ok=True)
         conn = get_db_connection()
-        
+
         if db_needs_init:
             logger_utils.log(f"Database file not found at {DB_FILE}. Creating a new one.")
             init_db(conn)
@@ -72,7 +61,7 @@ def ensure_db_exists():
         else:
             # Database exists, check for migrations
             migrate_db(conn)
-            
+
         conn.close()
     except Exception as e:
         logger_utils.log(f"FATAL: Could not create, initialize, or migrate the database: {e}")
@@ -85,44 +74,44 @@ def export_all_data():
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    
+
     c.execute("SELECT key, value FROM settings")
     settings = [dict(row) for row in c.fetchall()]
-    
+
     c.execute("SELECT title, content FROM prompts ORDER BY order_id")
     prompts = [dict(row) for row in c.fetchall()]
-    
+
     conn.close()
-    
+
     return {"settings": settings, "prompts": prompts}
 
 def import_all_data(data: dict):
     """Wipes and imports all settings and prompts from a dictionary."""
     conn = get_db_connection()
     c = conn.cursor()
-    
+
     try:
         # Start transaction
         c.execute("BEGIN TRANSACTION")
-        
+
         # Wipe existing data
         c.execute("DELETE FROM settings")
         c.execute("DELETE FROM prompts")
-        
+
         # Insert new settings
         settings_to_insert = [(item.get('key'), item.get('value')) for item in data.get("settings", [])]
         c.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", settings_to_insert)
-        
+
         # Insert new prompts
         prompts_to_insert = []
         for i, item in enumerate(data.get("prompts", [])):
             prompts_to_insert.append((item.get('title'), item.get('content'), i))
         c.executemany("INSERT INTO prompts (title, content, order_id) VALUES (?, ?, ?)", prompts_to_insert)
-        
+
         # Commit transaction
         conn.commit()
         logger_utils.log(f"Successfully imported {len(settings_to_insert)} settings and {len(prompts_to_insert)} prompts.")
-        
+
     except Exception as e:
         conn.rollback()
         logger_utils.log(f"Data import failed: {e}")
