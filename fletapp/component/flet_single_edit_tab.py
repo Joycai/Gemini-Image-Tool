@@ -237,11 +237,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                              resolution_dropdown.value)).start()
         show_snackbar(page, i18n.get("logic_info_taskSubmitted"))
 
-    def download_image_handler(e):
+    async def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
             if state.file_picker is None:
                 state.file_picker = ft.FilePicker()
-            state.file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
+            await state.file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
                                         allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
         else:
             show_snackbar(page, i18n.get("logic_warn_noImageToDownload", "No image available to download."),
