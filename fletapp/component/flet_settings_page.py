@@ -1,4 +1,8 @@
 import json
+import os
+import platform
+import shutil
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -7,7 +11,8 @@ import flet as ft
 from flet import Container
 from flet import Page
 
-from common import database as db, i18n
+from common import database as db, i18n, logger_utils
+from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
 from fletapp.component.common_component import show_snackbar
 
 
@@ -49,6 +54,38 @@ def settings_page(page: Page) -> Container:
         except Exception as ex:
             show_snackbar(page, f"{i18n.get('settings_saved_error_content', 'Failed to save settings:')} {ex}",
                           is_error=True)
+
+    # --- Cache Clear Logic ---
+    def clear_cache_handler(e):
+        try:
+            dirs_to_clear = [UPLOAD_DIR, OUTPUT_DIR]
+            for d in dirs_to_clear:
+                if os.path.exists(d):
+                    shutil.rmtree(d)
+                os.makedirs(d, exist_ok=True)
+            show_snackbar(page, i18n.get("logic_info_cacheCleared", "Cache cleared successfully."))
+        except Exception as ex:
+            show_snackbar(page, f"Error clearing cache: {ex}", is_error=True)
+
+    def open_temp_folder_handler(e):
+        path = TEMP_DIR
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path, exist_ok=True)
+            except OSError as ex:
+                logger_utils.log(f"Error creating directory: {ex}")
+                return
+
+        try:
+            system_platform = platform.system()
+            if system_platform == "Windows":
+                os.startfile(os.path.abspath(path))
+            elif system_platform == "Darwin":
+                subprocess.run(["open", os.path.abspath(path)], check=False)
+            else:
+                subprocess.run(["xdg-open", os.path.abspath(path)], check=False)
+        except Exception as ex:
+            logger_utils.log(f"Error opening folder: {ex}")
 
     # --- Database Clear Logic ---
     confirm_dialog = None
@@ -152,7 +189,16 @@ def settings_page(page: Page) -> Container:
                               on_click=export_btn_handler)
     import_button = ft.Button(content=i18n.get("settings_btn_import", "Import All Data"), icon=ft.Icons.DOWNLOAD,
                               on_click=import_btn_handler)
-    clear_button = ft.Button(content=i18n.get("settings_btn_clear_cache", "Clear All Data"),
+    
+    clear_cache_button = ft.Button(content=i18n.get("settings_btn_clear_cache", "Clear Cache"),
+                                   icon=ft.Icons.CLEANING_SERVICES,
+                                   on_click=clear_cache_handler)
+
+    open_temp_button = ft.Button(content=i18n.get("settings_btn_open_temp", "Browse Cache"),
+                                 icon=ft.Icons.FOLDER_OPEN,
+                                 on_click=open_temp_folder_handler)
+
+    clear_db_button = ft.Button(content=i18n.get("settings_btn_clear_db", "Clear All Data"),
                              icon=ft.Icons.DELETE_FOREVER,
                              on_click=clear_data_handler, color="white", bgcolor="red")
 
@@ -183,7 +229,7 @@ def settings_page(page: Page) -> Container:
                 ft.Divider(),
                 ft.Text(i18n.get("settings_app_management_title", "Application Management"), size=18,
                         weight=ft.FontWeight.BOLD),
-                clear_button
+                ft.Row([open_temp_button, clear_cache_button, clear_db_button])
             ],
             spacing=20,
             scroll=ft.ScrollMode.AUTO,
