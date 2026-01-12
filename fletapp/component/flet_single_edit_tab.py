@@ -1,6 +1,6 @@
 import os
 import shutil
-import threading
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import List, Dict, Any
@@ -64,6 +64,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                               expand=True)
     api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=BoxFit.CONTAIN,
                                   expand=True)
+    
+    progress_bar = ft.ProgressBar(width=400, color="blue", visible=False)
+    send_button = ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
+                              on_click=lambda e: asyncio.create_task(send_prompt_handler(e)), expand=True)
+
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
                                           i18n.get_translated_choices(AR_SELECTOR_CHOICES)],
@@ -171,52 +176,60 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             )
         selected_images_grid.update()
 
-    stop_log_updater = threading.Event()
+    def on_log_update(new_logs: str):
+        log_output_text.value = new_logs
+        page.update()
 
-    def _log_updater_thread():
-        while not stop_log_updater.is_set():
-            current_logs = logger_utils.get_logs()
-            if log_output_text.value != current_logs:
-                log_output_text.value = current_logs
-                page.update()
-            time.sleep(1)
-
-    log_thread = threading.Thread(target=_log_updater_thread, daemon=True)
-    log_thread.start()
-    page.on_disconnect = lambda e: stop_log_updater.set()
-
-    def _api_worker(prompt, image_paths, api_key, model_id, aspect_ratio, resolution):
+    async def _api_worker(prompt, image_paths, api_key, model_id, aspect_ratio, resolution):
         api_task_state["status"] = "running"
+        progress_bar.visible = True
+        send_button.disabled = True
+        page.update()
+
         logger_utils.log(i18n.get("logic_log_newTask"))
         try:
-            generated_image = api_client.call_google_genai(
+            # Run the blocking API call in a thread pool to keep the event loop free
+            generated_image = await asyncio.to_thread(
+                api_client.call_google_genai,
                 prompt=prompt,
                 image_paths=image_paths,
                 api_key=api_key,
                 model_id=model_id,
                 aspect_ratio=aspect_ratio,
-                resolution=resolution)
-            prefix = db.get_setting("file_prefix", "gemini_gen")
-            filename = f"{prefix}_{int(time.time())}.png"
-            temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
-            generated_image.save(temp_path, format="PNG")
-            api_task_state.update({"result_image_path": temp_path, "status": "success"})
-            api_response_image.src = temp_path
-            logger_utils.log(i18n.get("logic_log_saveOk", path=temp_path))
-            permanent_dir = db.get_setting("save_path")
-            if permanent_dir:
-                try:
-                    os.makedirs(permanent_dir, exist_ok=True)
-                    shutil.copy(temp_path, os.path.abspath(os.path.join(permanent_dir, filename)))
-                except (IOError, OSError) as e:
-                    logger_utils.log(f"Failed to copy to permanent storage: {e}")
+                resolution=resolution
+            )
+            
+            if generated_image:
+                prefix = db.get_setting("file_prefix", "gemini_gen")
+                filename = f"{prefix}_{int(time.time())}.png"
+                temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
+                
+                # Save image in thread to avoid blocking
+                await asyncio.to_thread(generated_image.save, temp_path, format="PNG")
+                
+                api_task_state.update({"result_image_path": temp_path, "status": "success"})
+                api_response_image.src = temp_path
+                logger_utils.log(i18n.get("logic_log_saveOk", path=temp_path))
+                
+                permanent_dir = db.get_setting("save_path")
+                if permanent_dir:
+                    try:
+                        os.makedirs(permanent_dir, exist_ok=True)
+                        await asyncio.to_thread(shutil.copy, temp_path, os.path.abspath(os.path.join(permanent_dir, filename)))
+                    except (IOError, OSError) as e:
+                        logger_utils.log(f"Failed to copy to permanent storage: {e}")
+            else:
+                api_task_state.update({"status": "error", "error_msg": "No image returned"})
+
         except Exception as e:
             api_task_state.update({"error_msg": str(e), "status": "error"})
             logger_utils.log(i18n.get("logic_warn_taskFailed", error_msg=str(e)))
         finally:
+            progress_bar.visible = False
+            send_button.disabled = False
             page.update()
 
-    def send_prompt_handler(e):
+    async def send_prompt_handler(e):
         if api_task_state["status"] == "running":
             show_snackbar(page, i18n.get("logic_warn_taskRunning"), is_error=True)
             return
@@ -227,14 +240,15 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         if not prompt_input.value and not state.selected_images_paths:
             show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
-        threading.Thread(target=_api_worker,
-                         args=(
-                             text_encoder(prompt_input.value),
-                             state.selected_images_paths,
-                             api_key,
-                             model_selector_dropdown.value,
-                             ratio_dropdown.value,
-                             resolution_dropdown.value)).start()
+        
+        asyncio.create_task(_api_worker(
+            text_encoder(prompt_input.value),
+            state.selected_images_paths,
+            api_key,
+            model_selector_dropdown.value,
+            ratio_dropdown.value,
+            resolution_dropdown.value
+        ))
         show_snackbar(page, i18n.get("logic_info_taskSubmitted"))
 
     async def download_image_handler(e):
@@ -250,7 +264,14 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     # --- Initialization function to be called after mount ---
     def initialize():
         page.pubsub.subscribe(on_prompts_update)
+        logger_utils.subscribe(on_log_update)
         refresh_prompts_dropdown()
+        if state.file_picker is None:
+            state.file_picker = ft.FilePicker()
+
+    # Clean up on close
+    def on_close():
+        logger_utils.unsubscribe(on_log_update)
 
     # --- Layout ---
     view = ft.Container(
@@ -283,8 +304,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                             ], expand=1),
                         ]
                     ),
-                    ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
-                              on_click=send_prompt_handler, expand=True),
+                    progress_bar,
+                    send_button,
                     ft.Divider(),
                     ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
                     ft.Container(
