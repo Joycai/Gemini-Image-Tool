@@ -78,7 +78,8 @@ def export_all_data():
     c.execute("SELECT key, value FROM settings")
     settings = [dict(row) for row in c.fetchall()]
 
-    c.execute("SELECT title, content FROM prompts ORDER BY order_id")
+    # Include order_id in export
+    c.execute("SELECT title, content, order_id FROM prompts ORDER BY order_id")
     prompts = [dict(row) for row in c.fetchall()]
 
     conn.close()
@@ -105,7 +106,10 @@ def import_all_data(data: dict):
         # Insert new prompts
         prompts_to_insert = []
         for i, item in enumerate(data.get("prompts", [])):
-            prompts_to_insert.append((item.get('title'), item.get('content'), i))
+            # Use order_id from import if available, otherwise use index
+            order_id = item.get('order_id', i)
+            prompts_to_insert.append((item.get('title'), item.get('content'), order_id))
+
         c.executemany("INSERT INTO prompts (title, content, order_id) VALUES (?, ?, ?)", prompts_to_insert)
 
         # Commit transaction
