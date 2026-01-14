@@ -66,8 +66,21 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                   expand=True)
 
     progress_bar = ft.ProgressBar(width=400, color="blue", visible=False)
-    send_button = ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
-                            on_click=lambda e: asyncio.create_task(send_prompt_handler(e)), expand=True)
+    
+    send_button = ft.ElevatedButton(
+        content=ft.Text(i18n.get("home_control_btn_send")), 
+        icon=ft.Icons.SEND,
+        on_click=lambda e: asyncio.create_task(send_prompt_handler(e, disable_ui=True)), 
+        expand=True
+    )
+    
+    queue_button = ft.ElevatedButton(
+        content=ft.Text(i18n.get("home_control_btn_queue")), 
+        icon=ft.Icons.QUEUE,
+        on_click=lambda e: asyncio.create_task(send_prompt_handler(e, disable_ui=False)), 
+        expand=True,
+        style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE_GREY_700)
+    )
 
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
@@ -180,10 +193,12 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         log_output_text.value = new_logs
         page.update()
 
-    async def handle_api_start():
+    async def handle_api_start(disable_ui: bool):
         api_task_state["status"] = "running"
         progress_bar.visible = True
-        send_button.disabled = True
+        if disable_ui:
+            send_button.disabled = True
+            queue_button.disabled = True
         page.update()
         logger_utils.log(i18n.get("logic_log_newTask"))
 
@@ -220,9 +235,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     async def handle_api_finally():
         progress_bar.visible = False
         send_button.disabled = False
+        queue_button.disabled = False
         page.update()
 
-    async def send_prompt_handler(e):
+    async def send_prompt_handler(e, disable_ui: bool = True):
         api_key = db.get_all_settings().get("api_key")
         if not api_key:
             show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
@@ -242,7 +258,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 "aspect_ratio": ratio_dropdown.value,
                 "resolution": resolution_dropdown.value
             },
-            on_start=handle_api_start,
+            on_start=lambda: handle_api_start(disable_ui),
             on_success=handle_api_success,
             on_error=handle_api_error,
             on_finally=handle_api_finally
@@ -311,7 +327,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                         ]
                     ),
                     progress_bar,
-                    send_button,
+                    ft.Row([send_button, queue_button], spacing=10),
                     ft.Divider(),
                     ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
                     ft.Container(

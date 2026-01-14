@@ -45,6 +45,7 @@
     "home_control_ratio_label": "Ratio",
     "home_control_resolution_label": "Resolution",
     "home_control_btn_send": "Generate / Edit",
+    "home_control_btn_queue": "Add to Queue",
     "home_control_btn_retry": "🔄 Retry",
     "home_control_log_label": "Execution Log",
 

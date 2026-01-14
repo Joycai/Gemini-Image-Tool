@@ -45,6 +45,7 @@
     "home_control_ratio_label": "比例",
     "home_control_resolution_label": "分辨率",
     "home_control_btn_send": "生成 / 编辑",
+    "home_control_btn_queue": "加入队列",
     "home_control_btn_retry": "🔄 重试",
     "home_control_log_label": "执行日志",
 
