@@ -53,17 +53,17 @@ Once your environment is set up and activated, run the following commands to bui
 
 ### Windows
 ```console
-flet build windows --exclude tmp test build gapp .gradio .github app_data.db credentials.json .git .idea outputs storage tests .requirements.txt
+flet build windows --exclude .github .venv .git build gapp inno_scripts tests app.py .gitignore BUILD.md requirements.txt uv.lock
 ```
 
 ### macOS
 ```console
-flet build macos --exclude tmp test build gapp .gradio .github app_data.db credentials.json .git .idea outputs storage tests .requirements.txt
+flet build macos --exclude .github .venv .git build gapp inno_scripts tests app.py .gitignore BUILD.md requirements.txt uv.lock
 ```
 
 ### Linux
 ```console
-flet build linux --exclude tmp test build gapp .gradio .github app_data.db credentials.json .git .idea outputs storage tests .requirements.txt
+flet build linux --exclude .github .venv .git build gapp inno_scripts tests app.py .gitignore BUILD.md requirements.txt uv.lock
 ```
 
 ### Command Breakdown:
