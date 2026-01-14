@@ -1,19 +1,18 @@
+import asyncio
 import os
 import shutil
-import asyncio
 import time
 from dataclasses import dataclass
 from typing import List, Dict, Any
 
 import flet as ft
-from flet import MainAxisAlignment
-from flet import Page, BoxFit, Alignment
-
 # Custom imports
 from common import database as db, logger_utils, i18n
-from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR, VALID_IMAGE_EXTENSIONS
 from common.image_util import get_image_details
 from common.text_encoder import text_encoder
+from flet import MainAxisAlignment
+from flet import Page, BoxFit, Alignment, FilePickerFileType
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_gallery_component import local_gallery_component
 from geminiapi import api_client
@@ -64,10 +63,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                               expand=True)
     api_response_image = ft.Image(src="https://via.placeholder.com/300x200?text=API+Response", fit=BoxFit.CONTAIN,
                                   expand=True)
-    
+
     progress_bar = ft.ProgressBar(width=400, color="blue", visible=False)
     send_button = ft.Button(content=i18n.get("home_control_btn_send"), icon=ft.Icons.SEND,
-                              on_click=lambda e: asyncio.create_task(send_prompt_handler(e)), expand=True)
+                            on_click=lambda e: asyncio.create_task(send_prompt_handler(e)), expand=True)
 
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
@@ -198,24 +197,25 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 aspect_ratio=aspect_ratio,
                 resolution=resolution
             )
-            
+
             if generated_image:
                 prefix = db.get_setting("file_prefix", "gemini_gen")
                 filename = f"{prefix}_{int(time.time())}.png"
                 temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
-                
+
                 # Save image in thread to avoid blocking
                 await asyncio.to_thread(generated_image.save, temp_path, format="PNG")
-                
+
                 api_task_state.update({"result_image_path": temp_path, "status": "success"})
                 api_response_image.src = temp_path
                 logger_utils.log(i18n.get("logic_log_saveOk", path=temp_path))
-                
+
                 permanent_dir = db.get_setting("save_path")
                 if permanent_dir:
                     try:
                         os.makedirs(permanent_dir, exist_ok=True)
-                        await asyncio.to_thread(shutil.copy, temp_path, os.path.abspath(os.path.join(permanent_dir, filename)))
+                        await asyncio.to_thread(shutil.copy, temp_path,
+                                                os.path.abspath(os.path.join(permanent_dir, filename)))
                     except (IOError, OSError) as e:
                         logger_utils.log(f"Failed to copy to permanent storage: {e}")
             else:
@@ -240,7 +240,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         if not prompt_input.value and not state.selected_images_paths:
             show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
-        
+
         asyncio.create_task(_api_worker(
             text_encoder(prompt_input.value),
             state.selected_images_paths,
@@ -255,8 +255,15 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
             if state.file_picker is None:
                 state.file_picker = ft.FilePicker()
-            await state.file_picker.save_file(file_name=os.path.basename(api_task_state['result_image_path']),
-                                        allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])
+            temp_file_path = api_task_state["result_image_path"]
+            with open(temp_file_path, 'rb') as f:
+                file_bytes = f.read()
+            saved_path = await state.file_picker.save_file(file_name=os.path.basename(temp_file_path),
+                                              allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS],
+                                              src_bytes=file_bytes,
+                                              file_type=FilePickerFileType.IMAGE)
+            show_snackbar(page, saved_path,
+                          is_error=False)
         else:
             show_snackbar(page, i18n.get("logic_warn_noImageToDownload", "No image available to download."),
                           is_error=True)
