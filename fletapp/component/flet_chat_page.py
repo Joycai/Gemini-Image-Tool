@@ -9,6 +9,7 @@ from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
 
 from common import database as db, i18n, logger_utils
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from common.job_manager import job_manager, Job
 from common.text_encoder import text_encoder
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewDialogData
@@ -19,7 +20,6 @@ def chat_page(page: Page) -> Dict[str, Any]:
     # --- State Management ---
     chat_session_state: Dict[str, Any] = {"session_obj": None}
     genai_client = None  # Persistent client instance
-    api_task_running = False
     uploaded_image_paths: List[str] = []
 
     # --- Controls ---
@@ -191,78 +191,66 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     clear_button = ft.Button(content=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
 
-    async def _chat_worker(client, prompt_parts: List[Any], model: str, ar: str, res: str):
-        nonlocal api_task_running
-        try:
-            # Run blocking API call in thread
-            result = await asyncio.to_thread(
-                api_client.call_google_chat,
-                genai_client=client,
-                chat_session=chat_session_state.get("session_obj"),
-                prompt_parts=prompt_parts,
-                model_id=model,
-                aspect_ratio=ar,
-                resolution=res,
-            )
-            
-            if result:
-                updated_chat_obj, response_parts = result
-                chat_session_state["session_obj"] = updated_chat_obj
+    async def handle_api_success(result):
+        if result:
+            updated_chat_obj, response_parts = result
+            chat_session_state["session_obj"] = updated_chat_obj
 
-                # Remove "Thinking" message
-                if chat_history.controls and isinstance(chat_history.controls[-1], Message):
-                    last_bubble = chat_history.controls[-1].controls[1]
-                    if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
-                        chat_history.controls.pop()
-
-                text_parts = [part for part in response_parts if isinstance(part, str)]
-                image_parts = [part for part in response_parts if not isinstance(part, str)]
-
-                if text_parts:
-                    chat_history.controls.append(Message(role="assistant", parts=["\n\n".join(text_parts)]))
-                    page.update()
-
-                save_dir = db.get_setting("save_path", OUTPUT_DIR)
-                if image_parts:
-                    if not os.path.isdir(save_dir):
-                        try:
-                            os.makedirs(save_dir, exist_ok=True)
-                        except OSError as e:
-                            logger_utils.log(f"Could not create save directory: {e}")
-                            save_dir = None
-
-                    for i, img_part in enumerate(image_parts):
-                        if save_dir:
-                            try:
-                                filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
-                                # Save image in thread
-                                await asyncio.to_thread(img_part.save, filepath)
-                                flet_image = ft.Image(src=filepath)
-                                chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
-                            except Exception as e:
-                                chat_history.controls.append(
-                                    Message(role="assistant", parts=[f"[Error saving image: {e}]"]))
-                        else:
-                            chat_history.controls.append(Message(role="assistant", parts=[
-                                "[Image could not be displayed because save path is not set.]"]))
-                    page.update()
-        except Exception as e:
-            logger_utils.log(f"Chat API call failed: {e}")
+            # Remove "Thinking" message
             if chat_history.controls and isinstance(chat_history.controls[-1], Message):
                 last_bubble = chat_history.controls[-1].controls[1]
                 if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
                     chat_history.controls.pop()
-            chat_history.controls.append(Message(role="assistant", parts=[f"😥 Oops, something went wrong:\n\n{e}"]))
-        finally:
-            api_task_running = False
-            user_input.disabled = False
-            send_button.disabled = False
-            progress_ring.visible = False
-            page.update()
+
+            text_parts = [part for part in response_parts if isinstance(part, str)]
+            image_parts = [part for part in response_parts if not isinstance(part, str)]
+
+            if text_parts:
+                chat_history.controls.append(Message(role="assistant", parts=["\n\n".join(text_parts)]))
+                page.update()
+
+            save_dir = db.get_setting("save_path", OUTPUT_DIR)
+            if image_parts:
+                if not os.path.isdir(save_dir):
+                    try:
+                        os.makedirs(save_dir, exist_ok=True)
+                    except OSError as e:
+                        logger_utils.log(f"Could not create save directory: {e}")
+                        save_dir = None
+
+                for i, img_part in enumerate(image_parts):
+                    if save_dir:
+                        try:
+                            filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
+                            # Save image in thread
+                            await asyncio.to_thread(img_part.save, filepath)
+                            flet_image = ft.Image(src=filepath)
+                            chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
+                        except Exception as e:
+                            chat_history.controls.append(
+                                Message(role="assistant", parts=[f"[Error saving image: {e}]"]))
+                    else:
+                        chat_history.controls.append(Message(role="assistant", parts=[
+                            "[Image could not be displayed because save path is not set.]"]))
+                page.update()
+
+    async def handle_api_error(error_msg):
+        logger_utils.log(f"Chat API call failed: {error_msg}")
+        if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+            last_bubble = chat_history.controls[-1].controls[1]
+            if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                chat_history.controls.pop()
+        chat_history.controls.append(Message(role="assistant", parts=[f"😥 Oops, something went wrong:\n\n{error_msg}"]))
+        page.update()
+
+    async def handle_api_finally():
+        user_input.disabled = False
+        send_button.disabled = False
+        progress_ring.visible = False
+        page.update()
 
     async def send_message_handler():
-        nonlocal genai_client, api_task_running
-        if api_task_running: return
+        nonlocal genai_client
 
         prompt_text = text_encoder(user_input.value)
         if not prompt_text and not uploaded_image_paths: return
@@ -276,7 +264,6 @@ def chat_page(page: Page) -> Dict[str, Any]:
         if genai_client is None:
             genai_client = api_client.genai.Client(api_key=api_key)
 
-        api_task_running = True
         user_input.disabled = True
         send_button.disabled = True
         progress_ring.visible = True
@@ -301,8 +288,23 @@ def chat_page(page: Page) -> Dict[str, Any]:
         update_thumbnail_display()
         page.update()
 
-        asyncio.create_task(_chat_worker(genai_client, prompt_parts, model_selector.value, ar_selector.value,
-                                                    res_selector.value))
+        # Create and add job to queue
+        job = Job(
+            id=f"chat_{int(time.time() * 1000)}",
+            task_func=api_client.call_google_chat,
+            kwargs={
+                "genai_client": genai_client,
+                "chat_session": chat_session_state.get("session_obj"),
+                "prompt_parts": prompt_parts,
+                "model_id": model_selector.value,
+                "aspect_ratio": ar_selector.value,
+                "resolution": res_selector.value,
+            },
+            on_success=handle_api_success,
+            on_error=handle_api_error,
+            on_finally=handle_api_finally
+        )
+        await job_manager.add_job(job)
 
     user_input.on_submit = lambda e: asyncio.create_task(send_message_handler())
 
