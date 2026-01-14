@@ -249,6 +249,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
         job = Job(
             id=f"single_edit_{int(time.time() * 1000)}",
+            name=f"Single Edit: {prompt_input.value[:20]}...",
             task_func=api_client.call_google_genai,
             kwargs={
                 "prompt": text_encoder(prompt_input.value),

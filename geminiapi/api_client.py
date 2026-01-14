@@ -75,7 +75,7 @@ def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
 
 
 def call_google_genai(
-        prompt: str,
+        prompt: Optional[str],
         image_paths: List[str],
         api_key: str,
         model_id: str,
@@ -91,7 +91,10 @@ def call_google_genai(
         model_id = MODEL_SELECTOR_DEFAULT
 
     client = genai.Client(api_key=api_key)
-    contents: List[Any] = [prompt]
+    contents: List[Any] = []
+    if prompt:
+        contents.append(prompt)
+        
     if image_paths:
         logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
         for path in image_paths:
@@ -102,7 +105,8 @@ def call_google_genai(
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
 
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
-    logger_utils.log(i18n.get("api_log_requestInfo", prompt_len=len(prompt), img_count=len(image_paths)))
+    prompt_len = len(prompt) if prompt else 0
+    logger_utils.log(i18n.get("api_log_requestInfo", prompt_len=prompt_len, img_count=len(image_paths)))
     logger_utils.log(i18n.get("api_log_requestSent", model=model_id, ar=ar_log_val, res=resolution))
 
     config = _get_model_config(model_id, aspect_ratio, resolution)

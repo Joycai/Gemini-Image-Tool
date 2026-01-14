@@ -291,6 +291,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
         # Create and add job to queue
         job = Job(
             id=f"chat_{int(time.time() * 1000)}",
+            name=f"Chat: {prompt_text[:20]}..." if prompt_text else "Chat (Image only)",
             task_func=api_client.call_google_chat,
             kwargs={
                 "genai_client": genai_client,
