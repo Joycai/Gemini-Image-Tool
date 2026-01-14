@@ -12,6 +12,7 @@ from fletapp.component.flet_settings_page import settings_page
 from fletapp.component.flet_history_page import history_page
 from fletapp.component.flet_chat_page import chat_page
 from fletapp.component.flet_prompt_manager_tab import prompt_manager_tab
+from fletapp.component.flet_queue_page import queue_page
 
 def main(page: ft.Page):
     i18n.load_language()
@@ -50,7 +51,7 @@ def main(page: ft.Page):
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        length=5,
+        length=6,
         content=ft.Column(
             expand=True,
             controls=[
@@ -69,6 +70,9 @@ def main(page: ft.Page):
                             label=i18n.get("app_tab_history"),
                         ),
                         ft.Tab(
+                            label=i18n.get("app_tab_queue", "Queue"),
+                        ),
+                        ft.Tab(
                             label=i18n.get("app_tab_settings"),
                         ),
                     ]
@@ -80,6 +84,7 @@ def main(page: ft.Page):
                         chat_component["view"],
                         prompt_manager_component["view"],
                         history_page(page),
+                        queue_page(page),
                         settings_page(page)
                     ]
                 )

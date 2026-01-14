@@ -1,18 +1,22 @@
 [project]
 name = "Gemini-Image-Tool"
-version = "0.2.1"
+version = "0.2.3"
 description = ""
 readme = "README.md"
 requires-python = "==3.12.*"
 dependencies = [
-    "flet>=0.80.1",
-    "google-genai>=1.56.0",
+    "flet[all]>=0.80.1",
+    "google-genai>=1.57.0",
     "pillow>=12.1.0",
     "requests>=2.32.5",
     "appdirs>=1.4.3"
 ]
 authors = [
     { name = "joycai", email = "joycai@joycai.cn" }
+]
+dependency-groups.dev = [
+    "flet[all]>=0.80.1",
+    "pylint>=4.0.4"
 ]
 
 [tool.flet]
@@ -22,12 +26,6 @@ company = "Joycai"
 copyright = "Copyright (C) 2025 by Joycai"
 app.path = "."
 app.module = "flet_app"
-
-[tool.uv]
-dev-dependencies = [
-    "flet[all]>=0.80.1",
-    "pylint>=4.0.4"
-]
 
 [tool.poetry]
 package-mode = false

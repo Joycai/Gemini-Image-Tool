@@ -1,5 +1,5 @@
 import os
-import threading
+import asyncio
 import time
 from typing import List, Any, Dict
 
@@ -9,6 +9,7 @@ from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
 
 from common import database as db, i18n, logger_utils
 from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from common.job_manager import job_manager, Job
 from common.text_encoder import text_encoder
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewDialogData
@@ -19,12 +20,10 @@ def chat_page(page: Page) -> Dict[str, Any]:
     # --- State Management ---
     chat_session_state: Dict[str, Any] = {"session_obj": None}
     genai_client = None  # Persistent client instance
-    api_task_running = threading.Event()
     uploaded_image_paths: List[str] = []
 
     # --- Controls ---
     def open_chat_image_preview(image_path: str):
-        # image_previewer.open(image_path=image_path, on_download=download_image)
         image_preview_dialog = preview_dialog(
             page,
             PreviewDialogData(
@@ -84,8 +83,11 @@ def chat_page(page: Page) -> Dict[str, Any]:
     thumbnail_row = ft.Row(wrap=True, spacing=10)
     user_input = ft.TextField(label=i18n.get("chat_input_label"), hint_text=i18n.get("chat_input_placeholder"),
                               expand=True, multiline=True, shift_enter=True)
+    
+    progress_ring = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False)
     send_button = ft.IconButton(icon=ft.Icons.SEND, tooltip=i18n.get("home_control_btn_send"),
-                                on_click=lambda e: send_message_handler())
+                                on_click=lambda e: asyncio.create_task(send_message_handler()))
+    
     model_selector = ft.Dropdown(label=i18n.get("home_control_model_label"),
                                  options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
                                  value=MODEL_SELECTOR_CHOICES[0], expand=2)
@@ -164,7 +166,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
             uploaded_image_paths.remove(path_to_remove)
             update_thumbnail_display()
 
-    async def upload_image_handler():
+    async def upload_image_handler(e):
         file_picker = ft.FilePicker()
         files = await file_picker.pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE)
         if files:
@@ -189,19 +191,12 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     clear_button = ft.Button(content=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
 
-    def _chat_worker(client, prompt_parts: List[Any], model: str, ar: str, res: str):
-        try:
-            updated_chat_obj, response_parts = api_client.call_google_chat(
-                genai_client=client,
-                chat_session=chat_session_state.get("session_obj"),
-                prompt_parts=prompt_parts,
-                model_id=model,
-                aspect_ratio=ar,
-                resolution=res,
-            )
-
+    async def handle_api_success(result):
+        if result:
+            updated_chat_obj, response_parts = result
             chat_session_state["session_obj"] = updated_chat_obj
 
+            # Remove "Thinking" message
             if chat_history.controls and isinstance(chat_history.controls[-1], Message):
                 last_bubble = chat_history.controls[-1].controls[1]
                 if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
@@ -220,14 +215,15 @@ def chat_page(page: Page) -> Dict[str, Any]:
                     try:
                         os.makedirs(save_dir, exist_ok=True)
                     except OSError as e:
-                        logger_utils.log(f"Could not create save directory: {e}");
+                        logger_utils.log(f"Could not create save directory: {e}")
                         save_dir = None
 
                 for i, img_part in enumerate(image_parts):
                     if save_dir:
                         try:
                             filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
-                            img_part.save(filepath)
+                            # Save image in thread
+                            await asyncio.to_thread(img_part.save, filepath)
                             flet_image = ft.Image(src=filepath)
                             chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
                         except Exception as e:
@@ -237,22 +233,24 @@ def chat_page(page: Page) -> Dict[str, Any]:
                         chat_history.controls.append(Message(role="assistant", parts=[
                             "[Image could not be displayed because save path is not set.]"]))
                 page.update()
-        except Exception as e:
-            logger_utils.log(f"Chat API call failed: {e}")
-            if chat_history.controls and isinstance(chat_history.controls[-1], Message):
-                last_bubble = chat_history.controls[-1].controls[1]
-                if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
-                    chat_history.controls.pop()
-            chat_history.controls.append(Message(role="assistant", parts=[f"😥 Oops, something went wrong:\n\n{e}"]))
-        finally:
-            api_task_running.clear()
-            user_input.disabled = False
-            send_button.disabled = False
-            page.update()
 
-    def send_message_handler():
+    async def handle_api_error(error_msg):
+        logger_utils.log(f"Chat API call failed: {error_msg}")
+        if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+            last_bubble = chat_history.controls[-1].controls[1]
+            if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                chat_history.controls.pop()
+        chat_history.controls.append(Message(role="assistant", parts=[f"😥 Oops, something went wrong:\n\n{error_msg}"]))
+        page.update()
+
+    async def handle_api_finally():
+        user_input.disabled = False
+        send_button.disabled = False
+        progress_ring.visible = False
+        page.update()
+
+    async def send_message_handler():
         nonlocal genai_client
-        if api_task_running.is_set(): return
 
         prompt_text = text_encoder(user_input.value)
         if not prompt_text and not uploaded_image_paths: return
@@ -266,15 +264,17 @@ def chat_page(page: Page) -> Dict[str, Any]:
         if genai_client is None:
             genai_client = api_client.genai.Client(api_key=api_key)
 
-        api_task_running.set()
         user_input.disabled = True
         send_button.disabled = True
+        progress_ring.visible = True
 
         prompt_parts: List[Any] = []
         user_message_parts: List[Any] = []
 
         for path in uploaded_image_paths:
-            prompt_parts.append(Image.open(path))
+            # Open images in thread pool
+            img = await asyncio.to_thread(Image.open, path)
+            prompt_parts.append(img)
             user_message_parts.append(ft.Image(src=path, width=150, border_radius=ft.border_radius.all(5)))
 
         if prompt_text:
@@ -288,10 +288,26 @@ def chat_page(page: Page) -> Dict[str, Any]:
         update_thumbnail_display()
         page.update()
 
-        threading.Thread(target=_chat_worker, args=(genai_client, prompt_parts, model_selector.value, ar_selector.value,
-                                                    res_selector.value)).start()
+        # Create and add job to queue
+        job = Job(
+            id=f"chat_{int(time.time() * 1000)}",
+            name=f"Chat: {prompt_text[:20]}..." if prompt_text else "Chat (Image only)",
+            task_func=api_client.call_google_chat,
+            kwargs={
+                "genai_client": genai_client,
+                "chat_session": chat_session_state.get("session_obj"),
+                "prompt_parts": prompt_parts,
+                "model_id": model_selector.value,
+                "aspect_ratio": ar_selector.value,
+                "resolution": res_selector.value,
+            },
+            on_success=handle_api_success,
+            on_error=handle_api_error,
+            on_finally=handle_api_finally
+        )
+        await job_manager.add_job(job)
 
-    user_input.on_submit = lambda e: send_message_handler()
+    user_input.on_submit = lambda e: asyncio.create_task(send_message_handler())
 
     # --- Initialization function to be called after mount ---
     def initialize():
@@ -319,7 +335,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                 ], expand=2),
             ]),
             thumbnail_row,
-            ft.Row([user_input, upload_button, send_button], vertical_alignment=ft.CrossAxisAlignment.START),
+            ft.Row([user_input, upload_button, ft.Stack([send_button, ft.Container(progress_ring, margin=ft.margin.only(left=12, top=12))])], vertical_alignment=ft.CrossAxisAlignment.START),
             ft.Row([clear_button])
         ]),
         padding=ft.padding.all(10),

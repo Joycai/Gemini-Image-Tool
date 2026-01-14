@@ -1,10 +1,29 @@
 import os
 import platform
 
+from appdirs import user_data_dir
+
 # ==============================================================
 # 路径配置
 # ==============================================================
-TEMP_DIR = "../tmp"
+
+# --- App-specific information for appdirs ---
+APP_NAME = "Gemini-Image-Tool"
+APP_AUTHOR = "joycai" # Or your name/company
+STORAGE_DIR = "storage"
+DB_FILE_NAME = "database.sqlite"
+TEMP_DIR = "tmp"
+
+# --- Define the storage directory and database file path ---
+# This will resolve to a path like:
+# Windows: C:\\Users\\<User>\\AppData\\Local\\joycai\\Gemini-Image-Tool\\storage
+# macOS:   brary/Application Support/Gemini-Image-Tool/storage
+# Linux:   /home/<User>/.local/share/Gemini-Image-Tool/storage
+STORAGE_DIR = os.path.join(user_data_dir(APP_NAME, APP_AUTHOR), STORAGE_DIR)
+DB_FILE = os.path.join(STORAGE_DIR, DB_FILE_NAME)
+
+# 将 TEMP_DIR 设置在与数据库文件相同的目录下 (STORAGE_DIR)
+TEMP_DIR = os.path.join(STORAGE_DIR, TEMP_DIR)
 UPLOAD_DIR = os.path.join(TEMP_DIR, "upload")
 OUTPUT_DIR = os.path.join(TEMP_DIR, "output")
 

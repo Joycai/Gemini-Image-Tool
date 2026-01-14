@@ -1,7 +1,22 @@
 import datetime
+from typing import Callable, List
 
 # 全局日志缓存
 _LOG_BUFFER = []
+# 回调函数列表，用于通知 UI 更新
+_callbacks: List[Callable[[str], None]] = []
+
+
+def subscribe(callback: Callable[[str], None]):
+    """订阅日志更新"""
+    if callback not in _callbacks:
+        _callbacks.append(callback)
+
+
+def unsubscribe(callback: Callable[[str], None]):
+    """取消订阅"""
+    if callback in _callbacks:
+        _callbacks.remove(callback)
 
 
 def log(message):
@@ -22,6 +37,14 @@ def log(message):
     if len(_LOG_BUFFER) > 500:
         _LOG_BUFFER.pop(0)
 
+    # 5. 通知所有订阅者
+    all_logs = get_logs()
+    for callback in _callbacks:
+        try:
+            callback(all_logs)
+        except Exception as e:
+            print(f"Error in log callback: {e}")
+
 
 def get_logs():
     """获取所有日志文本，用于 UI 显示"""
@@ -32,7 +55,7 @@ def get_logs():
 def clear_logs():
     """清空日志"""
     _LOG_BUFFER.clear()
+    # 通知订阅者日志已清空
+    for callback in _callbacks:
+        callback("")
     return ""
-
-# # 移除自动注册
-# ticker_instance.register(get_logs)
