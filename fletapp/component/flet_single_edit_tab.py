@@ -82,6 +82,15 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE_GREY_700)
     )
 
+    interrupt_button = ft.ElevatedButton(
+        content=ft.Text(i18n.get("home_control_btn_interrupt")),
+        icon=ft.Icons.STOP_CIRCLE,
+        on_click=lambda _: job_manager.interrupt_current_job(),
+        expand=True,
+        style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_700),
+        visible=False
+    )
+
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
                                           i18n.get_translated_choices(AR_SELECTOR_CHOICES)],
@@ -92,6 +101,13 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     model_selector_dropdown = ft.Dropdown(label=i18n.get("home_control_model_label"),
                                           options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
                                           value=MODEL_SELECTOR_CHOICES[0], expand=2)
+    
+    retry_selector = ft.Dropdown(
+        label=i18n.get("home_control_retry_label", "Max Retries"),
+        options=[ft.dropdown.Option(str(i)) for i in range(1, 11)],
+        value="3",
+        expand=1
+    )
 
     def refresh_prompts_dropdown():
         titles = db.get_all_prompt_titles()
@@ -196,6 +212,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     async def handle_api_start(disable_ui: bool):
         api_task_state["status"] = "running"
         progress_bar.visible = True
+        interrupt_button.visible = True
         if disable_ui:
             send_button.disabled = True
             queue_button.disabled = True
@@ -234,6 +251,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     async def handle_api_finally():
         progress_bar.visible = False
+        interrupt_button.visible = False
         send_button.disabled = False
         queue_button.disabled = False
         page.update()
@@ -249,7 +267,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
         job = Job(
             id=f"single_edit_{int(time.time() * 1000)}",
-            name=f"Single Edit: {prompt_input.value[:20]}...",
+            name=f"Single Edit: {prompt_input.value[:20]}..." if prompt_input.value else "Single Edit (Image only)",
             task_func=api_client.call_google_genai,
             kwargs={
                 "prompt": text_encoder(prompt_input.value),
@@ -257,7 +275,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 "api_key": api_key,
                 "model_id": model_selector_dropdown.value,
                 "aspect_ratio": ratio_dropdown.value,
-                "resolution": resolution_dropdown.value
+                "resolution": resolution_dropdown.value,
+                "max_retries": int(retry_selector.value)
             },
             on_start=lambda: handle_api_start(disable_ui),
             on_success=handle_api_success,
@@ -306,7 +325,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                     ft.Text(i18n.get("home_control_gallery_selected_label"), size=16, weight=ft.FontWeight.BOLD),
                     selected_images_grid,
                     ft.Divider(),
-                    ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown]),
+                    ft.Row([model_selector_dropdown, ratio_dropdown, resolution_dropdown, retry_selector]),
                     ft.Divider(),
                     ft.Row([
                         prompt_dropdown,
@@ -328,7 +347,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                         ]
                     ),
                     progress_bar,
-                    ft.Row([send_button, queue_button], spacing=10),
+                    ft.Row([send_button, queue_button, interrupt_button], spacing=10),
                     ft.Divider(),
                     ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
                     ft.Container(

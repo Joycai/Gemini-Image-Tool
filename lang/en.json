@@ -47,6 +47,7 @@
     "home_control_resolution_label": "Resolution",
     "home_control_btn_send": "Generate / Edit",
     "home_control_btn_queue": "Add to Queue",
+    "home_control_btn_interrupt": "Interrupt Current",
     "home_control_btn_retry": "🔄 Retry",
     "home_control_log_label": "Execution Log",
 
@@ -82,6 +83,7 @@
     "queue_col_started": "Started/Duration",
     "queue_col_actions": "Actions",
     "queue_btn_cancel_tooltip": "Cancel Job",
+    "queue_btn_interrupt_tooltip": "Interrupt Running Job",
     "queue_btn_view_tooltip": "View Details",
     "queue_dialog_title": "Job Details",
     "queue_dialog_prompt_label": "Prompt / Content:",

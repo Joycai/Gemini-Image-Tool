@@ -4,6 +4,16 @@ from dataclasses import dataclass, field
 from typing import Callable, Any, Dict, Optional, List
 import traceback
 import time
+import threading
+import ctypes
+
+class JobInterruptError(BaseException):
+    """
+    Custom exception used to interrupt a running job thread.
+    Inherits from BaseException so it is NOT caught by 'except Exception' blocks
+    in the API client retry loops.
+    """
+    pass
 
 @dataclass
 class Job:
@@ -29,6 +39,8 @@ class JobManager:
         self.history: List[Job] = [] # Keep track of recent jobs
         self._subscribers = []
         self._cancelled_ids = set()
+        self._current_thread = None
+        self._interrupt_event = asyncio.Event()
 
     def subscribe(self, callback: Callable):
         self._subscribers.append(callback)
@@ -42,9 +54,12 @@ class JobManager:
 
     async def _maybe_await(self, func, *args, **kwargs):
         if func:
-            res = func(*args, **kwargs)
-            if inspect.isawaitable(res):
-                await res
+            try:
+                res = func(*args, **kwargs)
+                if inspect.isawaitable(res):
+                    await res
+            except Exception as e:
+                print(f"Error in callback: {e}")
 
     async def start_worker(self):
         """Starts the background worker if it's not already running."""
@@ -54,6 +69,7 @@ class JobManager:
     async def _worker_loop(self):
         while True:
             job: Job = await self.queue.get()
+            self._interrupt_event.clear()
             
             if job.id in self._cancelled_ids:
                 job.status = "cancelled"
@@ -71,17 +87,49 @@ class JobManager:
             try:
                 await self._maybe_await(job.on_start)
 
-                # Execute the task in a thread pool since it's likely blocking (API call)
-                result = await asyncio.to_thread(job.task_func, **job.kwargs)
+                def thread_wrapper():
+                    self._current_thread = threading.current_thread()
+                    try:
+                        return job.task_func(**job.kwargs)
+                    except JobInterruptError:
+                        # Silently exit the thread if interrupted
+                        return None
+                    finally:
+                        self._current_thread = None
 
-                job.status = "success"
-                await self._maybe_await(job.on_success, result)
+                # Run the thread task in a way we can "abandon" it if interrupted
+                thread_task = asyncio.to_thread(thread_wrapper)
+                
+                # Wait for either the task to finish OR the interrupt event to fire
+                done, pending = await asyncio.wait(
+                    [asyncio.create_task(thread_task), asyncio.create_task(self._interrupt_event.wait())],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+
+                # Cancel the pending tasks (the event wait or the thread task)
+                for task in pending:
+                    task.cancel()
+
+                if self._interrupt_event.is_set():
+                    # Interrupted!
+                    job.status = "cancelled"
+                    job.error = "Interrupted by user"
+                else:
+                    # Task finished normally
+                    result = await list(done)[0] # Get the result from the thread_task
+                    if job.status != "cancelled":
+                        job.status = "success"
+                        await self._maybe_await(job.on_success, result)
+
             except Exception as e:
-                job.status = "error"
-                job.error = str(e)
-                print(f"Error executing job {job.id}: {e}")
-                traceback.print_exc()
-                await self._maybe_await(job.on_error, str(e))
+                if job.status == "cancelled":
+                    pass
+                else:
+                    job.status = "error"
+                    job.error = str(e)
+                    print(f"Error executing job {job.id}: {e}")
+                    traceback.print_exc()
+                    await self._maybe_await(job.on_error, str(e))
             finally:
                 job.finished_at = time.time()
                 await self._maybe_await(job.on_finally)
@@ -91,14 +139,38 @@ class JobManager:
 
     async def add_job(self, job: Job):
         self.history.append(job)
-        if len(self.history) > 50: # Keep only last 50 jobs
+        if len(self.history) > 50:
             self.history.pop(0)
         await self.queue.put(job)
         self._notify()
         await self.start_worker()
 
+    def interrupt_current_job(self):
+        """Forcefully interrupts the currently running job."""
+        if self.current_job and self.current_job.status == "running":
+            self.current_job.status = "cancelled"
+            
+            # 1. Signal the worker loop to stop waiting for the thread
+            self._interrupt_event.set()
+            
+            # 2. Try to break the thread (best effort)
+            if self._current_thread:
+                thread_id = self._current_thread.ident
+                if thread_id:
+                    # Injecting BaseException ensures it bypasses 'except Exception'
+                    ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                        ctypes.c_long(thread_id), 
+                        ctypes.py_object(JobInterruptError)
+                    )
+            
+            self._notify()
+            return True
+        return False
+
     def cancel_job(self, job_id: str):
-        """Marks a job as cancelled. If it's in the queue, it will be skipped."""
+        if self.current_job and self.current_job.id == job_id:
+            return self.interrupt_current_job()
+            
         for job in self.history:
             if job.id == job_id and job.status == "queued":
                 self._cancelled_ids.add(job_id)
@@ -108,7 +180,6 @@ class JobManager:
         return False
 
     def get_queue_size(self):
-        # Count only queued jobs that aren't marked for cancellation
         count = 0
         for job in self.history:
             if job.status == "queued":

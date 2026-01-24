@@ -164,13 +164,23 @@ def queue_page(page: ft.Page):
         elif job.started_at:
             duration = f" ({int(time.time() - job.started_at)}s...)"
 
-        cancel_btn = ft.IconButton(
-            icon=ft.Icons.CANCEL_OUTLINED,
-            icon_color=ft.Colors.RED_400,
-            tooltip=i18n.get("queue_btn_cancel_tooltip"),
-            on_click=lambda _: job_manager.cancel_job(job.id),
-            visible=(job.status == "queued")
-        )
+        # Cancel button for queued jobs, Interrupt button for running jobs
+        if job.status == "queued":
+            action_btn = ft.IconButton(
+                icon=ft.Icons.CANCEL_OUTLINED,
+                icon_color=ft.Colors.RED_400,
+                tooltip=i18n.get("queue_btn_cancel_tooltip"),
+                on_click=lambda _: job_manager.cancel_job(job.id)
+            )
+        elif job.status == "running":
+            action_btn = ft.IconButton(
+                icon=ft.Icons.STOP_CIRCLE_OUTLINED,
+                icon_color=ft.Colors.RED_600,
+                tooltip=i18n.get("queue_btn_interrupt_tooltip"),
+                on_click=lambda _: job_manager.interrupt_current_job()
+            )
+        else:
+            action_btn = ft.Container() # Empty container for finished jobs
 
         view_btn = ft.IconButton(
             icon=ft.Icons.VISIBILITY_OUTLINED,
@@ -179,7 +189,6 @@ def queue_page(page: ft.Page):
             on_click=lambda _: show_job_details(job)
         )
 
-        # Merge Icon and Status text into one cell
         status_cell_content = ft.Row([
             get_status_icon(job.status),
             ft.Text(get_status_text(job.status), color=ft.Colors.BLUE_600 if job.status == "running" else None)
@@ -191,7 +200,7 @@ def queue_page(page: ft.Page):
                 ft.DataCell(status_cell_content),
                 ft.DataCell(ft.Text(format_time(job.created_at))),
                 ft.DataCell(ft.Text(f"{format_time(job.started_at)}{duration}")),
-                ft.DataCell(ft.Row([view_btn, cancel_btn], spacing=0)),
+                ft.DataCell(ft.Row([view_btn, action_btn], spacing=0)),
             ]
         )
 

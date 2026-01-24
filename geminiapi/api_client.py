@@ -80,7 +80,8 @@ def call_google_genai(
         api_key: str,
         model_id: str,
         aspect_ratio: str,
-        resolution: str
+        resolution: str,
+        max_retries: int = 3
 ) -> Image.Image | None:
     if not api_key:
         msg = i18n.get("api_error_apiKey")
@@ -111,7 +112,6 @@ def call_google_genai(
 
     config = _get_model_config(model_id, aspect_ratio, resolution)
 
-    max_retries = 3
     last_exception: Optional[Exception] = None
 
     for attempt in range(max_retries):
@@ -130,18 +130,6 @@ def call_google_genai(
                 logger_utils.log(i18n.get("api_log_tokenUsage", input=getattr(u, "prompt_token_count", 0),
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
-
-            """
-            GenerateContentResponse(
-              automatic_function_calling_history=[],
-              candidates=[
-                Candidate(
-                  content=Content(),
-                  finish_reason=<FinishReason.PROHIBITED_CONTENT: 'PROHIBITED_CONTENT'>,
-                  index=0
-                ),
-              ],
-            """
 
             if not response.parts:
                 if response.candidates and response.candidates[0]:
@@ -175,7 +163,8 @@ def call_google_chat(
         prompt_parts: List[Any],
         model_id: str,
         aspect_ratio: str,
-        resolution: str
+        resolution: str,
+        max_retries: int = 3
 ) -> Optional[tuple[Chat, List[Any]]]:
     if genai_client is None:
         msg = i18n.get("api_error_apiKey")
@@ -212,7 +201,6 @@ def call_google_chat(
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
     logger_utils.log(f"💬 Sending message to chat | Model: {model_id} | AR: {ar_log_val} | Res: {resolution}")
 
-    max_retries = 3
     last_exception: Optional[Exception] = None
 
     for attempt in range(max_retries):
