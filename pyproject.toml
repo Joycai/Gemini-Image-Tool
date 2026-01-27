@@ -1,9 +1,9 @@
 [project]
 name = "Gemini-Image-Tool"
-version = "0.3.0b1"
-description = ""
+version = "0.3.0"
+description = "A multimodal image processing tool powered by Google GenAI"
 readme = "README.md"
-requires-python = "==3.12.*"
+requires-python = ">=3.12"
 dependencies = [
     "flet[all]>=0.80.4",
     "google-genai>=1.60.0",
@@ -14,24 +14,18 @@ dependencies = [
 authors = [
     { name = "joycai", email = "joycai@joycai.cn" }
 ]
-dependency-groups.dev = [
-    "flet[all]>=0.80.4",
-    "pylint>=4.0.4"
+
+[dependency-groups]
+dev = [
+    "pylint>=4.0.4",
 ]
 
 [tool.flet]
-org = ""
 product = "Gemini-Image-Tool"
 company = "Joycai"
 copyright = "Copyright (C) 2025 by Joycai"
 app.path = "."
 app.module = "flet_app"
-
-[tool.poetry]
-package-mode = false
-
-[tool.poetry.group.dev.dependencies]
-flet = {extras = ["all"], version = "0.80.4"}
 
 [tool.flet.app.boot_screen]
 show = false
