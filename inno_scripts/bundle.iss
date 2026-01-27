@@ -53,3 +53,51 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function GetUninstallString(): String;
+var
+  sUnInstPath: String;
+  sUnInstallString: String;
+begin
+  sUnInstallString := '';
+  sUnInstPath := ExpandConstant('Software\Microsoft\Windows\CurrentVersion\Uninstall\{#emit SetupSetting("AppId")}_is1');
+  if not RegQueryStringValue(HKLM, sUnInstPath, 'UninstallString', sUnInstallString) then
+    RegQueryStringValue(HKCU, sUnInstPath, 'UninstallString', sUnInstallString);
+  Result := sUnInstallString;
+end;
+
+function IsUpgrade(): Boolean;
+begin
+  Result := (GetUninstallString() <> '');
+end;
+
+function InitializeSetup(): Boolean;
+var
+  iResultCode: Integer;
+  sUnInstallString: String;
+begin
+  Result := True;
+  if IsUpgrade() then
+  begin
+    sUnInstallString := GetUninstallString();
+    if sUnInstallString <> '' then
+    begin
+      sUnInstallString := RemoveQuotes(sUnInstallString);
+      if MsgBox('An existing version of Gemini-Image-Tool was detected. Do you want to uninstall it before proceeding?', mbConfirmation, MB_YESNO) = IDYES then
+      begin
+        if Exec(sUnInstallString, '/SILENT /VERYSILENT /SUPPRESSMSGBOXES', '', SW_SHOW, ewWaitUntilTerminated, iResultCode) then
+        begin
+          // Uninstalled successfully
+          Result := True;
+        end
+        else
+        begin
+          // Failed to run uninstaller
+          MsgBox('Failed to uninstall existing version. Setup will now exit.', mbError, MB_OK);
+          Result := False;
+        end;
+      end;
+    end;
+  end;
+end;
