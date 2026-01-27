@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Gemini-Image-Tool"
-#define MyAppVersion "0.2.3"
+#define MyAppVersion "0.3.0b1"
 #define MyAppPublisher "Joycai"
 #define MyAppURL "https://github.com/Joycai/Gemini-Image-Tool"
 #define MyAppExeName "gemini_image_tool.exe"
