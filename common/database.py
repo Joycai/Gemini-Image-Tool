@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import json
 
 from common import logger_utils
 from common.config import DB_FILE, STORAGE_DIR
@@ -19,15 +20,22 @@ def init_db(conn):
     # 2. Prompt table
     c.execute('''CREATE TABLE IF NOT EXISTS prompts
                  (title TEXT PRIMARY KEY, content TEXT, order_id INTEGER)''')
+    # 3. Prompt History table
+    c.execute('''CREATE TABLE IF NOT EXISTS prompt_history
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
     # Add default settings if needed
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("save_path", "outputs"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("file_prefix", "gemini_gen"))
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
     conn.commit()
 
 def migrate_db(conn):
     """Migrates the database schema to the latest version."""
     c = conn.cursor()
+    
+    # Check for order_id in prompts
     c.execute("PRAGMA table_info(prompts)")
     columns = [row[1] for row in c.fetchall()]
     if "order_id" not in columns:
@@ -38,7 +46,20 @@ def migrate_db(conn):
         for i, title in enumerate(titles):
             c.execute("UPDATE prompts SET order_id = ? WHERE title = ?", (i, title))
         conn.commit()
-        logger_utils.log("Database migration complete.")
+
+    # Check for prompt_history table
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prompt_history'")
+    if not c.fetchone():
+        logger_utils.log("Migrating database: Creating prompt_history table.")
+        c.execute('''CREATE TABLE prompt_history
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+        conn.commit()
+
+    # Check for max_history_len setting
+    c.execute("SELECT value FROM settings WHERE key='max_history_len'")
+    if not c.fetchone():
+        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
+        conn.commit()
 
 
 def ensure_db_exists():
@@ -131,6 +152,7 @@ def clear_all_data():
         c.execute("BEGIN TRANSACTION")
         c.execute("DELETE FROM settings")
         c.execute("DELETE FROM prompts")
+        c.execute("DELETE FROM prompt_history")
         conn.commit()
         # After clearing, re-initialize with default values
         init_db(conn)
@@ -164,7 +186,9 @@ def get_all_settings():
         "last_dir": get_setting("last_dir", ""),
         "save_path": get_setting("save_path", "outputs"),
         "file_prefix": get_setting("file_prefix", "gemini_gen"),
-        "language": get_setting("language", "en")
+        "language": get_setting("language", "en"),
+        "max_history_len": get_setting("max_history_len", "20"),
+        "last_prompt": get_setting("last_prompt", "")
     }
 
 # --- Prompt related ---
@@ -229,6 +253,34 @@ def get_all_prompts():
     prompts = [dict(row) for row in c.fetchall()]
     conn.close()
     return prompts
+
+# --- Prompt History related ---
+def add_prompt_history(content):
+    if not content:
+        return
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    # Insert new history
+    c.execute("INSERT INTO prompt_history (content) VALUES (?)", (content,))
+    
+    # Get limit
+    c.execute("SELECT value FROM settings WHERE key='max_history_len'")
+    limit = int(c.fetchone()[0] or 20)
+    
+    # Delete old history exceeding limit
+    c.execute("DELETE FROM prompt_history WHERE id NOT IN (SELECT id FROM prompt_history ORDER BY timestamp DESC LIMIT ?)", (limit,))
+    
+    conn.commit()
+    conn.close()
+
+def get_prompt_history():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT content FROM prompt_history ORDER BY timestamp DESC")
+    history = [row[0] for row in c.fetchall()]
+    conn.close()
+    return history
 
 # --- Initialization ---
 ensure_db_exists()

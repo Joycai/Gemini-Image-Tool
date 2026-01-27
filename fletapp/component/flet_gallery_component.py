@@ -1,13 +1,11 @@
 import os
-from dataclasses import dataclass
-from typing import Union, Callable
+from dataclasses import dataclass, field
+from typing import Union, Callable, List, Set, Dict
 
 import flet as ft
-from flet import Container, BoxFit, Alignment, ControlEventHandler, Slider
-from flet import Page
+from flet import Container, BoxFit, Alignment, Page
 
 from common import database as db, i18n
-# Import common modules
 from common.config import VALID_IMAGE_EXTENSIONS
 from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
 
@@ -16,7 +14,8 @@ from fletapp.component.flet_image_preview_dialog import PreviewDialogData, previ
 class State:
     file_picker: ft.FilePicker | None = None
     current_directory: str | None = None
-    include_subdirectories: bool = False
+    selected_paths: Set[str] = field(default_factory=set)
+    expanded_paths: Set[str] = field(default_factory=set)
     row_count: int = 2
 
 
@@ -25,21 +24,16 @@ state = State()
 
 def local_gallery_component(page: Page, expand: Union[None, bool, int],
                             on_image_select: Callable[[str], None] = None) -> Container:
-    # --- Single Image Editor Page Controls and Handlers ---
-    selected_directory = ft.TextField(
-        label="Selected Directory",
+    
+    # --- UI Controls ---
+    selected_directory_field = ft.TextField(
+        label=i18n.get("home_assets_label_dirPath", "Directory Path"),
         read_only=True,
         expand=True,
     )
 
-    def open_image_preview(e, image_path):
-        page.show_dialog(preview_dialog(page, PreviewDialogData(
-            image_list=[image_path],
-            current_index=0,
-        ), None, True))
-
     image_gallery = ft.GridView(
-        runs_count=state.row_count,  # 每行显示5张图片
+        runs_count=state.row_count,
         spacing=10,
         run_spacing=10,
         child_aspect_ratio=0.87,
@@ -47,6 +41,16 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         controls=[],
         expand=True
     )
+
+    directory_tree_column = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, height=200, visible=False)
+
+    # --- Functions ---
+
+    def open_image_preview(e, image_path):
+        page.show_dialog(preview_dialog(page, PreviewDialogData(
+            image_list=[image_path],
+            current_index=0,
+        ), None, True))
 
     def update_grid_layout(e: ft.Event[ft.Slider]):
         columns = int(e.control.value)
@@ -64,31 +68,23 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         width=200,
     )
 
-    def load_images_from_directory(directory_path: str, include_subdirectories: bool):
+    def load_images_from_selected_directories():
         image_gallery.controls.clear()
-        if not os.path.isdir(directory_path):
-            image_gallery.controls.append(ft.Text("Invalid directory."))
-            if page: page.update()
-            return
+        
+        all_image_paths = []
+        for directory_path in state.selected_paths:
+            if os.path.isdir(directory_path):
+                try:
+                    for filename in os.listdir(directory_path):
+                        file_path = os.path.join(directory_path, filename)
+                        if os.path.isfile(file_path):
+                            _, ext = os.path.splitext(filename)
+                            if ext.lower() in VALID_IMAGE_EXTENSIONS:
+                                all_image_paths.append(file_path)
+                except (PermissionError, OSError):
+                    continue
 
-        image_paths = []
-        if include_subdirectories:
-            for root, _, files in os.walk(directory_path):
-                for filename in files:
-                    file_path = os.path.join(root, filename)
-                    if os.path.isfile(file_path):
-                        _, ext = os.path.splitext(filename)
-                        if ext.lower() in VALID_IMAGE_EXTENSIONS:
-                            image_paths.append(file_path)
-        else:
-            for filename in os.listdir(directory_path):
-                file_path = os.path.join(directory_path, filename)
-                if os.path.isfile(file_path):
-                    _, ext = os.path.splitext(filename)
-                    if ext.lower() in VALID_IMAGE_EXTENSIONS:
-                        image_paths.append(file_path)
-
-        for path in image_paths:
+        for path in all_image_paths:
             def _on_tap(e, p=path):
                 if on_image_select:
                     on_image_select(p)
@@ -110,45 +106,135 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                     on_tap=_on_tap
                 )
             )
-        if page: page.update()
+        try:
+            image_gallery.update()
+        except:
+            pass
+
+    def toggle_directory_selection(e: ft.Event[ft.Checkbox]):
+        path = e.control.data
+        if e.control.value:
+            state.selected_paths.add(path)
+        else:
+            state.selected_paths.discard(path)
+        load_images_from_selected_directories()
+
+    def toggle_directory_expand(e: ft.Event[ft.IconButton]):
+        path = e.control.data
+        if path in state.expanded_paths:
+            state.expanded_paths.discard(path)
+        else:
+            state.expanded_paths.add(path)
+        refresh_directory_tree()
+
+    def build_directory_tree(root_path: str, current_level: int = 0) -> List[ft.Control]:
+        controls = []
+        try:
+            # Get subdirectories
+            subdirs = [d for d in os.listdir(root_path) if os.path.isdir(os.path.join(root_path, d))]
+            subdirs.sort()
+
+            for subdir in subdirs:
+                full_path = os.path.join(root_path, subdir)
+                is_expanded = full_path in state.expanded_paths
+                
+                # Check if it has subdirectories for the expand icon
+                has_children = False
+                try:
+                    has_children = any(os.path.isdir(os.path.join(full_path, d)) for d in os.listdir(full_path))
+                except:
+                    pass
+
+                # Directory Row
+                controls.append(
+                    ft.Row(
+                        controls=[
+                            ft.Container(width=current_level * 20), # Indentation
+                            ft.IconButton(
+                                icon=ft.Icons.KEYBOARD_ARROW_DOWN if is_expanded else ft.Icons.KEYBOARD_ARROW_RIGHT,
+                                icon_size=16,
+                                visual_density=ft.VisualDensity.COMPACT,
+                                on_click=toggle_directory_expand,
+                                data=full_path,
+                                visible=has_children
+                            ),
+                            ft.Checkbox(
+                                value=full_path in state.selected_paths,
+                                on_change=toggle_directory_selection,
+                                data=full_path,
+                                visual_density=ft.VisualDensity.COMPACT,
+                            ),
+                            ft.Icon(ft.Icons.FOLDER_OPEN if is_expanded else ft.Icons.FOLDER, size=16, color=ft.Colors.AMBER_400),
+                            ft.Text(subdir, size=13, overflow=ft.TextOverflow.ELLIPSIS),
+                        ],
+                        spacing=0,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER
+                    )
+                )
+
+                # Recursive children
+                if is_expanded:
+                    controls.extend(build_directory_tree(full_path, current_level + 1))
+        except (PermissionError, OSError):
+            pass
+            
+        return controls
+
+    def refresh_directory_tree():
+        if state.current_directory and os.path.isdir(state.current_directory):
+            directory_tree_column.controls = [
+                # Root directory entry
+                ft.Row([
+                    ft.Checkbox(
+                        value=state.current_directory in state.selected_paths,
+                        on_change=toggle_directory_selection,
+                        data=state.current_directory,
+                        visual_density=ft.VisualDensity.COMPACT,
+                    ),
+                    ft.Icon(ft.Icons.HOME, size=16, color=ft.Colors.BLUE_400),
+                    ft.Text(os.path.basename(state.current_directory) or state.current_directory, weight=ft.FontWeight.BOLD)
+                ], spacing=0),
+                # Subdirectories
+                *build_directory_tree(state.current_directory)
+            ]
+            directory_tree_column.visible = True
+        else:
+            directory_tree_column.visible = False
+        
+        try:
+            directory_tree_column.update()
+        except:
+            pass
 
     async def open_directory_picker(e: ft.Event[ft.Button]):
         if not state.file_picker:
             state.file_picker = ft.FilePicker()
         pick_directory = await state.file_picker.get_directory_path(initial_directory=state.current_directory)
-        if pick_directory and pick_directory != state.file_picker:
+        if pick_directory:
             db.save_setting("last_dir", pick_directory)
             state.current_directory = pick_directory
-            selected_directory.value = state.current_directory
-            refresh_directory(e)
+            selected_directory_field.value = state.current_directory
+            state.selected_paths = {pick_directory} # Select root by default
+            state.expanded_paths = set()
+            refresh_directory_tree()
+            load_images_from_selected_directories()
+            selected_directory_field.update()
 
-    def include_subdirectories_changed(e: ft.Event[ft.Checkbox]):
-        if e.control.value is not None:
-            state.include_subdirectories = e.control.value
-        refresh_directory(e)
+    def refresh_all(e):
+        refresh_directory_tree()
+        load_images_from_selected_directories()
 
-    # Checkbox to include subdirectories
-    include_subdirectories_checkbox = ft.Checkbox(
-        label=i18n.get("home_assets_label_recursive", "Include Sub-directories"),
-        value=False,
-        on_change=include_subdirectories_changed
-    )
-
-    def refresh_directory(e):
-        if state.current_directory and os.path.isdir(state.current_directory):
-            load_images_from_directory(state.current_directory, state.include_subdirectories)
-
-    # --- Initialization Logic using threading.Timer ---
+    # --- Initialization ---
     def delayed_initialize():
         last_dir = db.get_setting("last_dir")
         if last_dir and os.path.isdir(last_dir):
-            selected_directory.value = last_dir
+            selected_directory_field.value = last_dir
             state.current_directory = last_dir
-            refresh_directory(None)
+            state.selected_paths = {last_dir}
+            refresh_directory_tree()
+            load_images_from_selected_directories()
         else:
-            selected_directory.value = "No directory selected."
-        # Safely update the page now
-        if page: page.update()
+            selected_directory_field.value = "No directory selected."
 
     delayed_initialize()
 
@@ -157,7 +243,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
             [
                 ft.Column(
                     controls=[
-                        selected_directory,
+                        selected_directory_field,
                         ft.Row(
                             controls=[
                                 ft.Button(
@@ -168,13 +254,19 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                                 ),
                                 ft.IconButton(
                                     icon=ft.Icons.REFRESH,
-                                    on_click=refresh_directory,
+                                    on_click=refresh_all,
                                     tooltip=i18n.get("home_assets_btn_refresh_tooltip", "Refresh the Gallery"),
                                 )
                             ],
                             expand=True
                         ),
-                        include_subdirectories_checkbox,
+                        ft.Text(i18n.get("home_assets_label_dir_structure", "Directory Structure:"), size=12, weight=ft.FontWeight.BOLD),
+                        ft.Container(
+                            content=directory_tree_column,
+                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border_radius=5,
+                            padding=5,
+                        ),
                         ft.Row([ft.Text(i18n.get("home_history_zoom", "Column Num:")),
                                 zoom_slider]),
                     ]

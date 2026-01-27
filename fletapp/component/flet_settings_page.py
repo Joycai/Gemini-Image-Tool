@@ -42,6 +42,12 @@ def settings_page(page: Page) -> Container:
     )
     save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
     file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
+    
+    max_history_input = ft.TextField(
+        label=i18n.get("settings_label_max_history", "Max Prompt History"),
+        value="20",
+        keyboard_type=ft.KeyboardType.NUMBER
+    )
 
     # --- Save Settings Logic ---
     def save_settings_handler(e):
@@ -50,6 +56,7 @@ def settings_page(page: Page) -> Container:
             db.save_setting("save_path", save_path_input.value or "outputs")
             db.save_setting("file_prefix", file_prefix_input.value or "gemini_gen")
             db.save_setting("language", lang_dropdown.value or "en")
+            db.save_setting("max_history_len", max_history_input.value or "20")
             show_snackbar(page, i18n.get("settings_saved_content", "Settings have been saved successfully."))
         except Exception as ex:
             show_snackbar(page, f"{i18n.get('settings_saved_error_content', 'Failed to save settings:')} {ex}",
@@ -209,6 +216,7 @@ def settings_page(page: Page) -> Container:
         save_path_input.value = settings.get("save_path", "outputs")
         file_prefix_input.value = settings.get("file_prefix", "gemini_gen")
         lang_dropdown.value = settings.get("language", "en")
+        max_history_input.value = settings.get("max_history_len", "20")
         page.update()
 
     threading.Timer(0.1, load_initial_settings).start()
@@ -221,6 +229,7 @@ def settings_page(page: Page) -> Container:
                 ft.Row(controls=[api_key_input, ft.Container(expand=True)]),
                 file_prefix_input,
                 ft.Row([save_path_input, pick_output_directory_btn]),
+                max_history_input,
                 save_button,
                 ft.Divider(),
                 ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18,

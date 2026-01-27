@@ -25,9 +25,6 @@ def history_page(page: Page) -> Container:
         run_spacing=10,
     )
 
-    # --- Reusable Components ---
-    # image_preview_dialog = ImagePreviewDialog(page)
-
     # --- Functions ---
     def update_grid_layout(e):
         columns = int(e.control.value)
@@ -101,6 +98,10 @@ def history_page(page: Page) -> Container:
 
         if page: page.update()
 
+    def on_job_completed(topic: str):
+        """Callback for PubSub when a job is completed."""
+        load_history_images()
+
     def open_preview_dialog(current_index: int):
         image_preview_dialog = preview_dialog(
             page,
@@ -131,7 +132,8 @@ def history_page(page: Page) -> Container:
         except Exception as ex:
             logger_utils.log(f"Error opening folder: {ex}")
 
-    # --- Initialization using threading.Timer ---
+    # --- Initialization ---
+    page.pubsub.subscribe(on_job_completed)
     load_history_images()
 
     return ft.Container(

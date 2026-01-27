@@ -21,6 +21,7 @@
     "home_assets_btn_addToSelected": "➡️ Add to Selected",
     "home_assets_info_ready": "Ready.",
     "home_assets_label_recursive": "Include Sub-directories",
+    "home_assets_label_dir_structure": "Directory Structure:",
 
     "home_history_title": "📤 Output History",
     "home_history_btn_open": "📂 Open Folder",
@@ -45,6 +46,7 @@
     "home_control_model_label": "Model",
     "home_control_ratio_label": "Ratio",
     "home_control_resolution_label": "Resolution",
+    "home_control_retry_label": "Max Retries",
     "home_control_btn_send": "Generate / Edit",
     "home_control_btn_queue": "Add to Queue",
     "home_control_btn_interrupt": "Interrupt Current",

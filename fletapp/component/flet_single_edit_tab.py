@@ -265,6 +265,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
 
+        # Save last prompt and add to history
+        db.save_setting("last_prompt", prompt_input.value)
+        db.add_prompt_history(prompt_input.value)
+
         job = Job(
             id=f"single_edit_{int(time.time() * 1000)}",
             name=f"Single Edit: {prompt_input.value[:20]}..." if prompt_input.value else "Single Edit (Image only)",
@@ -310,6 +314,12 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         refresh_prompts_dropdown()
         if state.file_picker is None:
             state.file_picker = ft.FilePicker()
+        
+        # Restore last prompt
+        last_prompt = db.get_setting("last_prompt", "")
+        if last_prompt:
+            prompt_input.value = last_prompt
+            prompt_input.update()
 
     # Clean up on close
     def on_close():

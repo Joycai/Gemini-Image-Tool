@@ -21,6 +21,7 @@
     "home_assets_btn_addToSelected": "➡️ 发送到已选",
     "home_assets_info_ready": "就绪.",
     "home_assets_label_recursive": "包含子目录",
+    "home_assets_label_dir_structure": "目录结构:",
 
     "home_history_title": "📤 历史输出归档",
     "home_history_btn_open": "📂 打开文件夹",
@@ -45,6 +46,7 @@
     "home_control_model_label": "模型",
     "home_control_ratio_label": "比例",
     "home_control_resolution_label": "分辨率",
+    "home_control_retry_label": "最大重试次数",
     "home_control_btn_send": "生成 / 编辑",
     "home_control_btn_queue": "加入队列",
     "home_control_btn_interrupt": "中断当前任务",
