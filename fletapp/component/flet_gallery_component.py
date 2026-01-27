@@ -26,9 +26,12 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                             on_image_select: Callable[[str], None] = None) -> Container:
     
     # --- UI Controls ---
-    selected_directory_field = ft.TextField(
-        label=i18n.get("home_assets_label_dirPath", "Directory Path"),
-        read_only=True,
+    selected_directory_text = ft.Text(
+        value=i18n.get("home_assets_info_ready", "Ready."),
+        size=12,
+        italic=True,
+        color=ft.Colors.BLUE_GREY_400,
+        overflow=ft.TextOverflow.ELLIPSIS,
         expand=True,
     )
 
@@ -42,7 +45,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         expand=True
     )
 
-    directory_tree_column = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, height=200, visible=False)
+    directory_tree_column = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, height=250)
 
     # --- Functions ---
 
@@ -65,7 +68,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         value=state.row_count,
         label="{value}",
         on_change=update_grid_layout,
-        width=200,
+        height=30,
     )
 
     def load_images_from_selected_directories():
@@ -130,7 +133,6 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
     def build_directory_tree(root_path: str, current_level: int = 0) -> List[ft.Control]:
         controls = []
         try:
-            # Get subdirectories
             subdirs = [d for d in os.listdir(root_path) if os.path.isdir(os.path.join(root_path, d))]
             subdirs.sort()
 
@@ -138,21 +140,19 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                 full_path = os.path.join(root_path, subdir)
                 is_expanded = full_path in state.expanded_paths
                 
-                # Check if it has subdirectories for the expand icon
                 has_children = False
                 try:
                     has_children = any(os.path.isdir(os.path.join(full_path, d)) for d in os.listdir(full_path))
                 except:
                     pass
 
-                # Directory Row
                 controls.append(
                     ft.Row(
                         controls=[
-                            ft.Container(width=current_level * 20), # Indentation
+                            ft.Container(width=current_level * 15), # Reduced indentation
                             ft.IconButton(
                                 icon=ft.Icons.KEYBOARD_ARROW_DOWN if is_expanded else ft.Icons.KEYBOARD_ARROW_RIGHT,
-                                icon_size=16,
+                                icon_size=14,
                                 visual_density=ft.VisualDensity.COMPACT,
                                 on_click=toggle_directory_expand,
                                 data=full_path,
@@ -164,15 +164,14 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                                 data=full_path,
                                 visual_density=ft.VisualDensity.COMPACT,
                             ),
-                            ft.Icon(ft.Icons.FOLDER_OPEN if is_expanded else ft.Icons.FOLDER, size=16, color=ft.Colors.AMBER_400),
-                            ft.Text(subdir, size=13, overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Icon(ft.Icons.FOLDER_OPEN if is_expanded else ft.Icons.FOLDER, size=14, color=ft.Colors.AMBER_400),
+                            ft.Text(subdir, size=12, overflow=ft.TextOverflow.ELLIPSIS),
                         ],
                         spacing=0,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER
                     )
                 )
 
-                # Recursive children
                 if is_expanded:
                     controls.extend(build_directory_tree(full_path, current_level + 1))
         except (PermissionError, OSError):
@@ -183,7 +182,6 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
     def refresh_directory_tree():
         if state.current_directory and os.path.isdir(state.current_directory):
             directory_tree_column.controls = [
-                # Root directory entry
                 ft.Row([
                     ft.Checkbox(
                         value=state.current_directory in state.selected_paths,
@@ -192,14 +190,10 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                         visual_density=ft.VisualDensity.COMPACT,
                     ),
                     ft.Icon(ft.Icons.HOME, size=16, color=ft.Colors.BLUE_400),
-                    ft.Text(os.path.basename(state.current_directory) or state.current_directory, weight=ft.FontWeight.BOLD)
+                    ft.Text(os.path.basename(state.current_directory) or state.current_directory, weight=ft.FontWeight.BOLD, size=13)
                 ], spacing=0),
-                # Subdirectories
                 *build_directory_tree(state.current_directory)
             ]
-            directory_tree_column.visible = True
-        else:
-            directory_tree_column.visible = False
         
         try:
             directory_tree_column.update()
@@ -213,12 +207,12 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         if pick_directory:
             db.save_setting("last_dir", pick_directory)
             state.current_directory = pick_directory
-            selected_directory_field.value = state.current_directory
-            state.selected_paths = {pick_directory} # Select root by default
+            selected_directory_text.value = state.current_directory
+            state.selected_paths = {pick_directory}
             state.expanded_paths = set()
             refresh_directory_tree()
             load_images_from_selected_directories()
-            selected_directory_field.update()
+            selected_directory_text.update()
 
     def refresh_all(e):
         refresh_directory_tree()
@@ -228,49 +222,64 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
     def delayed_initialize():
         last_dir = db.get_setting("last_dir")
         if last_dir and os.path.isdir(last_dir):
-            selected_directory_field.value = last_dir
+            selected_directory_text.value = last_dir
             state.current_directory = last_dir
             state.selected_paths = {last_dir}
             refresh_directory_tree()
             load_images_from_selected_directories()
-        else:
-            selected_directory_field.value = "No directory selected."
 
     delayed_initialize()
+
+    # Expansion Tile for the tree to save space
+    tree_expansion_tile = ft.ExpansionTile(
+        title=ft.Text(i18n.get("home_assets_label_dir_structure", "Folders"), size=13, weight=ft.FontWeight.BOLD),
+        leading=ft.Icon(ft.Icons.ACCOUNT_TREE_OUTLINED, size=20, color=ft.Colors.BLUE_400),
+        controls=[
+            ft.Container(
+                content=directory_tree_column,
+                padding=ft.padding.only(left=5, right=5, bottom=10),
+            )
+        ],
+        # Removed initially_expanded as it's not supported in this Flet version
+        maintain_state=True,
+    )
 
     return ft.Container(
         content=ft.Column(
             [
-                ft.Column(
+                # Compact Header
+                ft.Row(
                     controls=[
-                        selected_directory_field,
-                        ft.Row(
-                            controls=[
-                                ft.Button(
-                                    content=i18n.get("home_assets_btn_browse", "Browse"),
-                                    icon=ft.Icons.FOLDER_OPEN,
-                                    on_click=open_directory_picker,
-                                    tooltip=i18n.get("home_assets_btn_browse_tooltip", "Browse a Directory"),
-                                ),
-                                ft.IconButton(
-                                    icon=ft.Icons.REFRESH,
-                                    on_click=refresh_all,
-                                    tooltip=i18n.get("home_assets_btn_refresh_tooltip", "Refresh the Gallery"),
-                                )
-                            ],
-                            expand=True
+                        ft.Icon(ft.Icons.FOLDER_OPEN, size=20, color=ft.Colors.BLUE_GREY_400),
+                        selected_directory_text,
+                        ft.IconButton(
+                            icon=ft.Icons.EDIT_NOTE,
+                            on_click=open_directory_picker,
+                            tooltip=i18n.get("home_assets_btn_browse_tooltip"),
+                            icon_size=20,
                         ),
-                        ft.Text(i18n.get("home_assets_label_dir_structure", "Directory Structure:"), size=12, weight=ft.FontWeight.BOLD),
-                        ft.Container(
-                            content=directory_tree_column,
-                            border=ft.border.all(1, ft.Colors.GREY_300),
-                            border_radius=5,
-                            padding=5,
-                        ),
-                        ft.Row([ft.Text(i18n.get("home_history_zoom", "Column Num:")),
-                                zoom_slider]),
-                    ]
+                        ft.IconButton(
+                            icon=ft.Icons.REFRESH,
+                            on_click=refresh_all,
+                            tooltip=i18n.get("home_assets_btn_refresh_tooltip"),
+                            icon_size=20,
+                        )
+                    ],
+                    spacing=5,
                 ),
+                
+                # Collapsible Tree
+                tree_expansion_tile,
+                
+                # Zoom Control
+                ft.Row([
+                    ft.Icon(ft.Icons.GRID_VIEW, size=16, color=ft.Colors.BLUE_GREY_300),
+                    ft.Container(content=zoom_slider, expand=True)
+                ], spacing=10),
+                
+                ft.Divider(height=1),
+                
+                # Gallery
                 ft.Column(
                     controls=[image_gallery],
                     expand=True,
@@ -278,6 +287,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                 )
             ],
             expand=True,
+            spacing=10,
         ),
         padding=ft.padding.all(10),
         expand=expand,
