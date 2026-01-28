@@ -23,13 +23,28 @@ def init_db(conn):
     # 3. Prompt History table
     c.execute('''CREATE TABLE IF NOT EXISTS prompt_history
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    # 4. Refine Tasks table
+    c.execute('''CREATE TABLE IF NOT EXISTS refine_tasks
+                 (id TEXT PRIMARY KEY, name TEXT, name_zh TEXT, system_instruction TEXT, order_id INTEGER)''')
     
     # Add default settings if needed
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("save_path", "outputs"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("file_prefix", "gemini_gen"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-2.0-flash"))
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-3-flash-preview"))
+    
+    # Add default refine tasks
+    default_tasks = [
+        ("cosplay_photo", "Cosplay Photo", "Cosplay 照片", 
+         "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to take a simple user idea and expand it into a highly detailed, structured, and artistic prompt for generating a realistic Cosplay photograph.\n\nOutput Format (STRICTLY FOLLOW THIS MARKDOWN STRUCTURE):\n**任务:**\n[Describe the core task]\n\n**模特设定:**\n+ [Detail 1]\n...\n\n**服装描述:**\n+ [Detail 1]\n...\n\n**场景和动作和镜头:**\n+ [Detail 1]\n...\n\n**镜头和光照:**\n+ [Detail 1]\n...\n\n**输出要求:**\n+ [Detail 1]\n...\n\nOutput ONLY the refined prompt text in the specified Markdown format.", 0),
+        ("artistic_illustration", "Artistic Illustration", "艺术插画", 
+         "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to take a simple user idea and expand it into a detailed prompt for a high-quality artistic illustration. Focus on art style, brushwork, color palette, and composition.\n\nOutput Format:\n**Style:** [Style Name]\n**Subject:** [Detailed Subject Description]\n**Composition:** [Camera angle, framing]\n**Colors & Lighting:** [Palette and light source]\n**Details:** [Specific artistic elements]\n\nOutput ONLY the refined prompt text in Markdown format.", 1),
+        ("product_photography", "Product Photography", "产品摄影", 
+         "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to expand a user idea into a professional product photography prompt. Focus on studio lighting, background textures, macro details, and commercial aesthetic.\n\nOutput Format:\n**Product:** [Detailed Product Description]\n**Setting:** [Background and environment]\n**Lighting:** [Studio light setup, shadows]\n**Camera:** [Lens, depth of field]\n\nOutput ONLY the refined prompt text in Markdown format.", 2)
+    ]
+    c.executemany("INSERT OR IGNORE INTO refine_tasks (id, name, name_zh, system_instruction, order_id) VALUES (?, ?, ?, ?, ?)", default_tasks)
+    
     conn.commit()
 
 def migrate_db(conn):
@@ -56,6 +71,16 @@ def migrate_db(conn):
                      (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
         conn.commit()
 
+    # Check for refine_tasks table
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='refine_tasks'")
+    if not c.fetchone():
+        logger_utils.log("Migrating database: Creating refine_tasks table.")
+        c.execute('''CREATE TABLE refine_tasks
+                     (id TEXT PRIMARY KEY, name TEXT, name_zh TEXT, system_instruction TEXT, order_id INTEGER)''')
+        conn.commit()
+        # Re-run init to add defaults
+        init_db(conn)
+
     # Check for max_history_len setting
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
     if not c.fetchone():
@@ -65,7 +90,7 @@ def migrate_db(conn):
     # Check for refine settings
     c.execute("SELECT value FROM settings WHERE key='refine_model_id'")
     if not c.fetchone():
-        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-2.0-flash"))
+        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-3-flash-preview"))
         conn.commit()
 
 
@@ -106,13 +131,15 @@ def export_all_data():
     c.execute("SELECT key, value FROM settings")
     settings = [dict(row) for row in c.fetchall()]
 
-    # Include order_id in export
     c.execute("SELECT title, content, order_id FROM prompts ORDER BY order_id")
     prompts = [dict(row) for row in c.fetchall()]
 
+    c.execute("SELECT id, name, name_zh, system_instruction, order_id FROM refine_tasks ORDER BY order_id")
+    refine_tasks = [dict(row) for row in c.fetchall()]
+
     conn.close()
 
-    return {"settings": settings, "prompts": prompts}
+    return {"settings": settings, "prompts": prompts, "refine_tasks": refine_tasks}
 
 def import_all_data(data: dict):
     """Wipes and imports all settings and prompts from a dictionary."""
@@ -126,6 +153,7 @@ def import_all_data(data: dict):
         # Wipe existing data
         c.execute("DELETE FROM settings")
         c.execute("DELETE FROM prompts")
+        c.execute("DELETE FROM refine_tasks")
 
         # Insert new settings
         settings_to_insert = [(item.get('key'), item.get('value')) for item in data.get("settings", [])]
@@ -134,15 +162,20 @@ def import_all_data(data: dict):
         # Insert new prompts
         prompts_to_insert = []
         for i, item in enumerate(data.get("prompts", [])):
-            # Use order_id from import if available, otherwise use index
             order_id = item.get('order_id', i)
             prompts_to_insert.append((item.get('title'), item.get('content'), order_id))
-
         c.executemany("INSERT INTO prompts (title, content, order_id) VALUES (?, ?, ?)", prompts_to_insert)
+
+        # Insert new refine tasks
+        refine_tasks_to_insert = []
+        for i, item in enumerate(data.get("refine_tasks", [])):
+            order_id = item.get('order_id', i)
+            refine_tasks_to_insert.append((item.get('id'), item.get('name'), item.get('name_zh'), item.get('system_instruction'), order_id))
+        c.executemany("INSERT INTO refine_tasks (id, name, name_zh, system_instruction, order_id) VALUES (?, ?, ?, ?, ?)", refine_tasks_to_insert)
 
         # Commit transaction
         conn.commit()
-        logger_utils.log(f"Successfully imported {len(settings_to_insert)} settings and {len(prompts_to_insert)} prompts.")
+        logger_utils.log(f"Successfully imported data.")
 
     except Exception as e:
         conn.rollback()
@@ -160,6 +193,7 @@ def clear_all_data():
         c.execute("DELETE FROM settings")
         c.execute("DELETE FROM prompts")
         c.execute("DELETE FROM prompt_history")
+        c.execute("DELETE FROM refine_tasks")
         conn.commit()
         # After clearing, re-initialize with default values
         init_db(conn)
@@ -197,7 +231,7 @@ def get_all_settings():
         "max_history_len": get_setting("max_history_len", "20"),
         "last_prompt": get_setting("last_prompt", ""),
         "refine_api_key": get_setting("refine_api_key", ""),
-        "refine_model_id": get_setting("refine_model_id", "gemini-2.0-flash")
+        "refine_model_id": get_setting("refine_model_id", "gemini-3-flash-preview")
     }
 
 # --- Prompt related ---
@@ -262,6 +296,50 @@ def get_all_prompts():
     prompts = [dict(row) for row in c.fetchall()]
     conn.close()
     return prompts
+
+# --- Refine Task related ---
+def get_all_refine_tasks():
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, name, name_zh, system_instruction, order_id FROM refine_tasks ORDER BY order_id")
+    tasks = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return tasks
+
+def save_refine_task(task_id, name, name_zh, system_instruction):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT MAX(order_id) FROM refine_tasks")
+    max_order = c.fetchone()[0]
+    new_order = (max_order or 0) + 1
+    c.execute("INSERT OR REPLACE INTO refine_tasks (id, name, name_zh, system_instruction, order_id) VALUES (?, ?, ?, ?, ?)", 
+              (task_id, name, name_zh, system_instruction, new_order))
+    conn.commit()
+    conn.close()
+
+def update_refine_task(task_id, name, name_zh, system_instruction):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE refine_tasks SET name = ?, name_zh = ?, system_instruction = ? WHERE id = ?", 
+              (name, name_zh, system_instruction, task_id))
+    conn.commit()
+    conn.close()
+
+def delete_refine_task(task_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM refine_tasks WHERE id=?", (task_id,))
+    conn.commit()
+    conn.close()
+
+def update_refine_task_order(ids):
+    conn = get_db_connection()
+    c = conn.cursor()
+    for i, task_id in enumerate(ids):
+        c.execute("UPDATE refine_tasks SET order_id = ? WHERE id = ?", (i, task_id))
+    conn.commit()
+    conn.close()
 
 # --- Prompt History related ---
 def add_prompt_history(content):

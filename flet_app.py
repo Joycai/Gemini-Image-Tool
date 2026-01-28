@@ -16,6 +16,7 @@ from fletapp.component.flet_chat_page import chat_page
 from fletapp.component.flet_prompt_manager_tab import prompt_manager_tab
 from fletapp.component.flet_queue_page import queue_page
 from fletapp.component.flet_prompt_history_page import prompt_history_page
+from fletapp.component.flet_refine_manager_tab import refine_manager_tab
 
 def main(page: ft.Page):
     i18n.load_language()
@@ -55,7 +56,7 @@ def main(page: ft.Page):
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        length=7,
+        length=8,
         content=ft.Column(
             expand=True,
             controls=[
@@ -80,6 +81,9 @@ def main(page: ft.Page):
                             label=i18n.get("app_tab_queue", "Queue"),
                         ),
                         ft.Tab(
+                            label=i18n.get("app_tab_refine_manager", "Refine Manager"),
+                        ),
+                        ft.Tab(
                             label=i18n.get("app_tab_settings"),
                         ),
                     ]
@@ -93,6 +97,7 @@ def main(page: ft.Page):
                         prompt_history_page(page),
                         history_page(page),
                         queue_page(page),
+                        refine_manager_tab(page),
                         settings_page(page)
                     ]
                 )
@@ -111,8 +116,6 @@ def main(page: ft.Page):
     # --- Cleanup on Disconnect ---
     def on_disconnect(e):
         job_manager.set_page(None)
-        # Optionally interrupt current job if you want it to stop when app closes
-        # job_manager.interrupt_current_job()
 
     page.on_disconnect = on_disconnect
 

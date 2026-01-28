@@ -153,14 +153,17 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             refine_progress.visible = False
             page.update()
 
+    # Fetch tasks from database
+    refine_tasks = db.get_all_refine_tasks()
+    
     refine_button = ft.PopupMenuButton(
         icon=ft.Icons.AUTO_FIX_HIGH,
         tooltip="Refine Prompt with AI",
         items=[
             ft.PopupMenuItem(
-                content=ft.Text(config["name_zh"] if i18n.CURRENT_LANG == "zh" else config["name"]),
-                on_click=lambda e, t=task_id: asyncio.create_task(refine_prompt_handler(t))
-            ) for task_id, config in api_client.REFINE_TASKS.items()
+                content=ft.Text(task["name_zh"] if i18n.CURRENT_LANG == "zh" else task["name"]),
+                on_click=lambda e, t=task["id"]: asyncio.create_task(refine_prompt_handler(t))
+            ) for task in refine_tasks
         ],
     )
 
@@ -339,8 +342,20 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         else:
             show_snackbar(page, i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
 
+    def on_refine_tasks_updated(topic: str):
+        """Callback to refresh the refine button menu when tasks change."""
+        new_tasks = db.get_all_refine_tasks()
+        refine_button.items = [
+            ft.PopupMenuItem(
+                content=ft.Text(task["name_zh"] if i18n.CURRENT_LANG == "zh" else task["name"]),
+                on_click=lambda e, t=task["id"]: asyncio.create_task(refine_prompt_handler(t))
+            ) for task in new_tasks
+        ]
+        refine_button.update()
+
     def initialize():
         page.pubsub.subscribe(on_prompts_update)
+        page.pubsub.subscribe(on_refine_tasks_updated) # Subscribe to refine task updates
         logger_utils.subscribe(on_log_update)
         refresh_prompts_dropdown()
         if state.file_picker is None:
