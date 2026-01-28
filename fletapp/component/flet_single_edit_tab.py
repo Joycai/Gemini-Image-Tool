@@ -56,7 +56,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                  value=AR_SELECTOR_CHOICES[0], expand=1)
     
     resolution_dropdown = ft.Dropdown(label=i18n.get("home_control_resolution_label"),
-                                      options=[ft.dropdown.Option(res) for res in RES_SELECTOR_CHOICES],
+                                      options=[ft.dropdown.Option(res) for i, res in enumerate(RES_SELECTOR_CHOICES)],
                                       value=RES_SELECTOR_CHOICES[0], expand=1)
     
     retry_selector = ft.Dropdown(
@@ -204,6 +204,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         show_snackbar(page, i18n.get("logic_info_promptDeleted", title=selected_title))
         prompt_dropdown.value = None
 
+    async def copy_filename_to_clipboard(path):
+        filename = os.path.splitext(os.path.basename(path))[0]
+        await ft.Clipboard().set(filename)
+        show_snackbar(page, f"Copied to clipboard: {filename}")
+
     def remove_selected_image(e, image_path):
         if image_path in state.selected_images_paths:
             state.selected_images_paths.remove(image_path)
@@ -224,8 +229,15 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 alignment=Alignment.CENTER
             )
             details_label = ft.Text(value=details_text, size=10, text_align=ft.TextAlign.CENTER, width=100)
-            image_with_details = ft.Column(controls=[thumbnail, details_label], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-            selected_images_grid.controls.append(ft.GestureDetector(content=image_with_details, on_tap=lambda ev, p=path: remove_selected_image(ev, p)))
+            
+            # Wrap in GestureDetector for right-click
+            image_with_details = ft.GestureDetector(
+                content=ft.Column(controls=[thumbnail, details_label], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                on_tap=lambda ev, p=path: remove_selected_image(ev, p),
+                on_secondary_tap=lambda ev, p=path: asyncio.create_task(copy_filename_to_clipboard(p))
+            )
+            
+            selected_images_grid.controls.append(image_with_details)
         selected_images_grid.update()
 
     def on_log_update(new_logs: str):
