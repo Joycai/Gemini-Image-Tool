@@ -27,6 +27,7 @@ class State:
     selected_images_paths: List[str] | None = None
     file_picker: ft.FilePicker | None = None
     last_save_path: str | None = None
+    gallery_visible: bool = True
 
 
 state = State()
@@ -117,14 +118,14 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     # --- Refine Agent Logic ---
     refine_progress = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False)
     
-    async def refine_prompt_handler(e):
+    async def refine_prompt_handler(task_type: str):
         if not prompt_input.value:
             show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
             return
         
         settings = db.get_all_settings()
         api_key = settings.get("refine_api_key") or settings.get("api_key")
-        model_id = settings.get("refine_model_id", "gemini-2.0-flash")
+        model_id = settings.get("refine_model_id", "gemini-3-flash-preview")
         
         if not api_key:
             show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
@@ -140,6 +141,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 user_prompt=prompt_input.value,
                 api_key=api_key,
                 model_id=model_id,
+                task_type=task_type,
                 image_paths=state.selected_images_paths
             )
             prompt_input.value = refined_text
@@ -151,11 +153,15 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             refine_progress.visible = False
             page.update()
 
-    refine_button = ft.IconButton(
+    refine_button = ft.PopupMenuButton(
         icon=ft.Icons.AUTO_FIX_HIGH,
         tooltip="Refine Prompt with AI",
-        on_click=refine_prompt_handler,
-        icon_color=ft.Colors.AMBER_600
+        items=[
+            ft.PopupMenuItem(
+                content=ft.Text(config["name_zh"] if i18n.CURRENT_LANG == "zh" else config["name"]),
+                on_click=lambda e, t=task_id: asyncio.create_task(refine_prompt_handler(t))
+            ) for task_id, config in api_client.REFINE_TASKS.items()
+        ],
     )
 
     # --- Functions ---
@@ -275,7 +281,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             api_task_state.update({"status": "error", "error_msg": "No image returned"})
 
     async def handle_api_error(error_msg):
-        api_task_state.update({"error_msg": str(error_msg), "status": "error"})
+        api_task_state["status"] = "error"
+        api_task_state["error_msg"] = str(error_msg)
         logger_utils.log(i18n.get("logic_warn_taskFailed", error_msg=str(error_msg)))
         page.update()
 
@@ -404,19 +411,19 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 expand=False
             )
         ], expand=1)
-    ], height=500, spacing=20) # Set fixed height to match both sides
+    ], expand=True, spacing=20)
 
     # 5. Execution Log
     log_section = ft.Column([
         ft.Text(i18n.get("home_control_log_label"), size=14, weight=ft.FontWeight.BOLD),
         ft.Container(
-            content=ft.Column([log_output_text], scroll=ft.ScrollMode.AUTO, expand=True),
+            content=ft.Column([log_output_text], scroll=ft.ScrollMode.AUTO, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH),
             border=ft.border.all(1, ft.Colors.GREY_400),
             border_radius=5,
             padding=10,
             height=120,
         )
-    ])
+    ], horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 
     # Right Side Assembly
     right_side = ft.Column([
@@ -430,12 +437,41 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         ft.Divider(height=10, thickness=1),
         log_section,
         progress_bar
-    ], expand=6, scroll=ft.ScrollMode.AUTO, spacing=15)
+    ], expand=6, scroll=ft.ScrollMode.AUTO, spacing=15, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+
+    gallery_container = ft.Container(
+        content=local_gallery_component(page, 4, on_image_select=add_selected_image),
+        animate_size=ft.Animation(300, ft.AnimationCurve.DECELERATE),
+        width=400, # Initial width
+    )
+    
+    vertical_divider = ft.VerticalDivider()
+
+    def toggle_gallery(e):
+        state.gallery_visible = not state.gallery_visible
+        if state.gallery_visible:
+            gallery_container.width = 400
+            gallery_container.opacity = 1
+            vertical_divider.visible = True
+        else:
+            gallery_container.width = 0
+            gallery_container.opacity = 0
+            vertical_divider.visible = False
+
+        toggle_button.icon = ft.Icons.CHEVRON_RIGHT if not state.gallery_visible else ft.Icons.CHEVRON_LEFT
+        page.update()
+
+    toggle_button = ft.IconButton(
+        icon=ft.Icons.CHEVRON_LEFT,
+        on_click=toggle_gallery,
+        tooltip="Toggle Gallery"
+    )
 
     view = ft.Container(
         content=ft.Row([
-            local_gallery_component(page, 4, on_image_select=add_selected_image),
-            ft.VerticalDivider(),
+            gallery_container,
+            ft.Column([toggle_button], alignment=ft.MainAxisAlignment.CENTER),
+            vertical_divider,
             right_side
         ], expand=True),
         expand=True,

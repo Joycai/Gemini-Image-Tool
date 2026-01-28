@@ -223,6 +223,7 @@ def prompt_manager_tab(page: ft.Page):
     new_prompt_title_field = ft.TextField(
         label=i18n.get("prompt_manager_new_prompt_title_label", "New Prompt Title"),
         border_radius=10,
+        expand=True,
     )
     new_prompt_content_field = ft.TextField(
         label=i18n.get("prompt_manager_new_prompt_content_label", "New Prompt Content"), 
@@ -230,14 +231,15 @@ def prompt_manager_tab(page: ft.Page):
         min_lines=3,
         max_lines=5, 
         border_radius=10,
+        expand=True,
     )
     
     add_prompt_card = ft.Card(
         content=ft.Container(
             content=ft.Column([
                 ft.Text(i18n.get("prompt_manager_add_new_title", "Add New Prompt"), weight=ft.FontWeight.BOLD, size=18),
-                new_prompt_title_field,
-                new_prompt_content_field,
+                ft.Row([new_prompt_title_field]),
+                ft.Row([new_prompt_content_field]),
                 ft.Row([
                     ft.ElevatedButton(
                         content=ft.Text(i18n.get("prompt_manager_add_button", "Add Prompt")),

@@ -24,6 +24,64 @@ MODEL_CONFIGS = {
     }
 }
 
+# [新增] 优化任务配置
+REFINE_TASKS = {
+    "cosplay_photo": {
+        "name": "Cosplay Photo",
+        "name_zh": "Cosplay 照片",
+        "system_instruction": (
+            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
+            "Your task is to take a simple user idea and expand it into a highly detailed, structured, and artistic prompt "
+            "for generating a realistic Cosplay photograph. "
+            "\n\nOutput Format (STRICTLY FOLLOW THIS MARKDOWN STRUCTURE):\n"
+            "**任务:**\n[Describe the core task, e.g., '制作一张真实质感的照片']\n\n"
+            "**模特设定:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
+            "**服装描述:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
+            "**场景和动作和镜头:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
+            "**镜头和光照:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
+            "**输出要求:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
+            "\n\nSpecial Handling for Image References:\n"
+            "You are provided with one or more images as visual references. "
+            "If the user mentions a specific filename (e.g., 'narumi.png') in their prompt, "
+            "you must treat it as a primary visual reference. Refer to it explicitly in the refined prompt using bold text. "
+            "If the user doesn't mention filenames but provides images, use the visual content of those images to inform your refinement, "
+            "ensuring consistency in character, style, or setting as implied by the user's request."
+            "\n\nOutput ONLY the refined prompt text in the specified Markdown format, no explanations or conversational filler."
+        )
+    },
+    "artistic_illustration": {
+        "name": "Artistic Illustration",
+        "name_zh": "艺术插画",
+        "system_instruction": (
+            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
+            "Your task is to take a simple user idea and expand it into a detailed prompt for a high-quality artistic illustration. "
+            "Focus on art style (e.g., oil painting, watercolor, digital art), brushwork, color palette, and composition. "
+            "\n\nOutput Format:\n"
+            "**Style:** [Style Name]\n"
+            "**Subject:** [Detailed Subject Description]\n"
+            "**Composition:** [Camera angle, framing]\n"
+            "**Colors & Lighting:** [Palette and light source]\n"
+            "**Details:** [Specific artistic elements]\n"
+            "\n\nOutput ONLY the refined prompt text in Markdown format."
+        )
+    },
+    "product_photography": {
+        "name": "Product Photography",
+        "name_zh": "产品摄影",
+        "system_instruction": (
+            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
+            "Your task is to expand a user idea into a professional product photography prompt. "
+            "Focus on studio lighting, background textures, macro details, and commercial aesthetic. "
+            "\n\nOutput Format:\n"
+            "**Product:** [Detailed Product Description]\n"
+            "**Setting:** [Background and environment]\n"
+            "**Lighting:** [Studio light setup, shadows]\n"
+            "**Camera:** [Lens, depth of field]\n"
+            "\n\nOutput ONLY the refined prompt text in Markdown format."
+        )
+    }
+}
+
 
 def _get_model_config(model_id: str, aspect_ratio: str, resolution: str) -> types.GenerateContentConfig:
     """根據模型 ID 返回對應的配置對象"""
@@ -66,7 +124,7 @@ def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
                     logger_utils.log(i18n.get("api_log_receivedImgSdk"))
                     return g_img._pil_image  # pylint: disable=protected-access
             except Exception:  # pylint: disable=broad-exception-caught
-                # 尝试从 as_image() 转换失败，继续检查其他类型
+                # 尝试从 as_image() 轉換失敗，继续检查其他类型
                 pass
 
         if hasattr(part, 'text') and part.text:
@@ -256,37 +314,19 @@ def refine_prompt(
         user_prompt: str,
         api_key: str,
         model_id: str,
+        task_type: str = "cosplay_photo",
         image_paths: Optional[List[str]] = None
 ) -> str:
-    """Uses Gemini to refine and expand a simple image generation prompt for nanoBananaPro, using images as context."""
+    """Uses Gemini to refine and expand a simple image generation prompt based on task type."""
     if not api_key:
         raise ValueError(i18n.get("api_error_apiKey"))
 
     client = genai.Client(api_key=api_key)
     
-    contents = []
+    task_config = REFINE_TASKS.get(task_type, REFINE_TASKS["cosplay_photo"])
+    system_instruction = task_config["system_instruction"]
     
-    system_instruction = (
-        "You are a professional prompt engineer for the nanoBananaPro image generation system. "
-        "Your task is to take a simple user idea and expand it into a detailed, artistic, and descriptive prompt "
-        "that leverages the full potential of the Gemini multimodal models. "
-        "Focus on lighting, composition, style, and atmosphere. "
-        "Ensure the prompt is optimized for high-quality image output, including specific visual descriptors. "
-        "Keep the output concise (under 150 words) but rich in visual detail. "
-        "\n\nSpecial Handling for Image References:\n"
-        "You are provided with one or more images as visual references. "
-        "If the user mentions a specific filename (e.g., 'narumi.png') in their prompt, "
-        "you must treat it as a primary visual reference. Instead of describing the subject from scratch, describe how the AI should use that specific image "
-        "(e.g., 'following the character design in narumi.png', 'using the pose from narumi.png', 'maintaining the style of narumi.png'). "
-        "If the user doesn't mention filenames but provides images, use the visual content of those images to inform your refinement, "
-        "ensuring consistency in character, style, or setting as implied by the user's request."
-        "\n\nOutput Format:\n"
-        "Output your response in clean Markdown format. "
-        "Use bold text for primary subjects and italics for lighting or atmospheric descriptors. "
-        "Do not include conversational filler or explanations outside of the refined prompt itself."
-    )
-    
-    contents.append(system_instruction)
+    contents = [system_instruction]
     
     if image_paths:
         for path in image_paths:
@@ -308,10 +348,17 @@ def refine_prompt(
             )
         )
         
-        if response.text:
+        # Access response.text safely
+        if hasattr(response, "text") and response.text:
             return response.text.strip()
-        else:
-            raise ValueError("API returned empty text during refinement.")
+        
+        # Fallback: check parts
+        if response.candidates and response.candidates[0].content.parts:
+            text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
+            if text_parts:
+                return "".join(text_parts).strip()
+                
+        raise ValueError("API returned empty text during refinement.")
             
     except Exception as e:
         logger_utils.log(f"Prompt refinement failed: {e}")

@@ -1,4 +1,5 @@
 import os
+import json
 from dataclasses import dataclass, field
 from typing import Union, Callable, List, Set, Dict
 
@@ -49,6 +50,12 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
 
     # --- Functions ---
 
+    def save_gallery_state():
+        """Persists the current gallery state to the database."""
+        db.save_setting("gallery_row_count", str(state.row_count))
+        db.save_setting("gallery_selected_paths", json.dumps(list(state.selected_paths)))
+        db.save_setting("gallery_expanded_paths", json.dumps(list(state.expanded_paths)))
+
     def open_image_preview(e, image_path):
         page.show_dialog(preview_dialog(page, PreviewDialogData(
             image_list=[image_path],
@@ -59,6 +66,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         columns = int(e.control.value)
         state.row_count = columns
         image_gallery.runs_count = columns
+        save_gallery_state()
         image_gallery.update()
 
     zoom_slider = ft.Slider(
@@ -120,6 +128,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
             state.selected_paths.add(path)
         else:
             state.selected_paths.discard(path)
+        save_gallery_state()
         load_images_from_selected_directories()
 
     def toggle_directory_expand(e: ft.Event[ft.IconButton]):
@@ -128,6 +137,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
             state.expanded_paths.discard(path)
         else:
             state.expanded_paths.add(path)
+        save_gallery_state()
         refresh_directory_tree()
 
     def build_directory_tree(root_path: str, current_level: int = 0) -> List[ft.Control]:
@@ -149,7 +159,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                 controls.append(
                     ft.Row(
                         controls=[
-                            ft.Container(width=current_level * 15), # Reduced indentation
+                            ft.Container(width=current_level * 15),
                             ft.IconButton(
                                 icon=ft.Icons.KEYBOARD_ARROW_DOWN if is_expanded else ft.Icons.KEYBOARD_ARROW_RIGHT,
                                 icon_size=14,
@@ -210,6 +220,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
             selected_directory_text.value = state.current_directory
             state.selected_paths = {pick_directory}
             state.expanded_paths = set()
+            save_gallery_state()
             refresh_directory_tree()
             load_images_from_selected_directories()
             selected_directory_text.update()
@@ -220,13 +231,33 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
 
     # --- Initialization ---
     def delayed_initialize():
+        # Load row count
+        saved_row_count = db.get_setting("gallery_row_count", "2")
+        state.row_count = int(saved_row_count)
+        image_gallery.runs_count = state.row_count
+        zoom_slider.value = state.row_count
+
+        # Load directory
         last_dir = db.get_setting("last_dir")
         if last_dir and os.path.isdir(last_dir):
             selected_directory_text.value = last_dir
             state.current_directory = last_dir
-            state.selected_paths = {last_dir}
+            
+            # Load selected and expanded paths
+            try:
+                sel_paths = json.loads(db.get_setting("gallery_selected_paths", "[]"))
+                state.selected_paths = set(sel_paths) if sel_paths else {last_dir}
+                
+                exp_paths = json.loads(db.get_setting("gallery_expanded_paths", "[]"))
+                state.expanded_paths = set(exp_paths)
+            except:
+                state.selected_paths = {last_dir}
+                state.expanded_paths = set()
+
             refresh_directory_tree()
             load_images_from_selected_directories()
+        else:
+            selected_directory_text.value = "No directory selected."
 
     delayed_initialize()
 
@@ -240,7 +271,6 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                 padding=ft.padding.only(left=5, right=5, bottom=10),
             )
         ],
-        # Removed initially_expanded as it's not supported in this Flet version
         maintain_state=True,
     )
 
@@ -261,7 +291,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                         ft.IconButton(
                             icon=ft.Icons.REFRESH,
                             on_click=refresh_all,
-                            tooltip=i18n.get("home_assets_btn_refresh_tooltip"),
+                            tooltip=i18n.get("home_history_btn_refresh_tooltip"),
                             icon_size=20,
                         )
                     ],
