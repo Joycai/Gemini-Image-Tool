@@ -15,14 +15,10 @@ DB_FILE_NAME = "database.sqlite"
 TEMP_DIR = "tmp"
 
 # --- Define the storage directory and database file path ---
-# This will resolve to a path like:
-# Windows: C:\\Users\\<User>\\AppData\\Local\\joycai\\Gemini-Image-Tool\\storage
-# macOS:   brary/Application Support/Gemini-Image-Tool/storage
-# Linux:   /home/<User>/.local/share/Gemini-Image-Tool/storage
 STORAGE_DIR = os.path.join(user_data_dir(APP_NAME, APP_AUTHOR), STORAGE_DIR)
 DB_FILE = os.path.join(STORAGE_DIR, DB_FILE_NAME)
 
-# 将 TEMP_DIR 设置在与数据库文件相同的目录下 (STORAGE_DIR)
+# 将 TEMP_DIR 设置在與数据库文件相同的目录下 (STORAGE_DIR)
 TEMP_DIR = os.path.join(STORAGE_DIR, TEMP_DIR)
 UPLOAD_DIR = os.path.join(TEMP_DIR, "upload")
 OUTPUT_DIR = os.path.join(TEMP_DIR, "output")
@@ -56,12 +52,19 @@ def get_allowed_paths():
 # UI 组件的配置
 # ==============================================================
 
-# 模型选择器
+# 图像生成模型选择器
 MODEL_SELECTOR_CHOICES = ["gemini-2.5-flash-image", "gemini-3-pro-image-preview"]
 MODEL_SELECTOR_DEFAULT = "gemini-3-pro-image-preview"
 
+# 文本/优化模型选择器 (LLM)
+LLM_MODEL_SELECTOR_CHOICES = [
+    "gemini-3-flash-preview",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash"
+]
+LLM_MODEL_SELECTOR_DEFAULT = "gemini-3-flash-preview"
+
 # 宽高比选择器
-# 新增 "ar_none" 作为不指定宽高比的选项
 AR_SELECTOR_CHOICES = ["ar_none", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 AR_SELECTOR_DEFAULT = "ar_none"
 

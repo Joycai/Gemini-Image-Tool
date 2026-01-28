@@ -1,3 +1,4 @@
+import os
 import time
 from io import BytesIO
 from typing import List, Any, Optional, Dict
@@ -101,6 +102,7 @@ def call_google_genai(
         for path in image_paths:
             try:
                 img = Image.open(path)
+                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
                 contents.append(img)
             except (IOError, OSError) as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
@@ -248,3 +250,69 @@ def call_google_chat(
     sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
     logger_utils.log(sys_err_msg)
     return None
+
+
+def refine_prompt(
+        user_prompt: str,
+        api_key: str,
+        model_id: str,
+        image_paths: Optional[List[str]] = None
+) -> str:
+    """Uses Gemini to refine and expand a simple image generation prompt for nanoBananaPro, using images as context."""
+    if not api_key:
+        raise ValueError(i18n.get("api_error_apiKey"))
+
+    client = genai.Client(api_key=api_key)
+    
+    contents = []
+    
+    system_instruction = (
+        "You are a professional prompt engineer for the nanoBananaPro image generation system. "
+        "Your task is to take a simple user idea and expand it into a detailed, artistic, and descriptive prompt "
+        "that leverages the full potential of the Gemini multimodal models. "
+        "Focus on lighting, composition, style, and atmosphere. "
+        "Ensure the prompt is optimized for high-quality image output, including specific visual descriptors. "
+        "Keep the output concise (under 150 words) but rich in visual detail. "
+        "\n\nSpecial Handling for Image References:\n"
+        "You are provided with one or more images as visual references. "
+        "If the user mentions a specific filename (e.g., 'narumi.png') in their prompt, "
+        "you must treat it as a primary visual reference. Instead of describing the subject from scratch, describe how the AI should use that specific image "
+        "(e.g., 'following the character design in narumi.png', 'using the pose from narumi.png', 'maintaining the style of narumi.png'). "
+        "If the user doesn't mention filenames but provides images, use the visual content of those images to inform your refinement, "
+        "ensuring consistency in character, style, or setting as implied by the user's request."
+        "\n\nOutput Format:\n"
+        "Output your response in clean Markdown format. "
+        "Use bold text for primary subjects and italics for lighting or atmospheric descriptors. "
+        "Do not include conversational filler or explanations outside of the refined prompt itself."
+    )
+    
+    contents.append(system_instruction)
+    
+    if image_paths:
+        for path in image_paths:
+            try:
+                img = Image.open(path)
+                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
+                contents.append(img)
+            except Exception as e:
+                logger_utils.log(f"Failed to load image for refinement: {path}, error: {e}")
+
+    contents.append(f"User Idea: {user_prompt}")
+
+    try:
+        response = client.models.generate_content(
+            model=model_id,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT"]
+            )
+        )
+        
+        if response.text:
+            return response.text.strip()
+        else:
+            raise ValueError("API returned empty text during refinement.")
+            
+    except Exception as e:
+        logger_utils.log(f"Prompt refinement failed: {e}")
+        raise e

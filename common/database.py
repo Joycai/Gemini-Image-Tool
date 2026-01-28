@@ -29,6 +29,7 @@ def init_db(conn):
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("save_path", "outputs"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("file_prefix", "gemini_gen"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-2.0-flash"))
     conn.commit()
 
 def migrate_db(conn):
@@ -59,6 +60,12 @@ def migrate_db(conn):
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
     if not c.fetchone():
         c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
+        conn.commit()
+
+    # Check for refine settings
+    c.execute("SELECT value FROM settings WHERE key='refine_model_id'")
+    if not c.fetchone():
+        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-2.0-flash"))
         conn.commit()
 
 
@@ -188,7 +195,9 @@ def get_all_settings():
         "file_prefix": get_setting("file_prefix", "gemini_gen"),
         "language": get_setting("language", "en"),
         "max_history_len": get_setting("max_history_len", "20"),
-        "last_prompt": get_setting("last_prompt", "")
+        "last_prompt": get_setting("last_prompt", ""),
+        "refine_api_key": get_setting("refine_api_key", ""),
+        "refine_model_id": get_setting("refine_model_id", "gemini-2.0-flash")
     }
 
 # --- Prompt related ---
