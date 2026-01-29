@@ -11,6 +11,7 @@ from google.genai.types import PIL_Image
 
 from common import logger_utils, i18n, database as db
 from common.config import MODEL_SELECTOR_DEFAULT
+from common.prompts import REFINE_TASKS
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {
@@ -21,83 +22,6 @@ MODEL_CONFIGS = {
     "gemini-2.5": {
         "ignore_params": True,
         "base_config": {"response_modalities": ["IMAGE"]}
-    }
-}
-
-# [新增] 优化任务配置 (Fallback defaults)
-REFINE_TASKS = {
-    "cosplay_photo": {
-        "name": "Cosplay Photo",
-        "name_zh": "Cosplay 照片",
-        "system_instruction": (
-            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
-            "Your task is to take a simple user idea and expand it into a highly detailed, structured, and artistic prompt "
-            "for generating a realistic Cosplay photograph. "
-            "\n\nOutput Format (STRICTLY FOLLOW THIS MARKDOWN STRUCTURE):\n"
-            "**任务:**\n[Describe the core task, e.g., '制作一张真实质感的照片']\n\n"
-            "**模特设定:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
-            "**服装描述:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
-            "**场景和动作和镜头:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
-            "**镜头和光照:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
-            "**输出要求:**\n+ [Detail 1]\n+ [Detail 2]\n...\n\n"
-            "\n\nSpecial Handling for Image References:\n"
-            "You are provided with one or more images as visual references. "
-            "If the user mentions a specific filename (e.g., 'narumi.png') in their prompt, "
-            "you must treat it as a primary visual reference. Refer to it explicitly in the refined prompt using bold text. "
-            "If the user doesn't mention filenames but provides images, use the visual content of those images to inform your refinement, "
-            "ensuring consistency in character, style, or setting as implied by the user's request."
-            "\n\nOutput ONLY the refined prompt text in the specified Markdown format, no explanations or conversational filler."
-        )
-    },
-    "artistic_illustration": {
-        "name": "Artistic Illustration",
-        "name_zh": "艺术插画",
-        "system_instruction": (
-            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
-            "Your task is to take a simple user idea and expand it into a detailed prompt for a high-quality artistic illustration. "
-            "Focus on art style (e.g., oil painting, watercolor, digital art), brushwork, color palette, and composition. "
-            "\n\nOutput Format:\n"
-            "**Style:** [Style Name]\n"
-            "**Subject:** [Detailed Subject Description]\n"
-            "**Composition:** [Camera angle, framing]\n"
-            "**Colors & Lighting:** [Palette and light source]\n"
-            "**Details:** [Specific artistic elements]\n"
-            "\n\nOutput ONLY the refined prompt text in Markdown format."
-        )
-    },
-    "product_photography": {
-        "name": "Product Photography",
-        "name_zh": "产品摄影",
-        "system_instruction": (
-            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
-            "Your task is to expand a user idea into a professional product photography prompt. "
-            "Focus on studio lighting, background textures, macro details, and commercial aesthetic. "
-            "\n\nOutput Format:\n"
-            "**Product:** [Detailed Product Description]\n"
-            "**Setting:** [Background and environment]\n"
-            "**Lighting:** [Studio light setup, shadows]\n"
-            "**Camera:** [Lens, depth of field]\n"
-            "\n\nOutput ONLY the refined prompt text in Markdown format."
-        )
-    },
-    "swap_clothes": {
-        "name": "Swap Clothes",
-        "name_zh": "更换服装",
-        "system_instruction": (
-            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
-            "Your task is to create a precise prompt for a 'clothes swapping' operation. "
-            "The user will provide two reference images: Image 1 (the target outfit) and Image 2 (the model/subject). "
-            "\n\nRefinement Logic:\n"
-            "1. Analyze Image 1 to describe the outfit's style, components (tops, bottoms, shoes, accessories), and textures in detail. "
-            "2. Analyze Image 2 to identify the model's pose, facial features, expression, and background. "
-            "3. Construct a prompt that instructs the model to generate a new image where the model from Image 2 is wearing the exact outfit from Image 1. "
-            "\n\nOutput Format (STRICTLY FOLLOW THIS STRUCTURE):\n"
-            "**任务描述:**\n将{参考图2}中模特穿着的服装更换为{参考图1}的套装（包含所有配件和鞋子），不要保留任何图2模特穿着的服装和配件。\n\n"
-            "**服装细节 (来自图1):**\n+ [Detailed description of style, e.g., 'Cyberpunk techwear']\n+ [Detailed list of components, e.g., 'Black tactical vest, neon-lined cargo pants']\n+ [Accessories and footwear]\n\n"
-            "**保持一致 (来自图2):**\n+ 模特的动作和姿势与图2完全一致。\n+ 模特的部特征和表情与图2完全一致。\n+ 背景环境与图2保持一致。\n\n"
-            "**生成要求:**\n+ 确保更换后的服装自然贴合模特的身体，层次结构正确。\n+ 发型可以根据需要进行微调以完美搭配头饰。\n"
-            "\n\nOutput ONLY the refined prompt text in Markdown format."
-        )
     }
 }
 
@@ -340,6 +264,7 @@ def refine_prompt(
     if not api_key:
         raise ValueError(i18n.get("api_error_apiKey"))
 
+    logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type))
     client = genai.Client(api_key=api_key)
     
     # Try to get instruction from database first
@@ -354,6 +279,7 @@ def refine_prompt(
     contents = [system_instruction]
     
     if image_paths:
+        logger_utils.log(i18n.get("logic_log_refineIncludeImgs", count=len(image_paths)))
         for path in image_paths:
             try:
                 img = Image.open(path)
@@ -375,16 +301,59 @@ def refine_prompt(
         
         # Access response.text safely
         if hasattr(response, "text") and response.text:
+            logger_utils.log(i18n.get("logic_log_refineSuccess"))
             return response.text.strip()
         
         # Fallback: check parts
         if response.candidates and response.candidates[0].content.parts:
             text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
             if text_parts:
+                logger_utils.log(i18n.get("logic_log_refineSuccessParts"))
                 return "".join(text_parts).strip()
                 
         raise ValueError("API returned empty text during refinement.")
             
     except Exception as e:
-        logger_utils.log(f"Prompt refinement failed: {e}")
+        logger_utils.log(i18n.get("logic_log_refineFail", err=str(e)))
+        raise e
+
+def ai_recognize_image(
+        image_path: str,
+        prompt: str,
+        api_key: str,
+        model_id: str
+) -> str:
+    """Uses Gemini to recognize or analyze an image based on a prompt."""
+    if not api_key:
+        raise ValueError(i18n.get("api_error_apiKey"))
+
+    logger_utils.log(i18n.get("logic_log_aiRecognizeStart", filename=os.path.basename(image_path)))
+    client = genai.Client(api_key=api_key)
+    
+    try:
+        img = Image.open(image_path)
+        contents = [img, prompt]
+        
+        response = client.models.generate_content(
+            model=model_id,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT"]
+            )
+        )
+        
+        if hasattr(response, "text") and response.text:
+            logger_utils.log(i18n.get("logic_log_aiRecognizeSuccess"))
+            return response.text.strip()
+        
+        if response.candidates and response.candidates[0].content.parts:
+            text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
+            if text_parts:
+                logger_utils.log(i18n.get("logic_log_aiRecognizeSuccessParts"))
+                return "".join(text_parts).strip()
+                
+        return "API returned empty response."
+            
+    except Exception as e:
+        logger_utils.log(f"❌ AI Recognition failed: {e}")
         raise e

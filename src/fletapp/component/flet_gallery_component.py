@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from dataclasses import dataclass, field
 from typing import Union, Callable, List, Set, Dict
 
@@ -8,8 +9,10 @@ from flet import Container, BoxFit, Alignment, Page
 
 from common import database as db, i18n
 from common.config import VALID_IMAGE_EXTENSIONS
+from common.prompts import AI_RECOGNIZE_TASKS
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
+from geminiapi import api_client
 
 
 @dataclass
@@ -89,6 +92,102 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         except Exception as ex:
             show_snackbar(page, f"Error: {ex}", is_error=True)
 
+    def _show_ai_recognize_dialog(image_path: str):
+        # Load last prompt from DB
+        last_prompt = db.get_setting("last_ai_recognize_prompt", AI_RECOGNIZE_TASKS["recognize"]["prompt"])
+        
+        prompt_input = ft.TextField(
+            label="Custom Task / Prompt",
+            value=last_prompt,
+            multiline=True,
+            min_lines=3,
+            max_lines=5,
+            expand=True
+        )
+        
+        response_text = ft.Markdown(
+            selectable=True,
+            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+            code_theme=ft.MarkdownCodeTheme.GOOGLE_CODE,
+        )
+        
+        progress_ring = ft.ProgressRing(visible=False)
+        
+        def on_task_change(e):
+            if e.control.value in AI_RECOGNIZE_TASKS:
+                prompt_input.value = AI_RECOGNIZE_TASKS[e.control.value]["prompt"]
+            prompt_input.update()
+
+        task_dropdown = ft.Dropdown(
+            label="Pre-defined Tasks",
+            options=[
+                *[ft.dropdown.Option(key=k, text=v["name"]) for k, v in AI_RECOGNIZE_TASKS.items()],
+                ft.dropdown.Option(key="custom", text="Custom Task"),
+            ],
+            value="custom"
+        )
+        task_dropdown.on_change = on_task_change
+
+        async def run_ai_task(e):
+            settings = db.get_all_settings()
+            api_key = settings.get("api_key")
+            model_id = settings.get("refine_model_id", "gemini-2.0-flash")
+            
+            if not api_key:
+                show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
+                return
+
+            # Save prompt to DB
+            db.save_setting("last_ai_recognize_prompt", prompt_input.value)
+            
+            run_button.disabled = True
+            progress_ring.visible = True
+            response_text.value = "Processing..."
+            page.update()
+
+            try:
+                result = await asyncio.to_thread(
+                    api_client.ai_recognize_image,
+                    image_path=image_path,
+                    prompt=prompt_input.value,
+                    api_key=api_key,
+                    model_id=model_id
+                )
+                response_text.value = result
+            except Exception as ex:
+                response_text.value = f"Error: {ex}"
+            finally:
+                run_button.disabled = False
+                progress_ring.visible = False
+                page.update()
+
+        run_button = ft.ElevatedButton("Run AI Task", icon=ft.Icons.PLAY_ARROW, on_click=run_ai_task)
+
+        def close_dlg(e):
+            page.pop_dialog()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"AI Recognize: {os.path.basename(image_path)}"),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Image(src=image_path, height=200, fit=ft.BoxFit.CONTAIN),
+                    task_dropdown,
+                    prompt_input,
+                    ft.Row([run_button, progress_ring], alignment=ft.MainAxisAlignment.CENTER),
+                    ft.Divider(),
+                    ft.Column([
+                        response_text,
+                    ], scroll=ft.ScrollMode.AUTO, height=300)
+                ], tight=True, scroll=ft.ScrollMode.AUTO),
+                width=600,
+            ),
+            actions=[
+                ft.TextButton("Close", on_click=close_dlg)
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        page.show_dialog(dlg)
+
     def load_images_from_selected_directories():
         image_gallery.controls.clear()
         
@@ -120,11 +219,23 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                     def _handle_preview(ev):
                         page.pop_dialog()
                         open_image_preview(None, current_path)
+                    
+                    def _handle_ai_recognize(ev):
+                        page.pop_dialog()
+                        _show_ai_recognize_dialog(current_path)
+
+                    def close_context_dlg(ev):
+                        page.pop_dialog()
 
                     page.show_dialog(
                         ft.AlertDialog(
                             title=ft.Text(os.path.basename(current_path)),
                             content=ft.Column([
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.AUTO_FIX_HIGH, color=ft.Colors.AMBER_600),
+                                    title=ft.Text("AI Recognize"),
+                                    on_click=_handle_ai_recognize
+                                ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.PREVIEW),
                                     title=ft.Text(i18n.get("dialog_title_image_preview", "Preview")),
@@ -137,8 +248,9 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                                 ),
                             ], tight=True),
                             actions=[
-                                ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=lambda _: page.pop_dialog())
-                            ]
+                                ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=close_context_dlg)
+                            ],
+                            actions_alignment=ft.MainAxisAlignment.END,
                         )
                     )
                 return _show_context_menu

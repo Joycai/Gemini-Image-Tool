@@ -191,5 +191,14 @@
     "api_error_noValidImage": "No valid image data found in response",
     "api_error_system": "❌ System Error: {err}",
     "api_error_apiKey": "❌ API Key not configured",
-    "ar_none": "Auto"
+    "ar_none": "Auto",
+
+    "logic_log_refiningPrompt": "✨ Refining prompt using task: {task}",
+    "logic_log_refineIncludeImgs": "ℹ️ Including {count} images for refinement.",
+    "logic_log_refineSuccess": "✅ Prompt refinement successful.",
+    "logic_log_refineSuccessParts": "✅ Prompt refinement successful (via parts).",
+    "logic_log_refineFail": "❌ Prompt refinement failed: {err}",
+    "logic_log_aiRecognizeStart": "🔍 AI Recognition started for: {filename}",
+    "logic_log_aiRecognizeSuccess": "✅ AI Recognition successful.",
+    "logic_log_aiRecognizeSuccessParts": "✅ AI Recognition successful (via parts)."
 }
