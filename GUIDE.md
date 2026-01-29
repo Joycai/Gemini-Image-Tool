@@ -40,10 +40,10 @@ Welcome to the Gemini Image Tool! This application leverages Google's GenAI to p
     *Note: If you are using `uv` or another package manager, follow their specific instructions for installing dependencies from `pyproject.toml`.*
 
 3.  **Run the Application**:
-    Start the application by running the `flet_app.py` script:
+    Start the application by running the `main.py` script located in the `src` directory:
 
     ```bash
-    python flet_app.py
+    python src/main.py
     ```
 
 ---

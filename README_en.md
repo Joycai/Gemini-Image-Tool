@@ -71,7 +71,7 @@ pip install -r requirements.txt
 ### 3. Launch the Application
 
 ```bash
-python flet_app.py
+python src/main.py
 ```
 After launching, a native desktop application window will open.
 
@@ -85,7 +85,7 @@ You can package the application into a standalone desktop application.
 Flet comes with a simple, built-in packaging tool.
 ```bash
 # Run the packaging command
-flet pack flet_app.py
+flet pack src/main.py
 ```
 The final executable will be located in the `dist/` directory.
 
