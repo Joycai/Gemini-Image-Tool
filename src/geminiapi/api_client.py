@@ -9,7 +9,7 @@ from google.genai import types
 from google.genai.chats import Chat
 from google.genai.types import PIL_Image
 
-from common import logger_utils, i18n
+from common import logger_utils, i18n, database as db
 from common.config import MODEL_SELECTOR_DEFAULT
 
 # [新增] 模型配置字典，方便未來擴展
@@ -24,7 +24,7 @@ MODEL_CONFIGS = {
     }
 }
 
-# [新增] 优化任务配置
+# [新增] 优化任务配置 (Fallback defaults)
 REFINE_TASKS = {
     "cosplay_photo": {
         "name": "Cosplay Photo",
@@ -77,6 +77,25 @@ REFINE_TASKS = {
             "**Setting:** [Background and environment]\n"
             "**Lighting:** [Studio light setup, shadows]\n"
             "**Camera:** [Lens, depth of field]\n"
+            "\n\nOutput ONLY the refined prompt text in Markdown format."
+        )
+    },
+    "swap_clothes": {
+        "name": "Swap Clothes",
+        "name_zh": "更换服装",
+        "system_instruction": (
+            "You are a professional prompt engineer for the nanoBananaPro image generation system. "
+            "Your task is to create a precise prompt for a 'clothes swapping' operation. "
+            "The user will provide two reference images: Image 1 (the target outfit) and Image 2 (the model/subject). "
+            "\n\nRefinement Logic:\n"
+            "1. Analyze Image 1 to describe the outfit's style, components (tops, bottoms, shoes, accessories), and textures in detail. "
+            "2. Analyze Image 2 to identify the model's pose, facial features, expression, and background. "
+            "3. Construct a prompt that instructs the model to generate a new image where the model from Image 2 is wearing the exact outfit from Image 1. "
+            "\n\nOutput Format (STRICTLY FOLLOW THIS STRUCTURE):\n"
+            "**任务描述:**\n将{参考图2}中模特穿着的服装更换为{参考图1}的套装（包含所有配件和鞋子），不要保留任何图2模特穿着的服装和配件。\n\n"
+            "**服装细节 (来自图1):**\n+ [Detailed description of style, e.g., 'Cyberpunk techwear']\n+ [Detailed list of components, e.g., 'Black tactical vest, neon-lined cargo pants']\n+ [Accessories and footwear]\n\n"
+            "**保持一致 (来自图2):**\n+ 模特的动作和姿势与图2完全一致。\n+ 模特的部特征和表情与图2完全一致。\n+ 背景环境与图2保持一致。\n\n"
+            "**生成要求:**\n+ 确保更换后的服装自然贴合模特的身体，层次结构正确。\n+ 发型可以根据需要进行微调以完美搭配头饰。\n"
             "\n\nOutput ONLY the refined prompt text in Markdown format."
         )
     }
@@ -323,8 +342,14 @@ def refine_prompt(
 
     client = genai.Client(api_key=api_key)
     
-    task_config = REFINE_TASKS.get(task_type, REFINE_TASKS["cosplay_photo"])
-    system_instruction = task_config["system_instruction"]
+    # Try to get instruction from database first
+    db_task = db.get_refine_task(task_type)
+    if db_task:
+        system_instruction = db_task["system_instruction"]
+    else:
+        # Fallback to hardcoded defaults
+        task_config = REFINE_TASKS.get(task_type, REFINE_TASKS["cosplay_photo"])
+        system_instruction = task_config["system_instruction"]
     
     contents = [system_instruction]
     

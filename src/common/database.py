@@ -41,7 +41,9 @@ def init_db(conn):
         ("artistic_illustration", "Artistic Illustration", "艺术插画", 
          "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to take a simple user idea and expand it into a detailed prompt for a high-quality artistic illustration. Focus on art style, brushwork, color palette, and composition.\n\nOutput Format:\n**Style:** [Style Name]\n**Subject:** [Detailed Subject Description]\n**Composition:** [Camera angle, framing]\n**Colors & Lighting:** [Palette and light source]\n**Details:** [Specific artistic elements]\n\nOutput ONLY the refined prompt text in Markdown format.", 1),
         ("product_photography", "Product Photography", "产品摄影", 
-         "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to expand a user idea into a professional product photography prompt. Focus on studio lighting, background textures, macro details, and commercial aesthetic.\n\nOutput Format:\n**Product:** [Detailed Product Description]\n**Setting:** [Background and environment]\n**Lighting:** [Studio light setup, shadows]\n**Camera:** [Lens, depth of field]\n\nOutput ONLY the refined prompt text in Markdown format.", 2)
+         "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to expand a user idea into a professional product photography prompt. Focus on studio lighting, background textures, macro details, and commercial aesthetic.\n\nOutput Format:\n**Product:** [Detailed Product Description]\n**Setting:** [Background and environment]\n**Lighting:** [Studio light setup, shadows]\n**Camera:** [Lens, depth of field]\n\nOutput ONLY the refined prompt text in Markdown format.", 2),
+        ("swap_clothes", "Swap Clothes", "更换服装", 
+         "You are a professional prompt engineer for the nanoBananaPro image generation system. Your task is to create a precise prompt for a 'clothes swapping' operation. The user will provide two reference images: Image 1 (the target outfit) and Image 2 (the model/subject).\n\nOutput Format:\n**任务描述:**\n将{参考图2}中模特穿着的服装更换为{参考图1}的套装（包含所有配件和鞋子），不要保留任何图2模特穿着的服装和配件。\n\n**服装细节 (来自图1):**\n+ [Detailed description of style]\n+ [Detailed list of components]\n\n**保持一致 (来自图2):**\n+ 模特的动作和姿势与图2完全一致。\n+ 模特的部特征和表情与图2完全一致。\n+ 背景环境与图2保持一致。\n\n**生成要求:**\n+ 确保更换后的服装自然贴合模特的身体，层次结构正确。\n+ 发型可以根据需要进行微调以完美搭配头饰。\n\nOutput ONLY the refined prompt text in Markdown format.", 3)
     ]
     c.executemany("INSERT OR IGNORE INTO refine_tasks (id, name, name_zh, system_instruction, order_id) VALUES (?, ?, ?, ?, ?)", default_tasks)
     
@@ -80,6 +82,12 @@ def migrate_db(conn):
         conn.commit()
         # Re-run init to add defaults
         init_db(conn)
+    else:
+        # Check if swap_clothes exists
+        c.execute("SELECT id FROM refine_tasks WHERE id='swap_clothes'")
+        if not c.fetchone():
+            logger_utils.log("Migrating database: Adding 'swap_clothes' task.")
+            init_db(conn)
 
     # Check for max_history_len setting
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
@@ -306,6 +314,16 @@ def get_all_refine_tasks():
     tasks = [dict(row) for row in c.fetchall()]
     conn.close()
     return tasks
+
+def get_refine_task(task_id):
+    """Gets a specific refine task by ID."""
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, name, name_zh, system_instruction, order_id FROM refine_tasks WHERE id=?", (task_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def save_refine_task(task_id, name, name_zh, system_instruction):
     conn = get_db_connection()

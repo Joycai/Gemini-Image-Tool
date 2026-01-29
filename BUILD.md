@@ -1,4 +1,4 @@
-# Building Gemini Image Tool (v0.2.3)
+# Building Gemini Image Tool (v0.3.0)
 
 This guide provides instructions on how to build the Gemini Image Tool as a standalone application for Windows, macOS, and Linux using Flet and `uv`.
 
@@ -74,7 +74,7 @@ flet build linux --exclude .idea .github .venv .git build gapp inno_scripts test
 
 The build process uses the following configuration from `pyproject.toml`:
 *   **Product Name**: Gemini-Image-Tool
-*   **Version**: 0.2.3
+*   **Version**: 0.3.0
 *   **Company**: Joycai
 *   **Main Module**: `flet_app`
 

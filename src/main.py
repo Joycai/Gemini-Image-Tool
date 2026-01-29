@@ -4,8 +4,8 @@ import asyncio
 
 import flet as ft
 
-# Add project root to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add src to sys.path if running directly
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from common import i18n, database as db
 from common.job_manager import job_manager

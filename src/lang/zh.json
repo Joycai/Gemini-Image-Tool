@@ -56,7 +56,7 @@
     "home_preview_title": "🖼️ 结果预览",
     "home_preview_label_result": "结果预览",
     "home_preview_btn_download_placeholder": "下载",
-    
+
     "chat_title": "🤖 多模态聊天",
     "chat_chatbot_label": "对话历史",
     "chat_input_label": "发送消息",
@@ -175,7 +175,7 @@
     "logic_error_prompts_import_failed": "❌ 导入 Prompts 失败: {error}",
     "logic_warn_noImageToDownload": "没有可供下载的图片。",
     "logic_warn_promptNotSelected": "请选择一个 Prompt。",
-    
+
     "api_log_loadingImgs": "📷 正在加载 {count} 张参考图片...",
     "api_log_skipImg": "⚠️ 跳过损坏图片 {path}: {err}",
     "api_log_requestInfo": "ℹ️ 提交信息: Prompt ({prompt_len}字), 参考图 ({img_count}张)",

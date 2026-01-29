@@ -1,15 +1,14 @@
 # 🍌 Banana Pro Studio (Gemini Image Tool)
 
-[![Version](https://img.shields.io/badge/Version-0.2.1-brightgreen.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/Version-0.3.0-brightgreen.svg)](pyproject.toml)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
-[![Gradio](https://img.shields.io/badge/Gradio-5.49.1-orange.svg)](https://gradio.app/)
 [![Flet](https://img.shields.io/badge/Flet-0.80.0-blueviolet.svg)](https://flet.dev)
-[![Google GenAI](https://img.shields.io/badge/Google%20GenAI-1.56.0-4285F4.svg)](https://ai.google.dev/)
+[![Google GenAI](https://img.shields.io/badge/Google%20GenAI-1.60.0-4285F4.svg)](https://ai.google.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Banana Pro Studio** is a local AI image processing workbench built with Python and Gradio. It leverages the powerful vision capabilities of the Google Gemini model family to provide users with a seamless experience for image generation, editing, and management.
+**Banana Pro Studio** is a local AI image processing workbench built with Python and Flet. It leverages the powerful vision capabilities of the Google Gemini model family to provide users with a seamless experience for image generation, editing, and management.
 
-This is more than just a simple script; it's a full-featured, desktop-grade web application that supports dark mode, a multilingual interface, asynchronous background task processing, and comprehensive history management.
+This is more than just a simple script; it's a full-featured, desktop-grade application that supports dark mode, a multilingual interface, asynchronous background task processing, and comprehensive history management.
 
 ---
 
@@ -36,7 +35,7 @@ This is more than just a simple script; it's a full-featured, desktop-grade web 
     *   Real-time execution log for monitoring the application's status.
 *   **📦 Cross-Platform & Packagable**:
     *   Runs on Windows, macOS, and Linux.
-    *   Includes PyInstaller commands to bundle the application into a single executable file for easy distribution.
+    *   Includes Flet packaging commands to bundle the application into a single executable file for easy distribution.
 
 ---
 
@@ -71,17 +70,8 @@ pip install -r requirements.txt
 
 ### 3. Launch the Application
 
-This project includes two user interfaces (UIs). You can choose one to launch based on your preference.
-
-#### Option A: Gradio Web Interface (Recommended)
 ```bash
-python app.py
-```
-After launching, the application will automatically open in your default browser at `http://127.0.0.1:7860`.
-
-#### Option B: Flet Native App Interface
-```bash
-flet run flet_app.py
+python flet_app.py
 ```
 After launching, a native desktop application window will open.
 
@@ -89,26 +79,10 @@ After launching, a native desktop application window will open.
 
 ## 📦 Packaging as an Executable
 
-You can package either interface into a standalone desktop application.
-
-### Packaging the Gradio App
-If you want to run this application on a computer without a Python environment, you can package it using PyInstaller.
-
-```bash
-# Make sure PyInstaller is installed: pip install pyinstaller
-
-# Run the packaging command (recommended from the project root)
-pyinstaller app.py --noconsole --onefile --name "BananaProStudio" \
---add-data "assets;assets" \
---add-data "lang;lang" \
---collect-all "gradio_client" \
---collect-all "quickjs" \
---collect-all "uvicorn"
-```
-The final executable will be located in the `dist/` directory.
+You can package the application into a standalone desktop application.
 
 ### Packaging the Flet App
-Flet comes with a simpler, built-in packaging tool.
+Flet comes with a simple, built-in packaging tool.
 ```bash
 # Run the packaging command
 flet pack flet_app.py
@@ -142,7 +116,7 @@ If all tests pass, you will see an "OK" message.
 2.  **Google API Key**: Enter your Gemini API Key (you can get one from [Google AI Studio](https://aistudio.google.com/app/apikey)).
 3.  **Auto Save Path**: Set a directory where your generated images will be permanently saved. The history feature will be disabled if this is left empty.
 4.  **Language**: Choose your preferred interface language.
-5.  Click **"💾 Save Config"**. Language changes require a system restart by clicking the **"♻️ Restart Application"** button on the settings page.
+5.  Click **"💾 Save Config"**.
 
 ### 2. Basic Workflow
 1.  **Select Assets**:

@@ -24,8 +24,8 @@ dev = [
 product = "Gemini-Image-Tool"
 company = "Joycai"
 copyright = "Copyright (C) 2025 by Joycai"
-app.path = "."
-app.module = "flet_app"
+app.path = "src"
+app.module = "main"
 
 [tool.flet.app.boot_screen]
 show = false
