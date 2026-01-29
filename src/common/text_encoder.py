@@ -7,4 +7,4 @@ def text_encoder(input_str : Optional[string]) -> Optional[string] :
         utf8_bytes = input_str.encode('utf-8')
         return utf8_bytes.decode('utf-8')
     else:
-        return None
+        return utf8_bytes.decode('utf-8')

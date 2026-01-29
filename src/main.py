@@ -1,21 +1,26 @@
 import os
 import sys
+import asyncio
 
 import flet as ft
 
-# Add project root to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add src to sys.path if running directly
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from common import i18n, database as db
+from common.job_manager import job_manager
 from fletapp.component.flet_single_edit_tab import single_edit_tab
 from fletapp.component.flet_settings_page import settings_page
 from fletapp.component.flet_history_page import history_page
 from fletapp.component.flet_chat_page import chat_page
 from fletapp.component.flet_prompt_manager_tab import prompt_manager_tab
 from fletapp.component.flet_queue_page import queue_page
+from fletapp.component.flet_prompt_history_page import prompt_history_page
+from fletapp.component.flet_refine_manager_tab import refine_manager_tab
 
 def main(page: ft.Page):
     i18n.load_language()
+    job_manager.set_page(page)
 
     page.title = i18n.get("app_title")
     page.vertical_alignment = ft.MainAxisAlignment.START
@@ -51,7 +56,7 @@ def main(page: ft.Page):
     main_tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        length=6,
+        length=8,
         content=ft.Column(
             expand=True,
             controls=[
@@ -67,10 +72,16 @@ def main(page: ft.Page):
                             label=i18n.get("app_tab_prompt_manager", "Prompt Manager"),
                         ),
                         ft.Tab(
+                            label=i18n.get("app_tab_prompt_history", "Prompt History"),
+                        ),
+                        ft.Tab(
                             label=i18n.get("app_tab_history"),
                         ),
                         ft.Tab(
                             label=i18n.get("app_tab_queue", "Queue"),
+                        ),
+                        ft.Tab(
+                            label=i18n.get("app_tab_refine_manager", "Refine Manager"),
                         ),
                         ft.Tab(
                             label=i18n.get("app_tab_settings"),
@@ -83,8 +94,10 @@ def main(page: ft.Page):
                         single_edit_component["view"],
                         chat_component["view"],
                         prompt_manager_component["view"],
+                        prompt_history_page(page),
                         history_page(page),
                         queue_page(page),
+                        refine_manager_tab(page),
                         settings_page(page)
                     ]
                 )
@@ -99,6 +112,12 @@ def main(page: ft.Page):
     single_edit_component["init"]()
     chat_component["init"]()
     prompt_manager_component["init"]()
+
+    # --- Cleanup on Disconnect ---
+    def on_disconnect(e):
+        job_manager.set_page(None)
+
+    page.on_disconnect = on_disconnect
 
 
 if __name__ == "__main__":

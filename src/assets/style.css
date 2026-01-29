@@ -76,7 +76,7 @@ body.dark {
     --border-color-primary: #374151;
     --block-background-fill: #1f2937;
     --input-background-fill: #374151; /* 输入框背景 */
-    
+
     /* 2. 文字颜色 */
     --body-text-color: #F3F4F6;
     --block-label-text-color: #D1D5DB;
@@ -84,8 +84,8 @@ body.dark {
 }
 
 /* 针对输入框的强制覆盖 (解决你遇到的白色背景问题) */
-body.dark input, 
-body.dark textarea, 
+body.dark input,
+body.dark textarea,
 body.dark select,
 body.dark .gr-input {
     background-color: var(--input-background-fill) !important;

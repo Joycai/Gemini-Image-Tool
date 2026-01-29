@@ -21,6 +21,7 @@
     "home_assets_btn_addToSelected": "➡️ 发送到已选",
     "home_assets_info_ready": "就绪.",
     "home_assets_label_recursive": "包含子目录",
+    "home_assets_label_dir_structure": "目录结构:",
 
     "home_history_title": "📤 历史输出归档",
     "home_history_btn_open": "📂 打开文件夹",
@@ -32,9 +33,9 @@
     "home_control_title": "⚙️ 控制和提示词",
     "home_control_btn_removeFromSelected": "🗑️ 移除选中",
     "home_control_gallery_selected_label": "已选图片",
-    "home_control_prompt_title": "#### 📝 提示词 (Prompt)",
+    "home_control_prompt_title": "📝 提示词 (Prompt)",
     "home_control_prompt_placeholder": "---",
-    "home_control_prompt_label_history": "📚 历史 Prompt",
+    "home_control_prompt_label_history": "📚 已保存提示词",
     "home_control_prompt_btn_load": "📂 加载",
     "home_control_prompt_btn_delete": "❌ 删除",
     "home_control_prompt_input_placeholder": "输入 Prompt...",
@@ -45,15 +46,17 @@
     "home_control_model_label": "模型",
     "home_control_ratio_label": "比例",
     "home_control_resolution_label": "分辨率",
+    "home_control_retry_label": "最大重试次数",
     "home_control_btn_send": "生成 / 编辑",
     "home_control_btn_queue": "加入队列",
+    "home_control_btn_interrupt": "中断当前任务",
     "home_control_btn_retry": "🔄 重试",
     "home_control_log_label": "执行日志",
 
     "home_preview_title": "🖼️ 结果预览",
     "home_preview_label_result": "结果预览",
     "home_preview_btn_download_placeholder": "下载",
-    
+
     "chat_title": "🤖 多模态聊天",
     "chat_chatbot_label": "对话历史",
     "chat_input_label": "发送消息",
@@ -82,6 +85,7 @@
     "queue_col_started": "开始时间/耗时",
     "queue_col_actions": "操作",
     "queue_btn_cancel_tooltip": "取消任务",
+    "queue_btn_interrupt_tooltip": "中断正在运行的任务",
     "queue_btn_view_tooltip": "查看详情",
     "queue_dialog_title": "任务详情",
     "queue_dialog_prompt_label": "提示词 / 内容:",
@@ -97,10 +101,13 @@
 
     "settings_title": "⚙️ 设置面板",
     "settings_label_apiKey": "Google API Key",
+    "settings_label_refineApiKey": "优化 Agent API Key",
+    "settings_label_refineModel": "优化 Agent 模型",
     "settings_label_savePath": "自动保存路径",
     "settings_btn_pick_savePath": "选择目录",
     "settings_label_prefix": "文件名前缀",
     "settings_label_language": "语言 / Language",
+    "settings_label_max_history": "最大 Prompt 历史数",
     "settings_btn_save": "保存配置",
     "settings_saved_content": "配置已保存",
     "settings_saved_error_content": "配置保存失败",
@@ -168,7 +175,7 @@
     "logic_error_prompts_import_failed": "❌ 导入 Prompts 失败: {error}",
     "logic_warn_noImageToDownload": "没有可供下载的图片。",
     "logic_warn_promptNotSelected": "请选择一个 Prompt。",
-    
+
     "api_log_loadingImgs": "📷 正在加载 {count} 张参考图片...",
     "api_log_skipImg": "⚠️ 跳过损坏图片 {path}: {err}",
     "api_log_requestInfo": "ℹ️ 提交信息: Prompt ({prompt_len}字), 参考图 ({img_count}张)",
@@ -184,5 +191,14 @@
     "api_error_noValidImage": "未找到有效的图片数据",
     "api_error_system": "❌ 系统异常: {err}",
     "api_error_apiKey": "❌ 未配置 API Key",
-    "ar_none": "自动"
+    "ar_none": "自动",
+
+    "logic_log_refiningPrompt": "✨ 正在使用任务优化提示词: {task}",
+    "logic_log_refineIncludeImgs": "ℹ️ 包含 {count} 张图片用于优化。",
+    "logic_log_refineSuccess": "✅ 提示词优化成功。",
+    "logic_log_refineSuccessParts": "✅ 提示词优化成功 (通过 parts)。",
+    "logic_log_refineFail": "❌ 提示词优化失败: {err}",
+    "logic_log_aiRecognizeStart": "🔍 开始 AI 识别: {filename}",
+    "logic_log_aiRecognizeSuccess": "✅ AI 识别成功。",
+    "logic_log_aiRecognizeSuccessParts": "✅ AI 识别成功 (通过 parts)。"
 }

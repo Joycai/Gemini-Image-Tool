@@ -21,6 +21,7 @@
     "home_assets_btn_addToSelected": "➡️ Add to Selected",
     "home_assets_info_ready": "Ready.",
     "home_assets_label_recursive": "Include Sub-directories",
+    "home_assets_label_dir_structure": "Directory Structure:",
 
     "home_history_title": "📤 Output History",
     "home_history_btn_open": "📂 Open Folder",
@@ -32,9 +33,9 @@
     "home_control_title": "⚙️ Control & Prompt",
     "home_control_btn_removeFromSelected": "🗑️ Remove Selected",
     "home_control_gallery_selected_label": "Selected",
-    "home_control_prompt_title": "#### 📝 Prompt",
+    "home_control_prompt_title": "📝 Prompt",
     "home_control_prompt_placeholder": "---",
-    "home_control_prompt_label_history": "📚 History",
+    "home_control_prompt_label_history": "📚 Saved Prompts",
     "home_control_prompt_btn_load": "📂 Load",
     "home_control_prompt_btn_delete": "❌ Del",
     "home_control_prompt_input_placeholder": "Enter Prompt...",
@@ -45,15 +46,17 @@
     "home_control_model_label": "Model",
     "home_control_ratio_label": "Ratio",
     "home_control_resolution_label": "Resolution",
+    "home_control_retry_label": "Max Retries",
     "home_control_btn_send": "Generate / Edit",
     "home_control_btn_queue": "Add to Queue",
+    "home_control_btn_interrupt": "Interrupt Current",
     "home_control_btn_retry": "🔄 Retry",
     "home_control_log_label": "Execution Log",
 
     "home_preview_title": "🖼️ Preview",
     "home_preview_label_result": "Preview",
     "home_preview_btn_download_placeholder": "Download",
-    
+
     "chat_title": "🤖 Multimodal Chat",
     "chat_chatbot_label": "Conversation",
     "chat_input_label": "Send a message",
@@ -82,6 +85,7 @@
     "queue_col_started": "Started/Duration",
     "queue_col_actions": "Actions",
     "queue_btn_cancel_tooltip": "Cancel Job",
+    "queue_btn_interrupt_tooltip": "Interrupt Running Job",
     "queue_btn_view_tooltip": "View Details",
     "queue_dialog_title": "Job Details",
     "queue_dialog_prompt_label": "Prompt / Content:",
@@ -97,10 +101,13 @@
 
     "settings_title": "Settings",
     "settings_label_apiKey": "Google API Key",
+    "settings_label_refineApiKey": "Refine Agent API Key",
+    "settings_label_refineModel": "Refine Agent Model",
     "settings_label_savePath": "Auto Save Path",
     "settings_btn_pick_savePath": "Choose...",
     "settings_label_prefix": "Filename Prefix",
     "settings_label_language": "Language / 语言",
+    "settings_label_max_history": "Max Prompt History",
     "settings_btn_save": "Save Config",
     "settings_saved_content": "Settings have been saved successfully.",
     "settings_saved_error_content": "Failed to save settings:",
@@ -184,5 +191,14 @@
     "api_error_noValidImage": "No valid image data found in response",
     "api_error_system": "❌ System Error: {err}",
     "api_error_apiKey": "❌ API Key not configured",
-    "ar_none": "Auto"
+    "ar_none": "Auto",
+
+    "logic_log_refiningPrompt": "✨ Refining prompt using task: {task}",
+    "logic_log_refineIncludeImgs": "ℹ️ Including {count} images for refinement.",
+    "logic_log_refineSuccess": "✅ Prompt refinement successful.",
+    "logic_log_refineSuccessParts": "✅ Prompt refinement successful (via parts).",
+    "logic_log_refineFail": "❌ Prompt refinement failed: {err}",
+    "logic_log_aiRecognizeStart": "🔍 AI Recognition started for: {filename}",
+    "logic_log_aiRecognizeSuccess": "✅ AI Recognition successful.",
+    "logic_log_aiRecognizeSuccessParts": "✅ AI Recognition successful (via parts)."
 }

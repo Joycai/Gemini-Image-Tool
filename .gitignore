@@ -5,6 +5,7 @@
 /dist/
 /tmp
 /.idea/
+/docs/
 *.spec
 credentials.json
 G-AI-edit.iml

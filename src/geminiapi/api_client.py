@@ -1,3 +1,4 @@
+import os
 import time
 from io import BytesIO
 from typing import List, Any, Optional, Dict
@@ -8,8 +9,9 @@ from google.genai import types
 from google.genai.chats import Chat
 from google.genai.types import PIL_Image
 
-from common import logger_utils, i18n
+from common import logger_utils, i18n, database as db
 from common.config import MODEL_SELECTOR_DEFAULT
+from common.prompts import REFINE_TASKS
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {
@@ -65,7 +67,7 @@ def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
                     logger_utils.log(i18n.get("api_log_receivedImgSdk"))
                     return g_img._pil_image  # pylint: disable=protected-access
             except Exception:  # pylint: disable=broad-exception-caught
-                # 尝试从 as_image() 转换失败，继续检查其他类型
+                # 尝试从 as_image() 轉換失敗，继续检查其他类型
                 pass
 
         if hasattr(part, 'text') and part.text:
@@ -80,7 +82,8 @@ def call_google_genai(
         api_key: str,
         model_id: str,
         aspect_ratio: str,
-        resolution: str
+        resolution: str,
+        max_retries: int = 3
 ) -> Image.Image | None:
     if not api_key:
         msg = i18n.get("api_error_apiKey")
@@ -100,6 +103,7 @@ def call_google_genai(
         for path in image_paths:
             try:
                 img = Image.open(path)
+                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
                 contents.append(img)
             except (IOError, OSError) as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
@@ -111,7 +115,6 @@ def call_google_genai(
 
     config = _get_model_config(model_id, aspect_ratio, resolution)
 
-    max_retries = 3
     last_exception: Optional[Exception] = None
 
     for attempt in range(max_retries):
@@ -130,18 +133,6 @@ def call_google_genai(
                 logger_utils.log(i18n.get("api_log_tokenUsage", input=getattr(u, "prompt_token_count", 0),
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
-
-            """
-            GenerateContentResponse(
-              automatic_function_calling_history=[],
-              candidates=[
-                Candidate(
-                  content=Content(),
-                  finish_reason=<FinishReason.PROHIBITED_CONTENT: 'PROHIBITED_CONTENT'>,
-                  index=0
-                ),
-              ],
-            """
 
             if not response.parts:
                 if response.candidates and response.candidates[0]:
@@ -175,7 +166,8 @@ def call_google_chat(
         prompt_parts: List[Any],
         model_id: str,
         aspect_ratio: str,
-        resolution: str
+        resolution: str,
+        max_retries: int = 3
 ) -> Optional[tuple[Chat, List[Any]]]:
     if genai_client is None:
         msg = i18n.get("api_error_apiKey")
@@ -212,7 +204,6 @@ def call_google_chat(
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
     logger_utils.log(f"💬 Sending message to chat | Model: {model_id} | AR: {ar_log_val} | Res: {resolution}")
 
-    max_retries = 3
     last_exception: Optional[Exception] = None
 
     for attempt in range(max_retries):
@@ -260,3 +251,109 @@ def call_google_chat(
     sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
     logger_utils.log(sys_err_msg)
     return None
+
+
+def refine_prompt(
+        user_prompt: str,
+        api_key: str,
+        model_id: str,
+        task_type: str = "cosplay_photo",
+        image_paths: Optional[List[str]] = None
+) -> str:
+    """Uses Gemini to refine and expand a simple image generation prompt based on task type."""
+    if not api_key:
+        raise ValueError(i18n.get("api_error_apiKey"))
+
+    logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type))
+    client = genai.Client(api_key=api_key)
+    
+    # Try to get instruction from database first
+    db_task = db.get_refine_task(task_type)
+    if db_task:
+        system_instruction = db_task["system_instruction"]
+    else:
+        # Fallback to hardcoded defaults
+        task_config = REFINE_TASKS.get(task_type, REFINE_TASKS["cosplay_photo"])
+        system_instruction = task_config["system_instruction"]
+    
+    contents = [system_instruction]
+    
+    if image_paths:
+        logger_utils.log(i18n.get("logic_log_refineIncludeImgs", count=len(image_paths)))
+        for path in image_paths:
+            try:
+                img = Image.open(path)
+                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
+                contents.append(img)
+            except Exception as e:
+                logger_utils.log(f"Failed to load image for refinement: {path}, error: {e}")
+
+    contents.append(f"User Idea: {user_prompt}")
+
+    try:
+        response = client.models.generate_content(
+            model=model_id,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT"]
+            )
+        )
+        
+        # Access response.text safely
+        if hasattr(response, "text") and response.text:
+            logger_utils.log(i18n.get("logic_log_refineSuccess"))
+            return response.text.strip()
+        
+        # Fallback: check parts
+        if response.candidates and response.candidates[0].content.parts:
+            text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
+            if text_parts:
+                logger_utils.log(i18n.get("logic_log_refineSuccessParts"))
+                return "".join(text_parts).strip()
+                
+        raise ValueError("API returned empty text during refinement.")
+            
+    except Exception as e:
+        logger_utils.log(i18n.get("logic_log_refineFail", err=str(e)))
+        raise e
+
+def ai_recognize_image(
+        image_path: str,
+        prompt: str,
+        api_key: str,
+        model_id: str
+) -> str:
+    """Uses Gemini to recognize or analyze an image based on a prompt."""
+    if not api_key:
+        raise ValueError(i18n.get("api_error_apiKey"))
+
+    logger_utils.log(i18n.get("logic_log_aiRecognizeStart", filename=os.path.basename(image_path)))
+    client = genai.Client(api_key=api_key)
+    
+    try:
+        img = Image.open(image_path)
+        contents = [img, prompt]
+        
+        response = client.models.generate_content(
+            model=model_id,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT"]
+            )
+        )
+        
+        if hasattr(response, "text") and response.text:
+            logger_utils.log(i18n.get("logic_log_aiRecognizeSuccess"))
+            return response.text.strip()
+        
+        if response.candidates and response.candidates[0].content.parts:
+            text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
+            if text_parts:
+                logger_utils.log(i18n.get("logic_log_aiRecognizeSuccessParts"))
+                return "".join(text_parts).strip()
+                
+        return "API returned empty response."
+            
+    except Exception as e:
+        logger_utils.log(f"❌ AI Recognition failed: {e}")
+        raise e

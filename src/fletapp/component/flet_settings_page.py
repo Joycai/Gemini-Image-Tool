@@ -12,7 +12,7 @@ from flet import Container
 from flet import Page
 
 from common import database as db, i18n, logger_utils
-from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
+from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR, MODEL_SELECTOR_CHOICES, LLM_MODEL_SELECTOR_CHOICES
 from fletapp.component.common_component import show_snackbar
 
 
@@ -33,6 +33,17 @@ def settings_page(page: Page) -> Container:
         label=i18n.get("settings_label_apiKey"),
         password=True,
         can_reveal_password=True)
+    
+    refine_api_key_input = ft.TextField(
+        label=i18n.get("settings_label_refineApiKey", "Refine Agent API Key"),
+        password=True,
+        can_reveal_password=True)
+    
+    refine_model_dropdown = ft.Dropdown(
+        label=i18n.get("settings_label_refineModel", "Refine Agent Model"),
+        options=[ft.dropdown.Option(model) for model in LLM_MODEL_SELECTOR_CHOICES],
+    )
+
     lang_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_language"),
         options=[
@@ -42,14 +53,23 @@ def settings_page(page: Page) -> Container:
     )
     save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
     file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
+    
+    max_history_input = ft.TextField(
+        label=i18n.get("settings_label_max_history", "Max Prompt History"),
+        value="20",
+        keyboard_type=ft.KeyboardType.NUMBER
+    )
 
     # --- Save Settings Logic ---
     def save_settings_handler(e):
         try:
             db.save_setting("api_key", api_key_input.value or "")
+            db.save_setting("refine_api_key", refine_api_key_input.value or "")
+            db.save_setting("refine_model_id", refine_model_dropdown.value or "gemini-2.0-flash")
             db.save_setting("save_path", save_path_input.value or "outputs")
             db.save_setting("file_prefix", file_prefix_input.value or "gemini_gen")
             db.save_setting("language", lang_dropdown.value or "en")
+            db.save_setting("max_history_len", max_history_input.value or "20")
             show_snackbar(page, i18n.get("settings_saved_content", "Settings have been saved successfully."))
         except Exception as ex:
             show_snackbar(page, f"{i18n.get('settings_saved_error_content', 'Failed to save settings:')} {ex}",
@@ -206,9 +226,12 @@ def settings_page(page: Page) -> Container:
     def load_initial_settings():
         settings = db.get_all_settings()
         api_key_input.value = settings.get("api_key", "")
+        refine_api_key_input.value = settings.get("refine_api_key", "")
+        refine_model_dropdown.value = settings.get("refine_model_id", "gemini-2.0-flash")
         save_path_input.value = settings.get("save_path", "outputs")
         file_prefix_input.value = settings.get("file_prefix", "gemini_gen")
         lang_dropdown.value = settings.get("language", "en")
+        max_history_input.value = settings.get("max_history_len", "20")
         page.update()
 
     threading.Timer(0.1, load_initial_settings).start()
@@ -218,9 +241,19 @@ def settings_page(page: Page) -> Container:
             [
                 ft.Text(i18n.get("settings_title"), size=24, weight=ft.FontWeight.BOLD),
                 lang_dropdown,
+                ft.Divider(),
+                ft.Text("General API Settings", size=18, weight=ft.FontWeight.BOLD),
                 ft.Row(controls=[api_key_input, ft.Container(expand=True)]),
+                ft.Divider(),
+                ft.Text("Refine Agent Settings", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row(controls=[refine_api_key_input, ft.Container(expand=True)]),
+                refine_model_dropdown,
+                ft.Divider(),
+                ft.Text("Output Settings", size=18, weight=ft.FontWeight.BOLD),
                 file_prefix_input,
                 ft.Row([save_path_input, pick_output_directory_btn]),
+                max_history_input,
+                ft.Divider(),
                 save_button,
                 ft.Divider(),
                 ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18,

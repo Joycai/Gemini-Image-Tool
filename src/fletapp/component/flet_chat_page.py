@@ -103,6 +103,49 @@ def chat_page(page: Page) -> Dict[str, Any]:
     prompt_title_input = ft.TextField(label=i18n.get("home_control_prompt_save_label"),
                                       hint_text=i18n.get("home_control_prompt_save_placeholder"), expand=True)
 
+    # --- Refine Agent Logic ---
+    refine_progress = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False)
+    
+    async def refine_prompt_handler(e):
+        if not user_input.value:
+            show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
+            return
+        
+        settings = db.get_all_settings()
+        api_key = settings.get("refine_api_key") or settings.get("api_key")
+        model_id = settings.get("refine_model_id", "gemini-2.0-flash")
+        
+        if not api_key:
+            show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
+            return
+
+        refine_button.disabled = True
+        refine_progress.visible = True
+        page.update()
+
+        try:
+            refined_text = await asyncio.to_thread(
+                api_client.refine_prompt,
+                user_prompt=user_input.value,
+                api_key=api_key,
+                model_id=model_id
+            )
+            user_input.value = refined_text
+            show_snackbar(page, "Prompt refined successfully!")
+        except Exception as ex:
+            show_snackbar(page, f"Refinement failed: {ex}", is_error=True)
+        finally:
+            refine_button.disabled = False
+            refine_progress.visible = False
+            page.update()
+
+    refine_button = ft.IconButton(
+        icon=ft.Icons.AUTO_FIX_HIGH,
+        tooltip="Refine Prompt with AI",
+        on_click=refine_prompt_handler,
+        icon_color=ft.Colors.AMBER_600
+    )
+
     # --- Functions ---
 
     def refresh_prompts_dropdown():
@@ -335,7 +378,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                 ], expand=2),
             ]),
             thumbnail_row,
-            ft.Row([user_input, upload_button, ft.Stack([send_button, ft.Container(progress_ring, margin=ft.margin.only(left=12, top=12))])], vertical_alignment=ft.CrossAxisAlignment.START),
+            ft.Row([user_input, refine_button, refine_progress, upload_button, ft.Stack([send_button, ft.Container(progress_ring, margin=ft.margin.only(left=12, top=12))])], vertical_alignment=ft.CrossAxisAlignment.START),
             ft.Row([clear_button])
         ]),
         padding=ft.padding.all(10),
