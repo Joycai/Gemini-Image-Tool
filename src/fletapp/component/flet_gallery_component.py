@@ -8,6 +8,7 @@ from flet import Container, BoxFit, Alignment, Page
 
 from common import database as db, i18n
 from common.config import VALID_IMAGE_EXTENSIONS
+from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
 
 
@@ -79,6 +80,15 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
         height=30,
     )
 
+    def delete_image(image_path):
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                load_images_from_selected_directories()
+                show_snackbar(page, i18n.get("logic_info_deleteSuccess", "Image Deleted"))
+        except Exception as ex:
+            show_snackbar(page, f"Error: {ex}", is_error=True)
+
     def load_images_from_selected_directories():
         image_gallery.controls.clear()
         
@@ -100,6 +110,41 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                 if on_image_select:
                     on_image_select(p)
 
+            # Use a closure to capture the current 'path' value correctly
+            def create_context_menu_handler(current_path):
+                def _show_context_menu(e):
+                    def _handle_delete(ev):
+                        page.pop_dialog()
+                        delete_image(current_path)
+                    
+                    def _handle_preview(ev):
+                        page.pop_dialog()
+                        open_image_preview(None, current_path)
+
+                    page.show_dialog(
+                        ft.AlertDialog(
+                            title=ft.Text(os.path.basename(current_path)),
+                            content=ft.Column([
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.PREVIEW),
+                                    title=ft.Text(i18n.get("dialog_title_image_preview", "Preview")),
+                                    on_click=_handle_preview
+                                ),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.DELETE_OUTLINE, color=ft.Colors.RED_400),
+                                    title=ft.Text(i18n.get("dialog_btn_delete", "Delete")),
+                                    on_click=_handle_delete
+                                ),
+                            ], tight=True),
+                            actions=[
+                                ft.TextButton(i18n.get("dialog_btn_close", "Close"), on_click=lambda _: page.pop_dialog())
+                            ]
+                        )
+                    )
+                return _show_context_menu
+
+            context_menu_handler = create_context_menu_handler(path)
+
             image_gallery.controls.append(
                 ft.GestureDetector(
                     content=ft.Container(
@@ -114,7 +159,9 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
                         alignment=Alignment.CENTER,
                     ),
                     on_double_tap=lambda e, p=path: open_image_preview(e, p),
-                    on_tap=_on_tap
+                    on_tap=_on_tap,
+                    on_secondary_tap=context_menu_handler,
+                    on_long_press=context_menu_handler,
                 )
             )
         try:
