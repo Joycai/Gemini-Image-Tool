@@ -251,7 +251,7 @@ def _execute_multimodal_request(
             elif hasattr(delta, 'reasoning_content'):
                 logger_utils.log(delta.reasoning_content)
 
-    logger_utils.log("\n传输完成！")
+    logger_utils.log("传输完成！")
     return full_content_data, full_image_data, final_usage
 
 

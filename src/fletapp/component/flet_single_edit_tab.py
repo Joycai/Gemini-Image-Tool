@@ -425,8 +425,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 content=api_response_image, 
                 border=ft.border.all(1, ft.Colors.GREY_400),
                 border_radius=10, 
-                padding=5, 
-                expand=True
+                padding=5
             ),
             ft.Button(
                 content=i18n.get("home_preview_btn_download_placeholder"),
@@ -445,7 +444,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             border=ft.border.all(1, ft.Colors.GREY_400),
             border_radius=5,
             padding=10,
-            height=120,
+            height=180,
         )
     ], horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 

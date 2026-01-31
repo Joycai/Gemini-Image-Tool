@@ -6,6 +6,7 @@ from typing import List, Any, Optional, Dict
 from PIL import Image
 from google import genai
 from google.genai import types
+from google.genai.errors import ClientError
 from google.genai.chats import Chat
 from google.genai.types import PIL_Image
 
@@ -140,6 +141,13 @@ def call_google_genai(
         except Exception as e:  # pylint: disable=broad-exception-caught
             last_exception = e
             if "401" in str(e) or "403" in str(e):
+                break
+            if isinstance(e, ClientError):
+                error_details = e.details["error"]
+                error_code = error_details["code"]
+                error_status = error_details["status"]
+                error_message = error_details["message"]
+                last_exception=ValueError(f"Gemini API error: {error_code} - {error_status} \n{error_message}")
                 break
             time.sleep(2 * (attempt + 1))
             continue
