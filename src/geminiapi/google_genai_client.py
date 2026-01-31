@@ -6,8 +6,8 @@ from typing import List, Any, Optional, Dict
 from PIL import Image
 from google import genai
 from google.genai import types
-from google.genai.errors import ClientError
 from google.genai.chats import Chat
+from google.genai.errors import ClientError
 from google.genai.types import PIL_Image
 
 from common import logger_utils, i18n, database as db
@@ -64,6 +64,103 @@ def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
     raise ValueError(i18n.get("api_error_noValidImage"))
 
 
+def _build_contents(
+        prompt: Optional[str] = None,
+        image_paths: Optional[List[str]] = None,
+        system_instruction: Optional[str] = None
+) -> List[Any]:
+    """Builds the contents list for GenAI API calls."""
+    contents: List[Any] = []
+
+    if system_instruction:
+        contents.append(system_instruction)
+
+    if prompt:
+        contents.append(prompt)
+
+    if image_paths:
+        logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
+        for path in image_paths:
+            try:
+                img = Image.open(path)
+                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
+                contents.append(img)
+            except (IOError, OSError) as e:
+                logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
+
+    return contents
+
+
+def _execute_genai_call(
+        call_func,
+        model_id: str,
+        max_retries: int = 3,
+        *args,
+        **kwargs
+) -> Any:
+    """Executes a GenAI API call with retries and common error/response handling."""
+    last_exception: Optional[Exception] = None
+
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                logger_utils.log(i18n.get("api_log_networkRetry", attempt=attempt + 1, max_retries=max_retries))
+
+            response = call_func(*args, **kwargs)
+            # Log token usage
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                u = response.usage_metadata
+                p_tokens = getattr(u, "prompt_token_count", 0)
+                c_tokens = getattr(u, "candidates_token_count", 0)
+                t_tokens = getattr(u, "total_token_count", 0)
+                logger_utils.log(i18n.get("api_log_tokenUsage", input=p_tokens, output=c_tokens, total=t_tokens))
+                db.add_token_usage(model_id, p_tokens, c_tokens)
+
+            # Check for blocked content or empty parts
+            if not response.parts:
+                if hasattr(response, "candidates") and response.candidates and response.candidates[0]:
+                    cand = response.candidates[0]
+                    if hasattr(cand, "finish_reason") and cand.finish_reason:
+                        reason = cand.finish_reason.name if hasattr(cand.finish_reason, "name") else str(
+                            cand.finish_reason)
+                        logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
+                        raise ValueError(f"Request was blocked due to: {reason}")
+
+                if hasattr(response,
+                           "prompt_feedback") and response.prompt_feedback and response.prompt_feedback.block_reason:
+                    reason = response.prompt_feedback.block_reason.name
+                    logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
+                    raise ValueError(f"Request was blocked due to: {reason}")
+
+                raise ValueError(i18n.get("api_error_noParts"))
+
+            return response
+
+        except Exception as e:
+            last_exception = e
+            err_str = str(e)
+
+            # Non-retryable errors
+            if any(code in err_str for code in ["401", "403"]) or "client has been closed" in err_str:
+                break
+
+            if isinstance(e, ClientError):
+                try:
+                    details = e.details["error"]
+                    last_exception = ValueError(
+                        f"Gemini API error: {details['code']} - {details['status']} \n{details['message']}")
+                except (KeyError, TypeError):
+                    pass
+                break
+
+            if attempt < max_retries - 1:
+                time.sleep(2 * (attempt + 1))
+            else:
+                break
+
+    raise last_exception
+
+
 def call_google_genai(
         prompt: Optional[str],
         image_paths: List[str],
@@ -83,19 +180,7 @@ def call_google_genai(
         model_id = MODEL_SELECTOR_DEFAULT
 
     client = genai.Client(api_key=api_key)
-    contents: List[Any] = []
-    if prompt:
-        contents.append(prompt)
-        
-    if image_paths:
-        logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
-        for path in image_paths:
-            try:
-                img = Image.open(path)
-                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
-                contents.append(img)
-            except (IOError, OSError) as e:
-                logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
+    contents = _build_contents(prompt=prompt, image_paths=image_paths)
 
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
     prompt_len = len(prompt) if prompt else 0
@@ -104,57 +189,20 @@ def call_google_genai(
 
     config = _get_model_config(model_id, aspect_ratio, resolution)
 
-    last_exception: Optional[Exception] = None
-
-    for attempt in range(max_retries):
-        try:
-            if attempt > 0:
-                logger_utils.log(i18n.get("api_log_networkRetry", attempt=attempt + 1, max_retries=max_retries))
-
-            response = client.models.generate_content(
-                model=model_id,
-                contents=contents,
-                config=config
-            )
-
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
-                u = response.usage_metadata
-                logger_utils.log(i18n.get("api_log_tokenUsage", input=getattr(u, "prompt_token_count", 0),
-                                          output=getattr(u, "candidates_token_count", 0),
-                                          total=getattr(u, "total_token_count", 0)))
-                db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
-
-            if not response.parts:
-                if response.candidates and response.candidates[0]:
-                    first_candidate = response.candidates[0]
-                    finish_reason = first_candidate.finish_reason.value
-                    logger_utils.log(i18n.get("api_log_gemini_api_error", reason=finish_reason))
-                    raise ValueError(f"Request was blocked due to: {finish_reason}")
-                if response.prompt_feedback and response.prompt_feedback.block_reason:
-                    reason = response.prompt_feedback.block_reason.name
-                    logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
-                    raise ValueError(f"Request was blocked due to: {reason}")
-                raise ValueError(i18n.get("api_error_noParts"))
-
-            return _process_response_parts(response.parts)
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            last_exception = e
-            if "401" in str(e) or "403" in str(e):
-                break
-            if isinstance(e, ClientError):
-                error_details = e.details["error"]
-                error_code = error_details["code"]
-                error_status = error_details["status"]
-                error_message = error_details["message"]
-                last_exception=ValueError(f"Gemini API error: {error_code} - {error_status} \n{error_message}")
-                break
-            time.sleep(2 * (attempt + 1))
-            continue
-
-    sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
-    logger_utils.log(sys_err_msg)
-    return None
+    try:
+        response = _execute_genai_call(
+            client.models.generate_content,
+            model_id,
+            max_retries,
+            model=model_id,
+            contents=contents,
+            config=config
+        )
+        return _process_response_parts(response.parts)
+    except Exception as e:
+        sys_err_msg = i18n.get("api_error_system", err=str(e))
+        logger_utils.log(sys_err_msg)
+        return None
 
 
 def call_google_chat(
@@ -202,54 +250,32 @@ def call_google_chat(
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
     logger_utils.log(i18n.get("api_log_chatRequestSent", model=model_id, ar=ar_log_val, res=resolution))
 
-    last_exception: Optional[Exception] = None
+    try:
+        response = _execute_genai_call(
+            chat_session.send_message,
+            model_id,
+            max_retries,
+            prompt_parts,
+            config=gen_config
+        )
 
-    for attempt in range(max_retries):
-        try:
-            if attempt > 0:
-                logger_utils.log(i18n.get("api_log_networkRetry", attempt=attempt + 1, max_retries=max_retries))
+        response_parts_list: List[Any] = []
+        for part in response.parts:
+            if part.text is not None:
+                response_parts_list.append(part.text)
+            elif image := part.as_image():
+                response_parts_list.append(image)
 
-            response = chat_session.send_message(
-                prompt_parts,
-                config=gen_config
-            )
+        if not response_parts_list:
+            raise ValueError(i18n.get("api_error_noValidImage"))
 
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
-                u = response.usage_metadata
-                logger_utils.log(i18n.get("api_log_tokenUsage", input=u.prompt_token_count,
-                                          output=u.candidates_token_count,
-                                          total=u.total_token_count))
-                db.add_token_usage(model_id, u.prompt_token_count, u.candidates_token_count)
+        logger_utils.log(i18n.get("api_log_chatReceivedParts", count=len(response_parts_list)))
+        return chat_session, response_parts_list
 
-            if not response.parts:
-                if response.prompt_feedback and response.prompt_feedback.block_reason:
-                    reason = response.prompt_feedback.block_reason.name
-                    raise ValueError(f"Request was blocked due to: {reason}")
-                raise ValueError(i18n.get("api_error_noParts"))
-
-            response_parts_list: List[Any] = []
-            for part in response.parts:
-                if part.text is not None:
-                    response_parts_list.append(part.text)
-                elif image := part.as_image():
-                    response_parts_list.append(image)
-
-            if not response_parts_list:
-                raise ValueError(i18n.get("api_error_noValidImage"))
-
-            logger_utils.log(i18n.get("api_log_chatReceivedParts", count=len(response_parts_list)))
-            return chat_session, response_parts_list
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            last_exception = e
-            if "401" in str(e) or "403" in str(e) or "client has been closed" in str(e):
-                break
-            time.sleep(2 * (attempt + 1))
-            continue
-
-    sys_err_msg = i18n.get("api_error_system", err=str(last_exception))
-    logger_utils.log(sys_err_msg)
-    return None
+    except Exception as e:
+        sys_err_msg = i18n.get("api_error_system", err=str(e))
+        logger_utils.log(sys_err_msg)
+        return None
 
 
 def refine_prompt(
@@ -260,8 +286,8 @@ def refine_prompt(
         image_paths: Optional[List[str]] = None
 ) -> str:
     """Uses Google GenAI to refine and expand a simple image generation prompt."""
-    logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type))
-    
+    logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type) + " model: " + model_id)
+
     if not api_key:
         raise ValueError(i18n.get("api_error_apiKey"))
 
@@ -274,64 +300,36 @@ def refine_prompt(
         system_instruction = task_config["system_instruction"]
 
     client = genai.Client(api_key=api_key)
-    contents = [system_instruction]
-    
-    if image_paths:
-        logger_utils.log(i18n.get("logic_log_refineIncludeImgs", count=len(image_paths)))
-        for path in image_paths:
-            try:
-                img = Image.open(path)
-                contents.append(f"Reference Image Filename: {os.path.basename(path)}")
-                contents.append(img)
-            except Exception as e:
-                logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
-
-    contents.append(f"User Idea: {user_prompt}")
+    contents = _build_contents(
+        prompt=f"User Idea: {user_prompt}",
+        image_paths=image_paths,
+        system_instruction=system_instruction
+    )
 
     try:
-        response = client.models.generate_content(
+        response = _execute_genai_call(
+            client.models.generate_content,
+            model_id,
+            3,
             model=model_id,
             contents=contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["TEXT"]
-            )
+            config=types.GenerateContentConfig(response_modalities=["TEXT"])
         )
-        
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            u = response.usage_metadata
-            db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
-
-        if not response.parts:
-            # Check for block reason in prompt_feedback
-            if response.prompt_feedback and response.prompt_feedback.block_reason:
-                reason = response.prompt_feedback.block_reason.name
-                logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
-                raise ValueError(f"Refinement was blocked due to: {reason}")
-            
-            # Check for finish reason in candidates
-            if response.candidates and response.candidates[0]:
-                first_candidate = response.candidates[0]
-                if first_candidate.finish_reason:
-                    finish_reason = first_candidate.finish_reason.value
-                    logger_utils.log(i18n.get("api_log_gemini_api_error", reason=finish_reason))
-                    raise ValueError(f"Refinement was blocked due to: {finish_reason}")
-            
-            raise ValueError(i18n.get("api_error_noParts"))
 
         # Access response.text safely
         if hasattr(response, "text") and response.text:
             logger_utils.log(i18n.get("logic_log_refineSuccess"))
             return response.text.strip()
-        
+
         # Fallback: check parts
         if response.candidates and response.candidates[0].content.parts:
             text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
             if text_parts:
                 logger_utils.log(i18n.get("logic_log_refineSuccessParts"))
                 return "".join(text_parts).strip()
-                
+
         raise ValueError(i18n.get("api_error_noParts"))
-            
+
     except Exception as e:
         logger_utils.log(i18n.get("logic_log_refineFail", err=str(e)))
         raise e
