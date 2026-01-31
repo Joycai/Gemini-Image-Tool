@@ -36,30 +36,34 @@ def init_db(conn):
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     # 6. Models table
     c.execute('''CREATE TABLE IF NOT EXISTS models
-                 (id TEXT, series TEXT, type TEXT, display_name TEXT, order_id INTEGER,
+                 (id TEXT, series TEXT, tags TEXT, display_name TEXT, is_paid INTEGER DEFAULT 0, order_id INTEGER,
                   PRIMARY KEY (id, series))''')
     
-    # Add default settings if needed
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("save_path", "outputs"))
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("file_prefix", "gemini_gen"))
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-3-flash-preview"))
+    # Add default settings
+    default_settings = [
+        ("language", "en"),
+        ("save_path", "outputs"),
+        ("file_prefix", "gemini_gen"),
+        ("max_history_len", "20"),
+        ("refine_model_id", "gemini-1.5-flash"),
+        ("recognition_model_id", "gemini-1.5-flash"),
+        ("google_use_paid_for_all", "0"),
+        ("openai_base_url", "https://api.openai.com/v1")
+    ]
+    c.executemany("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", default_settings)
     
     # Add default models
+    # Tags: Image, Chat
     default_models = [
-        ("gemini-2.5-flash-image", "google-genai", "image", "Gemini 2.5 Flash Image", 0),
-        ("gemini-3-pro-image-preview", "google-genai", "image", "Gemini 3 Pro Image Preview", 1),
-        ("gemini-3-flash-preview", "google-genai", "chat", "Gemini 3 Flash Preview", 2),
-        ("gemini-2.5-pro", "google-genai", "chat", "Gemini 2.5 Pro", 3),
-        ("gemini-2.5-flash", "google-genai", "chat", "Gemini 2.5 Flash", 4),
-        ("gpt-4o", "openai", "chat", "GPT-4o", 5),
-        ("gpt-4o-mini", "openai", "chat", "GPT-4o Mini", 6),
-        ("o1-preview", "openai", "chat", "o1 Preview", 7),
-        ("o1-mini", "openai", "chat", "o1 Mini", 8),
-        ("dall-e-3", "openai", "image", "DALL-E 3", 9)
+        ("gemini-2.0-flash-exp", "google-genai", "Image,Chat", "Gemini 2.0 Flash Exp", 0, 0),
+        ("gemini-1.5-flash", "google-genai", "Chat", "Gemini 1.5 Flash", 0, 1),
+        ("gemini-1.5-pro", "google-genai", "Chat", "Gemini 1.5 Pro", 1, 2),
+        ("imagen-3", "google-genai", "Image", "Imagen 3", 1, 3),
+        ("gpt-4o", "openai", "Chat", "GPT-4o", 1, 4),
+        ("gpt-4o-mini", "openai", "Chat", "GPT-4o Mini", 0, 5),
+        ("dall-e-3", "openai", "Image", "DALL-E 3", 1, 6)
     ]
-    c.executemany("INSERT OR IGNORE INTO models (id, series, type, display_name, order_id) VALUES (?, ?, ?, ?, ?)", default_models)
+    c.executemany("INSERT OR IGNORE INTO models (id, series, tags, display_name, is_paid, order_id) VALUES (?, ?, ?, ?, ?, ?)", default_models)
 
     # Add default refine tasks
     default_tasks = [
@@ -80,7 +84,7 @@ def migrate_db(conn):
     """Migrates the database schema to the latest version."""
     c = conn.cursor()
     
-    # Check for order_id in prompts
+    # 1. Check for order_id in prompts
     c.execute("PRAGMA table_info(prompts)")
     columns = [row[1] for row in c.fetchall()]
     if "order_id" not in columns:
@@ -92,7 +96,7 @@ def migrate_db(conn):
             c.execute("UPDATE prompts SET order_id = ? WHERE title = ?", (i, title))
         conn.commit()
 
-    # Check for prompt_history table
+    # 2. Check for prompt_history table
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prompt_history'")
     if not c.fetchone():
         logger_utils.log("Migrating database: Creating prompt_history table.")
@@ -100,23 +104,16 @@ def migrate_db(conn):
                      (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
         conn.commit()
 
-    # Check for refine_tasks table
+    # 3. Check for refine_tasks table
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='refine_tasks'")
     if not c.fetchone():
         logger_utils.log("Migrating database: Creating refine_tasks table.")
         c.execute('''CREATE TABLE refine_tasks
                      (id TEXT PRIMARY KEY, name TEXT, name_zh TEXT, system_instruction TEXT, order_id INTEGER)''')
         conn.commit()
-        # Re-run init to add defaults
         init_db(conn)
-    else:
-        # Check if swap_clothes exists
-        c.execute("SELECT id FROM refine_tasks WHERE id='swap_clothes'")
-        if not c.fetchone():
-            logger_utils.log("Migrating database: Adding 'swap_clothes' task.")
-            init_db(conn)
 
-    # Check for token_usage table
+    # 4. Check for token_usage table
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='token_usage'")
     if not c.fetchone():
         logger_utils.log("Migrating database: Creating token_usage table.")
@@ -129,39 +126,65 @@ def migrate_db(conn):
                       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
         conn.commit()
 
-    # Check for models table
+    # 5. Check for models table and its schema
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
     if not c.fetchone():
         logger_utils.log("Migrating database: Creating models table.")
         c.execute('''CREATE TABLE models
-                     (id TEXT, series TEXT, type TEXT, display_name TEXT, order_id INTEGER,
+                     (id TEXT, series TEXT, tags TEXT, display_name TEXT, is_paid INTEGER DEFAULT 0, order_id INTEGER,
                       PRIMARY KEY (id, series))''')
         conn.commit()
         init_db(conn)
     else:
-        # Check if primary key is correct (id, series)
         c.execute("PRAGMA table_info(models)")
-        pk_columns = [row[1] for row in c.fetchall() if row[5] > 0]
-        if len(pk_columns) < 2:
-            logger_utils.log("Migrating database: Updating models table primary key.")
-            # SQLite doesn't support ALTER TABLE to change PK, need to recreate
-            c.execute("CREATE TABLE models_new (id TEXT, series TEXT, type TEXT, display_name TEXT, order_id INTEGER, PRIMARY KEY (id, series))")
-            c.execute("INSERT INTO models_new SELECT id, series, type, display_name, order_id FROM models")
+        cols = {row[1]: row for row in c.fetchall()}
+        
+        needs_recreate = False
+        if "type" in cols:
+            needs_recreate = True
+        if "tags" not in cols:
+            needs_recreate = True
+        if "is_paid" not in cols:
+            needs_recreate = True
+
+        if needs_recreate:
+            logger_utils.log("Migrating database: Updating models table schema (type -> tags, adding is_paid).")
+            # SQLite recreation pattern
+            c.execute("CREATE TABLE models_new (id TEXT, series TEXT, tags TEXT, display_name TEXT, is_paid INTEGER DEFAULT 0, order_id INTEGER, PRIMARY KEY (id, series))")
+            
+            # Try to migrate data from old table
+            c.execute("SELECT * FROM models")
+            old_rows = c.fetchall()
+            # Map old columns to new ones. Old schema was (id, series, type, display_name, order_id)
+            # New schema is (id, series, tags, display_name, is_paid, order_id)
+            for row in old_rows:
+                m_id, m_series, m_type, m_display, m_order = row
+                # Convert type to tag (capitalize first letter)
+                m_tag = m_type.capitalize() if m_type else "Chat"
+                # Default is_paid based on some heuristics or just 0
+                m_paid = 1 if "pro" in m_id.lower() or "dall-e" in m_id.lower() or "gpt-4" in m_id.lower() else 0
+                c.execute("INSERT INTO models_new (id, series, tags, display_name, is_paid, order_id) VALUES (?, ?, ?, ?, ?, ?)",
+                          (m_id, m_series, m_tag, m_display, m_paid, m_order))
+            
             c.execute("DROP TABLE models")
             c.execute("ALTER TABLE models_new RENAME TO models")
             conn.commit()
 
-    # Check for max_history_len setting
-    c.execute("SELECT value FROM settings WHERE key='max_history_len'")
-    if not c.fetchone():
-        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
-        conn.commit()
-
-    # Check for refine settings
-    c.execute("SELECT value FROM settings WHERE key='refine_model_id'")
-    if not c.fetchone():
-        c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-3-flash-preview"))
-        conn.commit()
+    # 6. Check for new settings
+    new_defaults = [
+        ("recognition_model_id", "gemini-1.5-flash"),
+        ("google_use_paid_for_all", "0"),
+        ("openai_base_url", "https://api.openai.com/v1")
+    ]
+    for key, val in new_defaults:
+        c.execute("SELECT value FROM settings WHERE key=?", (key,))
+        if not c.fetchone():
+            c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, val))
+    
+    # Handle API key migration if necessary
+    # Current: api_key (google paid), refine_api_key (google free)
+    # We will keep these names but map them in get_all_settings for clarity
+    conn.commit()
 
 
 def ensure_db_exists():
@@ -173,16 +196,13 @@ def ensure_db_exists():
     db_needs_init = not os.path.exists(DB_FILE)
 
     try:
-        # Use os.makedirs to create the full path, including intermediate directories
         os.makedirs(STORAGE_DIR, exist_ok=True)
         conn = get_db_connection()
 
         if db_needs_init:
             logger_utils.log(f"Database file not found at {DB_FILE}. Creating a new one.")
             init_db(conn)
-            logger_utils.log("Database created and initialized successfully.")
         else:
-            # Database exists, check for migrations
             migrate_db(conn)
 
         conn.close()
@@ -207,7 +227,7 @@ def export_all_data():
     c.execute("SELECT id, name, name_zh, system_instruction, order_id FROM refine_tasks ORDER BY order_id")
     refine_tasks = [dict(row) for row in c.fetchall()]
 
-    c.execute("SELECT id, series, type, display_name, order_id FROM models ORDER BY order_id")
+    c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models ORDER BY order_id")
     models = [dict(row) for row in c.fetchall()]
 
     conn.close()
@@ -220,41 +240,33 @@ def import_all_data(data: dict):
     c = conn.cursor()
 
     try:
-        # Start transaction
         c.execute("BEGIN TRANSACTION")
-
-        # Wipe existing data
         c.execute("DELETE FROM settings")
         c.execute("DELETE FROM prompts")
         c.execute("DELETE FROM refine_tasks")
         c.execute("DELETE FROM models")
 
-        # Insert new settings
         settings_to_insert = [(item.get('key'), item.get('value')) for item in data.get("settings", [])]
         c.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", settings_to_insert)
 
-        # Insert new prompts
         prompts_to_insert = []
         for i, item in enumerate(data.get("prompts", [])):
             order_id = item.get('order_id', i)
             prompts_to_insert.append((item.get('title'), item.get('content'), order_id))
         c.executemany("INSERT INTO prompts (title, content, order_id) VALUES (?, ?, ?)", prompts_to_insert)
 
-        # Insert new refine tasks
         refine_tasks_to_insert = []
         for i, item in enumerate(data.get("refine_tasks", [])):
             order_id = item.get('order_id', i)
             refine_tasks_to_insert.append((item.get('id'), item.get('name'), item.get('name_zh'), item.get('system_instruction'), order_id))
         c.executemany("INSERT INTO refine_tasks (id, name, name_zh, system_instruction, order_id) VALUES (?, ?, ?, ?, ?)", refine_tasks_to_insert)
 
-        # Insert new models
         models_to_insert = []
         for i, item in enumerate(data.get("models", [])):
             order_id = item.get('order_id', i)
-            models_to_insert.append((item.get('id'), item.get('series'), item.get('type'), item.get('display_name'), order_id))
-        c.executemany("INSERT INTO models (id, series, type, display_name, order_id) VALUES (?, ?, ?, ?, ?)", models_to_insert)
+            models_to_insert.append((item.get('id'), item.get('series'), item.get('tags'), item.get('display_name'), item.get('is_paid', 0), order_id))
+        c.executemany("INSERT INTO models (id, series, tags, display_name, is_paid, order_id) VALUES (?, ?, ?, ?, ?, ?)", models_to_insert)
 
-        # Commit transaction
         conn.commit()
         logger_utils.log(f"Successfully imported data.")
 
@@ -278,7 +290,6 @@ def clear_all_data():
         c.execute("DELETE FROM token_usage")
         c.execute("DELETE FROM models")
         conn.commit()
-        # After clearing, re-initialize with default values
         init_db(conn)
         logger_utils.log("Successfully cleared all data from the database.")
     except Exception as e:
@@ -306,17 +317,19 @@ def save_setting(key, value):
 
 def get_all_settings():
     return {
-        "api_key": get_setting("api_key", ""),
-        "last_dir": get_setting("last_dir", ""),
+        "google_paid_api_key": get_setting("api_key", ""),
+        "google_free_api_key": get_setting("refine_api_key", ""),
+        "google_use_paid_for_all": get_setting("google_use_paid_for_all", "0") == "1",
+        "openai_api_key": get_setting("openai_api_key", ""),
+        "openai_base_url": get_setting("openai_base_url", "https://api.openai.com/v1"),
+        "refine_model_id": get_setting("refine_model_id", "gemini-1.5-flash"),
+        "recognition_model_id": get_setting("recognition_model_id", "gemini-1.5-flash"),
+        "language": get_setting("language", "en"),
         "save_path": get_setting("save_path", "outputs"),
         "file_prefix": get_setting("file_prefix", "gemini_gen"),
-        "language": get_setting("language", "en"),
         "max_history_len": get_setting("max_history_len", "20"),
+        "last_dir": get_setting("last_dir", ""),
         "last_prompt": get_setting("last_prompt", ""),
-        "refine_api_key": get_setting("refine_api_key", ""),
-        "refine_model_id": get_setting("refine_model_id", "gemini-3-flash-preview"),
-        "openai_api_key": get_setting("openai_api_key", ""),
-        "openai_base_url": get_setting("openai_base_url", "https://api.openai.com/v1")
     }
 
 # --- Prompt related ---
@@ -441,16 +454,18 @@ def get_all_models():
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, series, type, display_name, order_id FROM models ORDER BY order_id")
+    c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models ORDER BY order_id")
     models = [dict(row) for row in c.fetchall()]
     conn.close()
     return models
 
-def get_models_by_type(model_type):
+def get_models_by_tag(tag):
+    """Filters models by a specific tag (e.g., 'Image' or 'Chat')."""
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE type=? ORDER BY order_id", (model_type,))
+    # Use LIKE for comma-separated tags
+    c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models WHERE tags LIKE ? ORDER BY order_id", (f'%{tag}%',))
     models = [dict(row) for row in c.fetchall()]
     conn.close()
     return models
@@ -460,21 +475,21 @@ def get_model(model_id, series=None):
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     if series:
-        c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE id=? AND series=?", (model_id, series))
+        c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models WHERE id=? AND series=?", (model_id, series))
     else:
-        c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE id=?", (model_id,))
+        c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models WHERE id=?", (model_id,))
     row = c.fetchone()
     conn.close()
     return dict(row) if row else None
 
-def save_model(model_id, series, model_type, display_name):
+def save_model(model_id, series, tags, display_name, is_paid=0):
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT MAX(order_id) FROM models")
     max_order = c.fetchone()[0]
     new_order = (max_order or 0) + 1
-    c.execute("INSERT OR REPLACE INTO models (id, series, type, display_name, order_id) VALUES (?, ?, ?, ?, ?)", 
-              (model_id, series, model_type, display_name, new_order))
+    c.execute("INSERT OR REPLACE INTO models (id, series, tags, display_name, is_paid, order_id) VALUES (?, ?, ?, ?, ?, ?)", 
+              (model_id, series, tags, display_name, is_paid, new_order))
     conn.commit()
     conn.close()
 
@@ -491,17 +506,10 @@ def add_prompt_history(content):
         return
     conn = get_db_connection()
     c = conn.cursor()
-    
-    # Insert new history
     c.execute("INSERT INTO prompt_history (content) VALUES (?)", (content,))
-    
-    # Get limit
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
     limit = int(c.fetchone()[0] or 20)
-    
-    # Delete old history exceeding limit
     c.execute("DELETE FROM prompt_history WHERE id NOT IN (SELECT id FROM prompt_history ORDER BY timestamp DESC LIMIT ?)", (limit,))
-    
     conn.commit()
     conn.close()
 

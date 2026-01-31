@@ -8,12 +8,11 @@ from typing import List, Optional, Any
 
 import flet as ft
 from PIL import Image
-from google import genai
 
 from common import logger_utils, database as db, i18n
 from common.config import OUTPUT_DIR
 # 引入模块
-from geminiapi import api_client
+from geminiapi import unified_client
 
 # --- 主生成任务状态 ---
 TASK_STATE = {
@@ -65,11 +64,21 @@ def reset_chat_task_state():
 
 
 # --- 主生成任务 ---
-def _background_worker(prompt, img_paths, key, model, ar, res):
+def _background_worker(prompt, img_paths, model, ar, res):
     try:
         TASK_STATE.update({"status": "running", "ui_updated": False})
         logger_utils.log(i18n.get("logic_log_newTask"))
-        generated_image = api_client.call_google_genai(prompt, img_paths, key, model, ar, res)
+        
+        generated_image = unified_client.generate_image(
+            prompt=prompt,
+            image_paths=img_paths,
+            model_id=model,
+            aspect_ratio=ar,
+            resolution=res
+        )
+
+        if not generated_image:
+            raise ValueError("No image was generated.")
 
         prefix = db.get_setting("file_prefix", "gemini_gen")
         timestamp = int(time.time())
@@ -115,14 +124,14 @@ def _background_worker(prompt, img_paths, key, model, ar, res):
         TASK_STATE["ui_updated"] = False  # Mark for UI update
 
 
-def start_generation_task(prompt: str, img_paths: List[str], key: str, model: str, ar: str, res: str):
+def start_generation_task(prompt: str, img_paths: List[str], model: str, ar: str, res: str):
     if TASK_STATE["status"] == "running":
         if _FLET_PAGE_REF:
             _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(i18n.get("logic_warn_taskRunning")), open=True)
             _FLET_PAGE_REF.update()
         return
     reset_task_state()
-    t = threading.Thread(target=_background_worker, args=(prompt, img_paths, key, model, ar, res))
+    t = threading.Thread(target=_background_worker, args=(prompt, img_paths, model, ar, res))
     t.start()
     if _FLET_PAGE_REF:
         _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(i18n.get("logic_info_taskSubmitted")), open=True)
@@ -130,7 +139,7 @@ def start_generation_task(prompt: str, img_paths: List[str], key: str, model: st
 
 
 # --- 聊天任务 ---
-def _chat_background_worker(genai_client, session_state, chat_input, model, ar, res):
+def _chat_background_worker(session_state, chat_input, model, ar, res):
     try:
         CHAT_TASK_STATE.update({"status": "running", "ui_updated": False})
 
@@ -145,18 +154,29 @@ def _chat_background_worker(genai_client, session_state, chat_input, model, ar, 
         if chat_input.get('text'):
             prompt_parts.append(chat_input['text'])
 
-        updated_chat_obj, response_parts = api_client.call_google_chat(
-            genai_client, session_obj, prompt_parts, model, ar, res
+        # Use unified_client instead of direct provider client
+        result = unified_client.chat_completions(
+            model_id=model,
+            messages=[], # History is handled by session_obj for Gemini, or passed here for OpenAI
+            prompt_parts=prompt_parts,
+            chat_session=session_obj,
+            aspect_ratio=ar,
+            resolution=res
         )
 
-        # 重新打包会话状态字典
-        new_session_state = {"id": session_id, "session_obj": updated_chat_obj}
+        if result:
+            updated_chat_obj, response_parts = result
+            # 重新打包会话状态字典
+            new_session_state = {"id": session_id, "session_obj": updated_chat_obj}
 
-        CHAT_TASK_STATE.update({
-            "status": "success",
-            "response_parts": response_parts,
-            "updated_session": new_session_state
-        })
+            CHAT_TASK_STATE.update({
+                "status": "success",
+                "response_parts": response_parts,
+                "updated_session": new_session_state
+            })
+        else:
+            raise ValueError("Chat API returned no result.")
+
     except Exception as e:  # pylint: disable=broad-exception-caught
         error_msg = str(e)
         logger_utils.log(f"❌ Chat failed: {error_msg}")
@@ -165,14 +185,14 @@ def _chat_background_worker(genai_client, session_state, chat_input, model, ar, 
         CHAT_TASK_STATE["ui_updated"] = False  # Mark for UI update
 
 
-def start_chat_task(chat_input, genai_client, session_state, model, ar, res):
+def start_chat_task(chat_input, session_state, model, ar, res):
     if CHAT_TASK_STATE["status"] == "running":
         if _FLET_PAGE_REF:
             _FLET_PAGE_REF.snack_bar = ft.SnackBar(ft.Text(i18n.get("logic_warn_taskRunning")), open=True)
             _FLET_PAGE_REF.update()
         return
     reset_chat_task_state()
-    t = threading.Thread(target=_chat_background_worker, args=(genai_client, session_state, chat_input, model, ar, res))
+    t = threading.Thread(target=_chat_background_worker, args=(session_state, chat_input, model, ar, res))
     t.start()
 
 
@@ -253,21 +273,9 @@ def restart_app():
     os.execl(python, python, *sys.argv)
 
 
-def create_genai_client(api_key):
-    if not api_key:
-        return None
-    try:
-        return genai.Client(api_key=api_key)
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger_utils.log(f"Failed to create GenAI Client: {e}")
-        return None
-
-
 def init_app_data():
     fresh_settings = db.get_all_settings()
-    api_key = fresh_settings["api_key"]
-    genai_client = create_genai_client(api_key)
-
+    
     logger_utils.log(i18n.get("logic_log_resumingSession"))
 
     # Initial download button state
@@ -284,8 +292,13 @@ def init_app_data():
         }
 
     return (
-        fresh_settings["last_dir"], api_key, genai_client, current_download_btn_props,
-        None,  # restored_image (Flet doesn't need this directly in init)
-        fresh_settings["save_path"], fresh_settings["file_prefix"],
-        fresh_settings["language"], api_key
+        fresh_settings["last_dir"], 
+        fresh_settings["google_paid_api_key"], 
+        None, # genai_client is now handled inside unified_client
+        current_download_btn_props,
+        None,  # restored_image
+        fresh_settings["save_path"], 
+        fresh_settings["file_prefix"],
+        fresh_settings["language"], 
+        fresh_settings["google_paid_api_key"]
     )

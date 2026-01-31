@@ -167,8 +167,9 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     # --- Functions ---
 
     def refresh_models_dropdown():
-        image_models = db.get_models_by_type("image")
-        model_selector_dropdown.options = [ft.dropdown.Option(key=m["id"], text=m["display_name"]) for m in image_models]
+        # Filter by 'Image' tag
+        image_models = db.get_models_by_tag("Image")
+        model_selector_dropdown.options = [ft.dropdown.Option(key=m["id"], text=f"{m['display_name']} ({m['series']})") for m in image_models]
         if image_models and not model_selector_dropdown.value:
             model_selector_dropdown.value = image_models[0]["id"]
         model_selector_dropdown.update()

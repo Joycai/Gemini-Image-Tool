@@ -160,8 +160,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
     # --- Functions ---
 
     def refresh_models_dropdown():
-        chat_models = db.get_models_by_type("chat")
-        model_selector.options = [ft.dropdown.Option(key=m["id"], text=m["display_name"]) for m in chat_models]
+        # Filter by 'Chat' tag
+        chat_models = db.get_models_by_tag("Chat")
+        model_selector.options = [ft.dropdown.Option(key=m["id"], text=f"{m['display_name']} ({m['series']})") for m in chat_models]
         if chat_models and not model_selector.value:
             model_selector.value = chat_models[0]["id"]
         model_selector.update()

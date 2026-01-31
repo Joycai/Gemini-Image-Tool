@@ -12,23 +12,10 @@ from google.genai.types import PIL_Image
 from common import logger_utils, i18n, database as db
 from common.config import MODEL_SELECTOR_DEFAULT
 from common.prompts import REFINE_TASKS
-from geminiapi.openai_client import refine_prompt_openai
-
-# [新增] 模型配置字典，方便未來擴展
-MODEL_CONFIGS = {
-    "default": {
-        "ignore_params": False,
-        "base_config": {"response_modalities": ["IMAGE"]}
-    },
-    "gemini-2.5": {
-        "ignore_params": True,
-        "base_config": {"response_modalities": ["IMAGE"]}
-    }
-}
 
 
 def _get_model_config(model_id: str, aspect_ratio: str, resolution: str) -> types.GenerateContentConfig:
-    """根據模型 ID 返回對應的配置對象"""
+    """Returns the configuration object for Google GenAI models."""
     is_gemini25_model = "gemini-2.5" in model_id
 
     if is_gemini25_model:
@@ -52,7 +39,7 @@ def _get_model_config(model_id: str, aspect_ratio: str, resolution: str) -> type
 
 
 def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
-    """处理 API 响应中的图片部分，提取 PIL.Image 对象"""
+    """Processes image parts in API response and extracts PIL.Image objects."""
     for part in response_parts:
         if part.inline_data and part.inline_data.data:
             logger_utils.log(i18n.get("api_log_receivedImgInline"))
@@ -68,7 +55,6 @@ def _process_response_parts(response_parts: List[Any]) -> Optional['PIL_Image']:
                     logger_utils.log(i18n.get("api_log_receivedImgSdk"))
                     return g_img._pil_image  # pylint: disable=protected-access
             except Exception:  # pylint: disable=broad-exception-caught
-                # 尝试从 as_image() 轉換失敗，继续检查其他类型
                 pass
 
         if hasattr(part, 'text') and part.text:
@@ -86,6 +72,7 @@ def call_google_genai(
         resolution: str,
         max_retries: int = 3
 ) -> Image.Image | None:
+    """Calls Google GenAI Image Generation API."""
     if not api_key:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
@@ -134,7 +121,6 @@ def call_google_genai(
                 logger_utils.log(i18n.get("api_log_tokenUsage", input=getattr(u, "prompt_token_count", 0),
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
-                # Record token usage
                 db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
 
             if not response.parts:
@@ -172,6 +158,7 @@ def call_google_chat(
         resolution: str,
         max_retries: int = 3
 ) -> Optional[tuple[Chat, List[Any]]]:
+    """Calls Google GenAI Chat API."""
     if genai_client is None:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
@@ -224,7 +211,6 @@ def call_google_chat(
                 logger_utils.log(i18n.get("api_log_tokenUsage", input=u.prompt_token_count,
                                           output=u.candidates_token_count,
                                           total=u.total_token_count))
-                # Record token usage
                 db.add_token_usage(model_id, u.prompt_token_count, u.candidates_token_count)
 
             if not response.parts:
@@ -265,44 +251,21 @@ def refine_prompt(
         task_type: str = "cosplay_photo",
         image_paths: Optional[List[str]] = None
 ) -> str:
-    """Uses Gemini or OpenAI to refine and expand a simple image generation prompt based on task type."""
+    """Uses Google GenAI to refine and expand a simple image generation prompt."""
     logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type))
     
+    if not api_key:
+        raise ValueError(i18n.get("api_error_apiKey"))
+
     # Try to get instruction from database first
     db_task = db.get_refine_task(task_type)
     if db_task:
         system_instruction = db_task["system_instruction"]
     else:
-        # Fallback to hardcoded defaults
         task_config = REFINE_TASKS.get(task_type, REFINE_TASKS["cosplay_photo"])
         system_instruction = task_config["system_instruction"]
 
-    # Check if it's an OpenAI model
-    is_openai = any(m in model_id.lower() for m in ["gpt-", "o1-"])
-    
-    if is_openai:
-        openai_api_key = db.get_setting("openai_api_key")
-        if not openai_api_key:
-            openai_api_key = api_key # Fallback to passed key if it might be OpenAI key
-        
-        if not openai_api_key:
-             raise ValueError("OpenAI API Key not configured.")
-
-        openai_base_url = db.get_setting("openai_base_url", "https://api.openai.com/v1")
-        return refine_prompt_openai(
-            user_prompt=user_prompt,
-            api_key=openai_api_key,
-            base_url=openai_base_url,
-            model_id=model_id,
-            system_instruction=system_instruction,
-            image_paths=image_paths
-        )
-
-    if not api_key:
-        raise ValueError(i18n.get("api_error_apiKey"))
-
     client = genai.Client(api_key=api_key)
-    
     contents = [system_instruction]
     
     if image_paths:
@@ -328,8 +291,24 @@ def refine_prompt(
         
         if hasattr(response, "usage_metadata") and response.usage_metadata:
             u = response.usage_metadata
-            # Record token usage
             db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
+
+        if not response.parts:
+            # Check for block reason in prompt_feedback
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                reason = response.prompt_feedback.block_reason.name
+                logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
+                raise ValueError(f"Refinement was blocked due to: {reason}")
+            
+            # Check for finish reason in candidates
+            if response.candidates and response.candidates[0]:
+                first_candidate = response.candidates[0]
+                if first_candidate.finish_reason:
+                    finish_reason = first_candidate.finish_reason.value
+                    logger_utils.log(i18n.get("api_log_gemini_api_error", reason=finish_reason))
+                    raise ValueError(f"Refinement was blocked due to: {finish_reason}")
+            
+            raise ValueError("API returned no parts and no specific block reason.")
 
         # Access response.text safely
         if hasattr(response, "text") and response.text:
@@ -347,50 +326,4 @@ def refine_prompt(
             
     except Exception as e:
         logger_utils.log(i18n.get("logic_log_refineFail", err=str(e)))
-        raise e
-
-def ai_recognize_image(
-        image_path: str,
-        prompt: str,
-        api_key: str,
-        model_id: str
-) -> str:
-    """Uses Gemini to recognize or analyze an image based on a prompt."""
-    if not api_key:
-        raise ValueError(i18n.get("api_error_apiKey"))
-
-    logger_utils.log(i18n.get("logic_log_aiRecognizeStart", filename=os.path.basename(image_path)))
-    client = genai.Client(api_key=api_key)
-    
-    try:
-        img = Image.open(image_path)
-        contents = [img, prompt]
-        
-        response = client.models.generate_content(
-            model=model_id,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["TEXT"]
-            )
-        )
-        
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            u = response.usage_metadata
-            # Record token usage
-            db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
-
-        if hasattr(response, "text") and response.text:
-            logger_utils.log(i18n.get("logic_log_aiRecognizeSuccess"))
-            return response.text.strip()
-        
-        if response.candidates and response.candidates[0].content.parts:
-            text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
-            if text_parts:
-                logger_utils.log(i18n.get("logic_log_aiRecognizeSuccessParts"))
-                return "".join(text_parts).strip()
-                
-        return "API returned empty response."
-            
-    except Exception as e:
-        logger_utils.log(f"❌ AI Recognition failed: {e}")
         raise e

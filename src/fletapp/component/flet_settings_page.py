@@ -28,31 +28,49 @@ state = State()
 
 
 def settings_page(page: Page) -> Container:
-    # --- Controls ---
-    api_key_input = ft.TextField(
-        label=i18n.get("settings_label_apiKey"),
+    # --- Google GenAI Controls ---
+    google_paid_key_input = ft.TextField(
+        label=i18n.get("settings_label_apiKey", "Paid API Key"),
         password=True,
-        can_reveal_password=True)
+        can_reveal_password=True,
+        expand=True)
     
-    refine_api_key_input = ft.TextField(
-        label=i18n.get("settings_label_refineApiKey", "Refine Agent API Key"),
+    google_free_key_input = ft.TextField(
+        label=i18n.get("settings_label_refineApiKey", "Free API Key"),
         password=True,
-        can_reveal_password=True)
+        can_reveal_password=True,
+        expand=True)
     
-    refine_model_dropdown = ft.Dropdown(
-        label=i18n.get("settings_label_refineModel", "Refine Agent Model"),
-        options=[],
+    google_use_paid_checkbox = ft.Checkbox(
+        label=i18n.get("settings_label_usePaidForAll", "Same as paid key (Use paid key for all models)"),
+        value=False
     )
 
+    # --- OpenAI Controls ---
     openai_api_key_input = ft.TextField(
         label="OpenAI API Key",
         password=True,
-        can_reveal_password=True)
+        can_reveal_password=True,
+        expand=True)
     
     openai_base_url_input = ft.TextField(
         label="OpenAI Base URL",
         value="https://api.openai.com/v1")
 
+    # --- Model Config Area ---
+    refine_model_dropdown = ft.Dropdown(
+        label=i18n.get("settings_label_refineModel", "Refine Agent Model"),
+        options=[],
+        expand=True
+    )
+    
+    recognition_model_dropdown = ft.Dropdown(
+        label=i18n.get("settings_label_recognitionModel", "Image Recognition Model"),
+        options=[],
+        expand=True
+    )
+
+    # --- General Controls ---
     lang_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_language"),
         options=[
@@ -60,7 +78,7 @@ def settings_page(page: Page) -> Container:
             ft.dropdown.Option(key="zh", text=i18n.get("settings_lang_zh", "中文")),
         ],
     )
-    save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"))
+    save_path_input = ft.TextField(label=i18n.get("settings_label_savePath"), expand=True)
     file_prefix_input = ft.TextField(label=i18n.get("settings_label_prefix"))
     
     max_history_input = ft.TextField(
@@ -71,45 +89,56 @@ def settings_page(page: Page) -> Container:
 
     # --- Model Management Dialog ---
     def open_model_manager(e):
-        current_models = db.get_all_models()
-        
         model_list_view = ft.ListView(expand=True, spacing=10, height=400)
         
-        new_model_id = ft.TextField(label="Model ID", expand=True)
-        new_model_series = ft.Dropdown(
+        # Input fields for adding/editing
+        model_id_input = ft.TextField(label="Model ID", expand=True)
+        model_series_dropdown = ft.Dropdown(
             label="Series",
             options=[
                 ft.dropdown.Option("google-genai"),
                 ft.dropdown.Option("openai")
             ],
-            value="openai",
+            value="google-genai",
             width=150
         )
-        new_model_type = ft.Dropdown(
-            label="Type",
-            options=[
-                ft.dropdown.Option("chat"),
-                ft.dropdown.Option("image")
-            ],
-            value="chat",
-            width=100
-        )
-        new_model_display = ft.TextField(label="Display Name", expand=True)
+        
+        tag_image_cb = ft.Checkbox(label="Image", value=False)
+        tag_chat_cb = ft.Checkbox(label="Chat", value=True)
+        is_paid_cb = ft.Checkbox(label="Paid Model", value=False)
+        model_display_input = ft.TextField(label="Display Name", expand=True)
+        
+        # Track if we are editing
+        editing_mode = {"active": False, "original_id": None, "original_series": None}
 
         def update_model_list():
             models = db.get_all_models()
             model_list_view.controls.clear()
             for model in models:
-                type_icon = ft.Icons.CHAT if model["type"] == "chat" else ft.Icons.IMAGE
-                series_color = ft.Colors.BLUE if model["series"] == "google-genai" else ft.Colors.GREEN
+                icons = []
+                if "Chat" in model["tags"]: icons.append(ft.Icon(ft.Icons.CHAT, size=16))
+                if "Image" in model["tags"]: icons.append(ft.Icon(ft.Icons.IMAGE, size=16))
+                
+                paid_badge = ft.Container(
+                    content=ft.Text("PAID", size=10, color="white", weight="bold"),
+                    bgcolor="orange",
+                    padding=ft.padding.symmetric(horizontal=4, vertical=2),
+                    border_radius=4,
+                    visible=model["is_paid"] == 1
+                )
                 
                 model_list_view.controls.append(
                     ft.Row([
-                        ft.Icon(type_icon, size=20),
+                        ft.Row(icons, spacing=4),
                         ft.Column([
-                            ft.Text(model["display_name"], weight=ft.FontWeight.BOLD),
+                            ft.Row([ft.Text(model["display_name"], weight=ft.FontWeight.BOLD), paid_badge]),
                             ft.Text(f"{model['id']} ({model['series']})", size=12, color=ft.Colors.GREY_500),
                         ], expand=True, spacing=0),
+                        ft.IconButton(
+                            icon=ft.Icons.EDIT_OUTLINED,
+                            icon_color=ft.Colors.BLUE_400,
+                            on_click=lambda e, m=model: start_edit_model(m)
+                        ),
                         ft.IconButton(
                             icon=ft.Icons.DELETE_OUTLINE,
                             icon_color=ft.Colors.RED_400,
@@ -122,18 +151,77 @@ def settings_page(page: Page) -> Container:
             except:
                 pass
 
-        def add_model(e):
-            if new_model_id.value and new_model_display.value:
+        def start_edit_model(model):
+            editing_mode["active"] = True
+            editing_mode["original_id"] = model["id"]
+            editing_mode["original_series"] = model["series"]
+            
+            model_id_input.value = model["id"]
+            model_series_dropdown.value = model["series"]
+            model_display_input.value = model["display_name"]
+            tag_chat_cb.value = "Chat" in model["tags"]
+            tag_image_cb.value = "Image" in model["tags"]
+            is_paid_cb.value = model["is_paid"] == 1
+            
+            # Disable ID and Series during edit as they are Primary Keys
+            model_id_input.disabled = True
+            model_series_dropdown.disabled = True
+            
+            submit_btn.text = "Update Model"
+            submit_btn.icon = ft.Icons.SAVE
+            cancel_btn.visible = True
+            
+            model_id_input.update()
+            model_series_dropdown.update()
+            model_display_input.update()
+            tag_chat_cb.update()
+            tag_image_cb.update()
+            is_paid_cb.update()
+            submit_btn.update()
+            cancel_btn.update()
+
+        def reset_form(e=None):
+            editing_mode["active"] = False
+            editing_mode["original_id"] = None
+            editing_mode["original_series"] = None
+            
+            model_id_input.value = ""
+            model_id_input.disabled = False
+            model_series_dropdown.value = "google-genai"
+            model_series_dropdown.disabled = False
+            model_display_input.value = ""
+            tag_chat_cb.value = True
+            tag_image_cb.value = False
+            is_paid_cb.value = False
+            
+            submit_btn.text = "Add Model"
+            submit_btn.icon = ft.Icons.ADD
+            cancel_btn.visible = False
+            
+            model_id_input.update()
+            model_series_dropdown.update()
+            model_display_input.update()
+            tag_chat_cb.update()
+            tag_image_cb.update()
+            is_paid_cb.update()
+            submit_btn.update()
+            cancel_btn.update()
+
+        def submit_model(e):
+            if model_id_input.value and model_display_input.value:
+                tags = []
+                if tag_chat_cb.value: tags.append("Chat")
+                if tag_image_cb.value: tags.append("Image")
+                
                 db.save_model(
-                    new_model_id.value,
-                    new_model_series.value,
-                    new_model_type.value,
-                    new_model_display.value
+                    model_id_input.value,
+                    model_series_dropdown.value,
+                    ",".join(tags),
+                    model_display_input.value,
+                    1 if is_paid_cb.value else 0
                 )
-                new_model_id.value = ""
-                new_model_display.value = ""
-                new_model_id.update()
-                new_model_display.update()
+                
+                reset_form()
                 update_model_list()
                 page.pubsub.send_all("models_updated")
 
@@ -142,18 +230,22 @@ def settings_page(page: Page) -> Container:
             update_model_list()
             page.pubsub.send_all("models_updated")
 
+        submit_btn = ft.ElevatedButton("Add Model", icon=ft.Icons.ADD, on_click=submit_model, width=180)
+        cancel_btn = ft.TextButton("Cancel Edit", on_click=reset_form, visible=False)
+
         update_model_list()
 
         dlg = ft.AlertDialog(
             title=ft.Text("Manage AI Models"),
             content=ft.Container(
                 content=ft.Column([
-                    ft.Row([new_model_id, new_model_display]),
-                    ft.Row([new_model_series, new_model_type, ft.ElevatedButton("Add", icon=ft.Icons.ADD, on_click=add_model)]),
+                    ft.Row([model_id_input, model_display_input]),
+                    ft.Row([model_series_dropdown, tag_chat_cb, tag_image_cb, is_paid_cb]),
+                    ft.Row([submit_btn, cancel_btn], alignment=ft.MainAxisAlignment.START),
                     ft.Divider(),
                     model_list_view
                 ], tight=True, spacing=10),
-                width=600,
+                width=700,
             ),
             actions=[
                 ft.TextButton("Close", on_click=lambda _: page.pop_dialog()),
@@ -171,15 +263,21 @@ def settings_page(page: Page) -> Container:
     # --- Save Settings Logic ---
     def save_settings_handler(e):
         try:
-            db.save_setting("api_key", api_key_input.value or "")
-            db.save_setting("refine_api_key", refine_api_key_input.value or "")
-            db.save_setting("refine_model_id", refine_model_dropdown.value or "")
+            db.save_setting("api_key", google_paid_key_input.value or "")
+            db.save_setting("refine_api_key", google_free_key_input.value or "")
+            db.save_setting("google_use_paid_for_all", "1" if google_use_paid_checkbox.value else "0")
+            
             db.save_setting("openai_api_key", openai_api_key_input.value or "")
             db.save_setting("openai_base_url", openai_base_url_input.value or "https://api.openai.com/v1")
+            
+            db.save_setting("refine_model_id", refine_model_dropdown.value or "")
+            db.save_setting("recognition_model_id", recognition_model_dropdown.value or "")
+            
             db.save_setting("save_path", save_path_input.value or "outputs")
             db.save_setting("file_prefix", file_prefix_input.value or "gemini_gen")
             db.save_setting("language", lang_dropdown.value or "en")
             db.save_setting("max_history_len", max_history_input.value or "20")
+            
             show_snackbar(page, i18n.get("settings_saved_content", "Settings have been saved successfully."))
         except Exception as ex:
             show_snackbar(page, f"{i18n.get('settings_saved_error_content', 'Failed to save settings:')} {ex}",
@@ -230,7 +328,6 @@ def settings_page(page: Page) -> Container:
         try:
             db.clear_all_data()
             show_snackbar(page, i18n.get("settings_clear_success", "All data has been cleared successfully."))
-            # Reload settings on the page
             load_initial_settings()
         except Exception as ex:
             show_snackbar(page, i18n.get("settings_clear_error", "Error clearing data: {error}", error=ex),
@@ -338,16 +435,23 @@ def settings_page(page: Page) -> Container:
     # --- Initialization Logic ---
     def load_initial_settings():
         settings = db.get_all_settings()
-        api_key_input.value = settings.get("api_key", "")
-        refine_api_key_input.value = settings.get("refine_api_key", "")
-        
-        # Load all chat models for refine dropdown
-        chat_models = db.get_models_by_type("chat")
-        refine_model_dropdown.options = [ft.dropdown.Option(key=m["id"], text=f"{m['display_name']} ({m['series']})") for m in chat_models]
-        refine_model_dropdown.value = settings.get("refine_model_id", "")
+        google_paid_key_input.value = settings.get("google_paid_api_key", "")
+        google_free_key_input.value = settings.get("google_free_api_key", "")
+        google_use_paid_checkbox.value = settings.get("google_use_paid_for_all", False)
         
         openai_api_key_input.value = settings.get("openai_api_key", "")
         openai_base_url_input.value = settings.get("openai_base_url", "https://api.openai.com/v1")
+        
+        # Load all chat models for dropdowns
+        chat_models = db.get_models_by_tag("Chat")
+        options = [ft.dropdown.Option(key=m["id"], text=f"{m['display_name']} ({m['series']})") for m in chat_models]
+        
+        refine_model_dropdown.options = options
+        refine_model_dropdown.value = settings.get("refine_model_id", "")
+        
+        recognition_model_dropdown.options = options
+        recognition_model_dropdown.value = settings.get("recognition_model_id", "")
+        
         save_path_input.value = settings.get("save_path", "outputs")
         file_prefix_input.value = settings.get("file_prefix", "gemini_gen")
         lang_dropdown.value = settings.get("language", "en")
@@ -366,31 +470,42 @@ def settings_page(page: Page) -> Container:
                 ft.Text(i18n.get("settings_title"), size=24, weight=ft.FontWeight.BOLD),
                 lang_dropdown,
                 ft.Divider(),
-                ft.Text("Google Gemini API Settings", size=18, weight=ft.FontWeight.BOLD),
-                ft.Row(controls=[api_key_input, ft.Container(expand=True)]),
+                
+                # Google GenAI Section
+                ft.Text("Google GenAI Config", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row([google_paid_key_input]),
+                ft.Row([google_free_key_input]),
+                google_use_paid_checkbox,
                 ft.Divider(),
-                ft.Text("OpenAI API Settings", size=18, weight=ft.FontWeight.BOLD),
-                ft.Row(controls=[openai_api_key_input, ft.Container(expand=True)]),
+                
+                # OpenAI Section
+                ft.Text("OpenAI API Config", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row([openai_api_key_input]),
                 openai_base_url_input,
                 ft.Divider(),
-                ft.Text("Model Management", size=18, weight=ft.FontWeight.BOLD),
+                
+                # Model Config Area
+                ft.Text("Model Config Area", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row([refine_model_dropdown]),
+                ft.Row([recognition_model_dropdown]),
                 manage_models_btn,
                 ft.Divider(),
-                ft.Text("Refine Agent Settings", size=18, weight=ft.FontWeight.BOLD),
-                ft.Row(controls=[refine_api_key_input, ft.Container(expand=True)]),
-                refine_model_dropdown,
-                ft.Divider(),
+                
+                # Output Settings
                 ft.Text("Output Settings", size=18, weight=ft.FontWeight.BOLD),
                 file_prefix_input,
                 ft.Row([save_path_input, pick_output_directory_btn]),
                 max_history_input,
                 ft.Divider(),
+                
                 save_button,
                 ft.Divider(),
+                
                 ft.Text(i18n.get("settings_data_management_title", "Data Management"), size=18,
                         weight=ft.FontWeight.BOLD),
                 ft.Row([import_button, export_button], alignment=ft.MainAxisAlignment.START),
                 ft.Divider(),
+
                 ft.Text(i18n.get("settings_app_management_title", "Application Management"), size=18,
                         weight=ft.FontWeight.BOLD),
                 ft.Row([open_temp_button, clear_cache_button, clear_db_button])

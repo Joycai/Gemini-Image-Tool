@@ -3,8 +3,28 @@ from typing import List, Any, Optional, Dict, Tuple
 from PIL import Image
 
 from common import logger_utils, i18n, database as db
-from geminiapi import api_client
+from geminiapi import google_genai_client
 from geminiapi import openai_client
+
+def _get_api_credentials(model_info: Dict[str, Any]) -> Tuple[str, Optional[str]]:
+    """Helper to get the correct API key and base URL based on model and settings."""
+    settings = db.get_all_settings()
+    series = model_info["series"]
+    
+    if series == "google-genai":
+        # Logic for Google GenAI: Paid vs Free
+        if settings.get("google_use_paid_for_all"):
+            return settings.get("google_paid_api_key"), None
+        
+        if model_info.get("is_paid"):
+            return settings.get("google_paid_api_key"), None
+        else:
+            return settings.get("google_free_api_key"), None
+            
+    elif series == "openai":
+        return settings.get("openai_api_key"), settings.get("openai_base_url")
+    
+    return None, None
 
 def generate_image(
     prompt: Optional[str],
@@ -15,22 +35,15 @@ def generate_image(
     max_retries: int = 3
 ) -> Image.Image | None:
     """Unified interface for image generation."""
-    # We need to know the series to route correctly. 
-    # Since model_id might not be unique across series, we should ideally pass series too.
-    # For now, we'll try to find the model and assume the first match is correct, 
-    # or better, we can look at the context (e.g., if OpenAI API key is set and Google isn't).
-    # A better fix is to make the UI pass both ID and Series.
-
     model_info = db.get_model(model_id)
     if not model_info:
         logger_utils.log(f"Error: Model {model_id} not found in database.")
         return None
 
-    settings = db.get_all_settings()
+    api_key, base_url = _get_api_credentials(model_info)
     
     if model_info["series"] == "google-genai":
-        api_key = settings.get("api_key")
-        return api_client.call_google_genai(
+        return google_genai_client.call_google_genai(
             prompt=prompt,
             image_paths=image_paths,
             api_key=api_key,
@@ -40,8 +53,6 @@ def generate_image(
             max_retries=max_retries
         )
     elif model_info["series"] == "openai":
-        api_key = settings.get("openai_api_key")
-        base_url = settings.get("openai_base_url")
         return openai_client.call_openai_image(
             prompt=prompt,
             api_key=api_key,
@@ -57,8 +68,8 @@ def generate_image(
 def chat_completions(
     model_id: str,
     messages: List[Dict[str, Any]],
-    prompt_parts: Optional[List[Any]] = None, # For Gemini multimodal
-    chat_session: Optional[Any] = None, # For Gemini stateful chat
+    prompt_parts: Optional[List[Any]] = None,
+    chat_session: Optional[Any] = None,
     aspect_ratio: str = "ar_none",
     resolution: str = "2K"
 ) -> Any:
@@ -68,12 +79,11 @@ def chat_completions(
         logger_utils.log(f"Error: Model {model_id} not found in database.")
         return None
 
-    settings = db.get_all_settings()
+    api_key, base_url = _get_api_credentials(model_info)
 
     if model_info["series"] == "google-genai":
-        api_key = settings.get("api_key")
-        genai_client = api_client.genai.Client(api_key=api_key)
-        return api_client.call_google_chat(
+        genai_client = google_genai_client.genai.Client(api_key=api_key)
+        return google_genai_client.call_google_chat(
             genai_client=genai_client,
             chat_session=chat_session,
             prompt_parts=prompt_parts,
@@ -82,8 +92,6 @@ def chat_completions(
             resolution=resolution
         )
     elif model_info["series"] == "openai":
-        api_key = settings.get("openai_api_key")
-        base_url = settings.get("openai_base_url")
         return openai_client.call_openai_chat(
             api_key=api_key,
             base_url=base_url,
@@ -104,14 +112,13 @@ def refine_prompt(
     model_info = db.get_model(model_id)
     if not model_info:
         # Fallback to a default if model not found
-        model_id = db.get_setting("refine_model_id", "gemini-3-flash-preview")
+        model_id = db.get_setting("refine_model_id", "gemini-1.5-flash")
         model_info = db.get_model(model_id)
 
-    settings = db.get_all_settings()
+    api_key, base_url = _get_api_credentials(model_info)
 
     if model_info["series"] == "google-genai":
-        api_key = settings.get("refine_api_key") or settings.get("api_key")
-        return api_client.refine_prompt(
+        return google_genai_client.refine_prompt(
             user_prompt=user_prompt,
             api_key=api_key,
             model_id=model_id,
@@ -119,9 +126,6 @@ def refine_prompt(
             image_paths=image_paths
         )
     elif model_info["series"] == "openai":
-        api_key = settings.get("openai_api_key")
-        base_url = settings.get("openai_base_url")
-        
         # Get system instruction
         db_task = db.get_refine_task(task_type)
         system_instruction = db_task["system_instruction"] if db_task else ""

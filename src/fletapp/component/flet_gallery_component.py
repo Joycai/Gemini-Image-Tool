@@ -12,7 +12,7 @@ from common.config import VALID_IMAGE_EXTENSIONS
 from common.prompts import AI_RECOGNIZE_TASKS
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
-from geminiapi import api_client
+from geminiapi import unified_client
 
 
 @dataclass
@@ -130,11 +130,10 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
 
         async def run_ai_task(e):
             settings = db.get_all_settings()
-            api_key = settings.get("api_key")
-            model_id = settings.get("refine_model_id", "gemini-2.0-flash")
+            model_id = settings.get("recognition_model_id")
             
-            if not api_key:
-                show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
+            if not model_id:
+                show_snackbar(page, "Recognition model not configured in settings.", is_error=True)
                 return
 
             # Save prompt to DB
@@ -146,14 +145,28 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
             page.update()
 
             try:
+                # Use unified_client for recognition (which is a chat completion with image)
+                from PIL import Image
+                img = await asyncio.to_thread(Image.open, image_path)
+                
                 result = await asyncio.to_thread(
-                    api_client.ai_recognize_image,
-                    image_path=image_path,
-                    prompt=prompt_input.value,
-                    api_key=api_key,
-                    model_id=model_id
+                    unified_client.chat_completions,
+                    model_id=model_id,
+                    messages=[],
+                    prompt_parts=[img, prompt_input.value]
                 )
-                response_text.value = result
+                
+                # Extract text from result parts
+                if isinstance(result, tuple) and len(result) == 2:
+                    _, parts = result
+                    text_result = ""
+                    for part in parts:
+                        if isinstance(part, str):
+                            text_result += part
+                    response_text.value = text_result
+                else:
+                    response_text.value = "Unexpected response format."
+
             except Exception as ex:
                 response_text.value = f"Error: {ex}"
             finally:
