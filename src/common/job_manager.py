@@ -72,6 +72,19 @@ class JobManager:
         if self._worker_task is None or self._worker_task.done():
             self._worker_task = asyncio.create_task(self._worker_loop())
 
+    async def stop_worker(self):
+        """Stops the background worker and interrupts current job."""
+        if self.current_job:
+            self.interrupt_current_job()
+            
+        if self._worker_task and not self._worker_task.done():
+            self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
+        self._worker_task = None
+
     async def _worker_loop(self):
         try:
             while True:
@@ -100,6 +113,9 @@ class JobManager:
                             return job.task_func(**job.kwargs)
                         except JobInterruptError:
                             return None
+                        except Exception as e:
+                            # Re-raise to be caught by asyncio.to_thread
+                            raise e
                         finally:
                             self._current_thread = None
 
@@ -117,17 +133,24 @@ class JobManager:
                         job.status = "cancelled"
                         job.error = "Interrupted by user"
                     else:
-                        result = await list(done)[0]
+                        # Get result from the thread task
+                        # We need to find which one in 'done' is the thread_task
+                        result = None
+                        for t in done:
+                            if t.get_coro().__name__ != 'wait': # Rough check to find the thread task
+                                try:
+                                    result = await t
+                                except Exception as e:
+                                    raise e
+
                         if job.status != "cancelled":
                             job.status = "success"
                             await self._maybe_await(job.on_success, result)
                             
-                            # Notify other components safely
                             if self._page:
                                 try:
                                     self._page.pubsub.send_all("job_completed")
                                 except:
-                                    # Page might be closed
                                     pass
 
                 except Exception as e:

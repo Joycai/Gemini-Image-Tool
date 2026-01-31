@@ -19,7 +19,7 @@ from fletapp.component.flet_prompt_history_page import prompt_history_page
 from fletapp.component.flet_refine_manager_tab import refine_manager_tab
 from fletapp.component.flet_dashboard_page import dashboard_page
 
-def main(page: ft.Page):
+async def main(page: ft.Page):
     i18n.load_language()
     job_manager.set_page(page)
 
@@ -119,7 +119,9 @@ def main(page: ft.Page):
     prompt_manager_component["init"]()
 
     # --- Cleanup on Disconnect ---
-    def on_disconnect(e):
+    async def on_disconnect(e):
+        print("Cleaning up before exit...")
+        await job_manager.stop_worker()
         job_manager.set_page(None)
 
     page.on_disconnect = on_disconnect
