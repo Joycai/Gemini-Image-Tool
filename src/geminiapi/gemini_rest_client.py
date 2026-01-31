@@ -27,8 +27,9 @@ def call_generate_image(
     # Ensure base_url doesn't end with a slash for consistent joining
     clean_base_url = base_url.rstrip('/')
     url = f"{clean_base_url}/models/{model_id}:generateContent"
-    
+
     headers = {
+        "Authorization": "Bearer " + api_key,
         "x-goog-api-key": api_key,
         "Content-Type": "application/json"
     }
@@ -36,7 +37,7 @@ def call_generate_image(
     parts = []
     if prompt:
         parts.append({"text": prompt})
-    
+
     for path in image_paths:
         try:
             mime_type = "image/jpeg"
@@ -44,7 +45,7 @@ def call_generate_image(
                 mime_type = "image/png"
             elif path.lower().endswith(".webp"):
                 mime_type = "image/webp"
-                
+
             b64_data = _encode_image(path)
             parts.append({
                 "inline_data": {
@@ -59,7 +60,7 @@ def call_generate_image(
     image_config = {}
     if aspect_ratio and aspect_ratio != "ar_none":
         image_config["aspectRatio"] = aspect_ratio
-    
+
     if resolution:
         image_config["imageSize"] = resolution
 
@@ -85,9 +86,9 @@ def call_generate_image(
         logger_utils.log(f"🚀 Gemini REST Request Sent | Model: {model_id} | AR: {aspect_ratio} | Res: {resolution}")
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        
+
         data = response.json()
-        
+
         if "candidates" in data and data["candidates"]:
             candidate = data["candidates"][0]
             if "content" in candidate and "parts" in candidate["content"]:
@@ -97,7 +98,7 @@ def call_generate_image(
                         return Image.open(BytesIO(base64.b64decode(img_data)))
                     if "text" in part:
                         logger_utils.log(f"API returned text: {part['text']}")
-        
+
         logger_utils.log(f"Error: No image data in response. Full response: {data}")
         return None
 

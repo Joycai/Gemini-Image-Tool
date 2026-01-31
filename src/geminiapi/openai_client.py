@@ -5,8 +5,9 @@ from typing import List, Optional, Any, Dict, Tuple
 
 import requests
 from PIL import Image
-from common import logger_utils, i18n, database as db
 from openai import OpenAI
+
+from common import logger_utils, i18n, database as db
 
 
 def _encode_image(image_path: str) -> str:
@@ -193,19 +194,31 @@ def _execute_multimodal_request(
         resolution: Optional[str] = None
 ) -> Tuple[str, str, Any]:
     """Phase 2: Execute the api and fetch response parts (Streaming)."""
+
     extra_body = {
-        "response_modalities": ["text", "image"]
+        "response_modalities": ["text", "image"],
+        'extra_body': {
+            "google": {
+                "generation_config" : {
+                    "imageConfig": {}
+                },
+                "safety_settings": [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
+            }
+        }
     }
     # Only add image_generation_config if resolution is provided (implies generation intent)
     if 'gemini-3' in model_id and resolution:
         config = {
-            "safety_setting": "BLOCK_NONE",
-            "person_generation": "ALLOW_ALL",
             "image_size": resolution
         }
         if aspect_ratio and aspect_ratio != "ar_none":
             config["aspect_ratio"] = aspect_ratio
-        extra_body["image_generation_config"] = config
+        extra_body["extra_body"]["google"]["generation_config"]["imageConfig"] = config
 
     logger_utils.log(f"🚀 OpenAI Multimodal Request Sent | Model: {model_id}")
     response = client.chat.completions.create(
@@ -219,7 +232,7 @@ def _execute_multimodal_request(
     final_usage = None
     full_image_data = ""
     full_content_data = ""
-    print("正在接收数据...", end="", flush=True)
+    logger_utils.log("正在接收数据...")
     for chunk in response:
         if chunk.usage is not None:
             final_usage = chunk.usage
@@ -233,9 +246,10 @@ def _execute_multimodal_request(
             if hasattr(delta, 'image_data') and delta.image_data:
                 full_image_data += delta.image_data
                 print(".", end="", flush=True)
-
-            if delta.content:
+            elif hasattr(delta, 'content') and delta.content:
                 full_content_data += delta.content
+            elif hasattr(delta, 'reasoning_content'):
+                logger_utils.log(delta.reasoning_content)
 
     logger_utils.log("\n传输完成！")
     return full_content_data, full_image_data, final_usage

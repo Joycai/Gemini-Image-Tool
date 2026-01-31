@@ -97,7 +97,8 @@ def settings_page(page: Page) -> Container:
             label="Series",
             options=[
                 ft.dropdown.Option("google-genai"),
-                ft.dropdown.Option("openai")
+                ft.dropdown.Option("openai"),
+                ft.dropdown.Option("gemini_rest_api")
             ],
             value="google-genai",
             width=150
@@ -290,6 +291,7 @@ def settings_page(page: Page) -> Container:
             
             db.save_setting("openai_api_key", openai_api_key_input.value or "")
             db.save_setting("openai_base_url", openai_base_url_input.value or "https://api.openai.com/v1")
+            db.save_setting("gemini_rest_base_url", gemini_rest_base_url_input.value or "https://generativelanguage.googleapis.com/v1beta")
             
             db.save_setting("refine_model_id", refine_model_dropdown.value or "")
             db.save_setting("recognition_model_id", recognition_model_dropdown.value or "")
@@ -453,6 +455,12 @@ def settings_page(page: Page) -> Container:
                              icon=ft.Icons.DELETE_FOREVER,
                              on_click=clear_data_handler, color="white", bgcolor="red")
 
+    # --- Gemini REST API Controls ---
+    gemini_rest_base_url_input = ft.TextField(
+        label="Gemini REST Base URL",
+        value="https://generativelanguage.googleapis.com/v1beta",
+        expand=True)
+
     # --- Initialization Logic ---
     def load_initial_settings():
         settings = db.get_all_settings()
@@ -462,6 +470,7 @@ def settings_page(page: Page) -> Container:
         
         openai_api_key_input.value = settings.get("openai_api_key", "")
         openai_base_url_input.value = settings.get("openai_base_url", "https://api.openai.com/v1")
+        gemini_rest_base_url_input.value = db.get_setting("gemini_rest_base_url", "https://generativelanguage.googleapis.com/v1beta")
         
         # Load all chat models for dropdowns
         chat_models = db.get_models_by_tag("Chat")
@@ -503,6 +512,11 @@ def settings_page(page: Page) -> Container:
                 ft.Text("OpenAI API Config", size=18, weight=ft.FontWeight.BOLD),
                 ft.Row([openai_api_key_input]),
                 openai_base_url_input,
+                ft.Divider(),
+
+                # Gemini REST API Section
+                ft.Text("Gemini REST API Config", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row([gemini_rest_base_url_input]),
                 ft.Divider(),
                 
                 # Model Config Area

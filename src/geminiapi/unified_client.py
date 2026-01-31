@@ -5,6 +5,7 @@ from PIL import Image
 from common import logger_utils, i18n, database as db
 from geminiapi import google_genai_client
 from geminiapi import openai_client
+from geminiapi import gemini_rest_client
 
 def _get_api_credentials(model_info: Dict[str, Any]) -> Tuple[str, Optional[str]]:
     """Helper to get the correct API key and base URL based on model and settings."""
@@ -23,6 +24,10 @@ def _get_api_credentials(model_info: Dict[str, Any]) -> Tuple[str, Optional[str]
             
     elif series == "openai":
         return settings.get("openai_api_key"), settings.get("openai_base_url")
+    
+    elif series == "gemini_rest_api":
+        # Per request, use openai-api key for gemini_rest_api series
+        return settings.get("openai_api_key"), db.get_setting("gemini_rest_base_url", "https://generativelanguage.googleapis.com/v1beta")
     
     return None, None
 
@@ -62,6 +67,16 @@ def generate_image(
             resolution=resolution,
             image_paths=image_paths
         )
+    elif model_info["series"] == "gemini_rest_api":
+        return gemini_rest_client.call_generate_image(
+            prompt=prompt,
+            image_paths=image_paths,
+            api_key=api_key,
+            model_id=model_id,
+            base_url=base_url,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution
+        )
     
     return None
 
@@ -99,6 +114,8 @@ def chat_completions(
             messages=messages,
             prompt_parts=prompt_parts
         )
+    
+    # Note: gemini_rest_api currently only supports Image tag as per requirements
 
     return None
 
