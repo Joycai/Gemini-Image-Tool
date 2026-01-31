@@ -26,6 +26,14 @@ def init_db(conn):
     # 4. Refine Tasks table
     c.execute('''CREATE TABLE IF NOT EXISTS refine_tasks
                  (id TEXT PRIMARY KEY, name TEXT, name_zh TEXT, system_instruction TEXT, order_id INTEGER)''')
+    # 5. Token Usage table
+    c.execute('''CREATE TABLE IF NOT EXISTS token_usage
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  model_id TEXT, 
+                  input_tokens INTEGER, 
+                  output_tokens INTEGER, 
+                  total_tokens INTEGER, 
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     
     # Add default settings if needed
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
@@ -88,6 +96,19 @@ def migrate_db(conn):
         if not c.fetchone():
             logger_utils.log("Migrating database: Adding 'swap_clothes' task.")
             init_db(conn)
+
+    # Check for token_usage table
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='token_usage'")
+    if not c.fetchone():
+        logger_utils.log("Migrating database: Creating token_usage table.")
+        c.execute('''CREATE TABLE token_usage
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                      model_id TEXT, 
+                      input_tokens INTEGER, 
+                      output_tokens INTEGER, 
+                      total_tokens INTEGER, 
+                      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+        conn.commit()
 
     # Check for max_history_len setting
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
@@ -202,6 +223,7 @@ def clear_all_data():
         c.execute("DELETE FROM prompts")
         c.execute("DELETE FROM prompt_history")
         c.execute("DELETE FROM refine_tasks")
+        c.execute("DELETE FROM token_usage")
         conn.commit()
         # After clearing, re-initialize with default values
         init_db(conn)
@@ -386,6 +408,68 @@ def get_prompt_history():
     history = [row[0] for row in c.fetchall()]
     conn.close()
     return history
+
+# --- Token Usage related ---
+def add_token_usage(model_id, input_tokens, output_tokens):
+    conn = get_db_connection()
+    c = conn.cursor()
+    total_tokens = input_tokens + output_tokens
+    c.execute("INSERT INTO token_usage (model_id, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?)",
+              (model_id, input_tokens, output_tokens, total_tokens))
+    conn.commit()
+    conn.close()
+
+def get_token_usage_summary(start_date=None, end_date=None):
+    """Gets total token usage grouped by model, optionally filtered by date range."""
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    query = '''SELECT model_id, 
+                        SUM(input_tokens) as total_input, 
+                        SUM(output_tokens) as total_output, 
+                        SUM(total_tokens) as total_all,
+                        COUNT(*) as request_count
+                 FROM token_usage'''
+    
+    params = []
+    if start_date and end_date:
+        query += " WHERE timestamp BETWEEN ? AND ?"
+        params = [start_date, end_date]
+    elif start_date:
+        query += " WHERE timestamp >= ?"
+        params = [start_date]
+    elif end_date:
+        query += " WHERE timestamp <= ?"
+        params = [end_date]
+        
+    query += " GROUP BY model_id"
+    
+    c.execute(query, params)
+    summary = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return summary
+
+def clear_token_usage(model_id=None):
+    """Clears token usage data, optionally for a specific model."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    if model_id:
+        c.execute("DELETE FROM token_usage WHERE model_id=?", (model_id,))
+    else:
+        c.execute("DELETE FROM token_usage")
+    conn.commit()
+    conn.close()
+
+def get_recent_token_usage(limit=50):
+    """Gets the most recent token usage entries."""
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM token_usage ORDER BY timestamp DESC LIMIT ?", (limit,))
+    recent = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return recent
 
 # --- Initialization ---
 ensure_db_exists()

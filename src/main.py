@@ -17,6 +17,7 @@ from fletapp.component.flet_prompt_manager_tab import prompt_manager_tab
 from fletapp.component.flet_queue_page import queue_page
 from fletapp.component.flet_prompt_history_page import prompt_history_page
 from fletapp.component.flet_refine_manager_tab import refine_manager_tab
+from fletapp.component.flet_dashboard_page import dashboard_page
 
 def main(page: ft.Page):
     i18n.load_language()
@@ -54,14 +55,17 @@ def main(page: ft.Page):
     prompt_manager_component = prompt_manager_tab(page)
 
     main_tabs = ft.Tabs(
-        selected_index=0,
+        selected_index=1, # Default to Single Edit
         animation_duration=300,
-        length=8,
+        length=9,
         content=ft.Column(
             expand=True,
             controls=[
                 ft.TabBar(
                     tabs=[
+                        ft.Tab(
+                            label="Dashboard",
+                        ),
                         ft.Tab(
                             label=i18n.get("app_tab_home", "Single Edit"),
                         ),
@@ -91,6 +95,7 @@ def main(page: ft.Page):
                 ft.TabBarView(
                     expand=True,
                     controls=[
+                        dashboard_page(page),
                         single_edit_component["view"],
                         chat_component["view"],
                         prompt_manager_component["view"],
