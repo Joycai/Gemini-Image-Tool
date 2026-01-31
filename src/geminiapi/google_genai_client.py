@@ -168,7 +168,7 @@ def call_google_chat(
         model_id = "gemini-1.5-pro-image-preview"
 
     if chat_session is None:
-        logger_utils.log("✨ Creating new chat session.")
+        logger_utils.log(i18n.get("api_log_creatingChatSession"))
         chat_session = genai_client.chats.create(
             model=model_id,
             config=types.GenerateContentConfig(
@@ -192,7 +192,7 @@ def call_google_chat(
     )
 
     ar_log_val = i18n.get(aspect_ratio, aspect_ratio)
-    logger_utils.log(f"💬 Sending message to chat | Model: {model_id} | AR: {ar_log_val} | Res: {resolution}")
+    logger_utils.log(i18n.get("api_log_chatRequestSent", model=model_id, ar=ar_log_val, res=resolution))
 
     last_exception: Optional[Exception] = None
 
@@ -229,7 +229,7 @@ def call_google_chat(
             if not response_parts_list:
                 raise ValueError(i18n.get("api_error_noValidImage"))
 
-            logger_utils.log(f"✅ Received {len(response_parts_list)} parts from chat.")
+            logger_utils.log(i18n.get("api_log_chatReceivedParts", count=len(response_parts_list)))
             return chat_session, response_parts_list
 
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -276,7 +276,7 @@ def refine_prompt(
                 contents.append(f"Reference Image Filename: {os.path.basename(path)}")
                 contents.append(img)
             except Exception as e:
-                logger_utils.log(f"Failed to load image for refinement: {path}, error: {e}")
+                logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
 
     contents.append(f"User Idea: {user_prompt}")
 
@@ -308,7 +308,7 @@ def refine_prompt(
                     logger_utils.log(i18n.get("api_log_gemini_api_error", reason=finish_reason))
                     raise ValueError(f"Refinement was blocked due to: {finish_reason}")
             
-            raise ValueError("API returned no parts and no specific block reason.")
+            raise ValueError(i18n.get("api_error_noParts"))
 
         # Access response.text safely
         if hasattr(response, "text") and response.text:
@@ -322,7 +322,7 @@ def refine_prompt(
                 logger_utils.log(i18n.get("logic_log_refineSuccessParts"))
                 return "".join(text_parts).strip()
                 
-        raise ValueError("API returned empty text during refinement.")
+        raise ValueError(i18n.get("api_error_noParts"))
             
     except Exception as e:
         logger_utils.log(i18n.get("logic_log_refineFail", err=str(e)))

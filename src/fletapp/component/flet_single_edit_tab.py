@@ -126,7 +126,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         model_id = settings.get("refine_model_id")
         
         if not model_id:
-            show_snackbar(page, "Refine model not configured in settings.", is_error=True)
+            show_snackbar(page, i18n.get("settings_error_refineModelNotSet", "Refine model not configured."), is_error=True)
             return
 
         refine_button.disabled = True
@@ -142,9 +142,9 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                 image_paths=state.selected_images_paths
             )
             prompt_input.value = refined_text
-            show_snackbar(page, "Prompt refined successfully!")
+            show_snackbar(page, i18n.get("logic_info_refineSuccess", "Prompt refined successfully!"))
         except Exception as ex:
-            show_snackbar(page, f"Refinement failed: {ex}", is_error=True)
+            show_snackbar(page, f"{i18n.get('logic_log_refineFail', err='')} {ex}", is_error=True)
         finally:
             refine_button.disabled = False
             refine_progress.visible = False
@@ -155,7 +155,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     
     refine_button = ft.PopupMenuButton(
         icon=ft.Icons.AUTO_FIX_HIGH,
-        tooltip="Refine Prompt with AI",
+        tooltip=i18n.get("home_control_btn_refine_tooltip", "Refine Prompt with AI"),
         items=[
             ft.PopupMenuItem(
                 content=ft.Text(task["name_zh"] if i18n.CURRENT_LANG == "zh" else task["name"]),
@@ -224,7 +224,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     async def copy_filename_to_clipboard(path):
         filename = os.path.splitext(os.path.basename(path))[0]
         await ft.Clipboard().set(filename)
-        show_snackbar(page, f"Copied to clipboard: {filename}")
+        show_snackbar(page, f"{i18n.get('logic_info_copied', 'Copied to clipboard')}: {filename}")
 
     def remove_selected_image(e, image_path):
         if image_path in state.selected_images_paths:
@@ -306,7 +306,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     async def send_prompt_handler(e, disable_ui: bool = True):
         if not model_selector_dropdown.value:
-            show_snackbar(page, "Please select a model.", is_error=True)
+            show_snackbar(page, i18n.get("logic_warn_modelNotSelected", "Please select a model."), is_error=True)
             return
         if not prompt_input.value and not state.selected_images_paths:
             show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
@@ -344,7 +344,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                               allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS],
                                               src_bytes=file_bytes,
                                               file_type=FilePickerFileType.IMAGE)
-            show_snackbar(page, saved_path, is_error=False)
+            if saved_path:
+                show_snackbar(page, f"{i18n.get('logic_info_saveSuccess', 'Saved to')}: {saved_path}")
         else:
             show_snackbar(page, i18n.get("logic_warn_noImageToDownload", "No image available to download."), is_error=True)
 
@@ -487,7 +488,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     toggle_button = ft.IconButton(
         icon=ft.Icons.CHEVRON_LEFT,
         on_click=toggle_gallery,
-        tooltip="Toggle Gallery"
+        tooltip=i18n.get("home_assets_btn_toggle_tooltip", "Toggle Gallery")
     )
 
     view = ft.Container(

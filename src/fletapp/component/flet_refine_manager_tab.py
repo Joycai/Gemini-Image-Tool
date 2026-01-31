@@ -17,10 +17,10 @@ def refine_manager_tab(page: ft.Page):
             overflow=ft.TextOverflow.ELLIPSIS
         )
 
-        edit_name = ft.TextField(label="Name (EN)", value=name, expand=True)
-        edit_name_zh = ft.TextField(label="Name (ZH)", value=name_zh, expand=True)
+        edit_name = ft.TextField(label=i18n.get("refine_manager_label_name_en", "Name (EN)"), value=name, expand=True)
+        edit_name_zh = ft.TextField(label=i18n.get("refine_manager_label_name_zh", "Name (ZH)"), value=name_zh, expand=True)
         edit_instruction = ft.TextField(
-            label="System Instruction",
+            label=i18n.get("refine_manager_label_instruction", "System Instruction"),
             value=instruction, 
             multiline=True, 
             min_lines=5, 
@@ -74,10 +74,10 @@ def refine_manager_tab(page: ft.Page):
             subtitle=display_instruction,
             on_click=show_edit_view,
             trailing=ft.Row([
-                ft.IconButton(ft.Icons.ARROW_UPWARD, icon_size=20, on_click=move_up),
-                ft.IconButton(ft.Icons.ARROW_DOWNWARD, icon_size=20, on_click=move_down),
-                ft.IconButton(ft.Icons.EDIT, icon_size=20, on_click=show_edit_view),
-                ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=20, icon_color=ft.Colors.RED_400, on_click=lambda _: on_delete(task_id, card)),
+                ft.IconButton(ft.Icons.ARROW_UPWARD, icon_size=20, on_click=move_up, tooltip=i18n.get("prompt_manager_move_up")),
+                ft.IconButton(ft.Icons.ARROW_DOWNWARD, icon_size=20, on_click=move_down, tooltip=i18n.get("prompt_manager_move_down")),
+                ft.IconButton(ft.Icons.EDIT, icon_size=20, on_click=show_edit_view, tooltip=i18n.get("prompt_manager_edit")),
+                ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=20, icon_color=ft.Colors.RED_400, on_click=lambda _: on_delete(task_id, card), tooltip=i18n.get("prompt_manager_delete")),
             ], tight=True)
         )
 
@@ -88,8 +88,8 @@ def refine_manager_tab(page: ft.Page):
                 ft.Row([edit_name, edit_name_zh]),
                 edit_instruction,
                 ft.Row([
-                    ft.ElevatedButton("Save", icon=ft.Icons.SAVE, on_click=save_changes),
-                    ft.TextButton("Cancel", icon=ft.Icons.CANCEL, on_click=show_display_view),
+                    ft.ElevatedButton(i18n.get("prompt_manager_save"), icon=ft.Icons.SAVE, on_click=save_changes),
+                    ft.TextButton(i18n.get("prompt_manager_cancel"), icon=ft.Icons.CANCEL, on_click=show_display_view),
                 ], alignment=ft.MainAxisAlignment.END)
             ])
         )
@@ -104,7 +104,6 @@ def refine_manager_tab(page: ft.Page):
         for t in tasks:
             task_list.controls.append(create_task_item(t, delete_task, update_order))
         
-        # Only update if mounted, otherwise the initial build will handle it
         try:
             if task_list.page:
                 task_list.update()
@@ -136,19 +135,19 @@ def refine_manager_tab(page: ft.Page):
         page.pubsub.send_all("refine_tasks_updated")
 
     task_list = ft.ListView(expand=True, spacing=10)
-    new_name_field = ft.TextField(label="New Task Name (EN)", expand=True)
-    new_name_zh_field = ft.TextField(label="New Task Name (ZH)", expand=True)
-    new_instruction_field = ft.TextField(label="System Instruction", multiline=True, min_lines=3, expand=True)
+    new_name_field = ft.TextField(label=i18n.get("refine_manager_label_name_en", "Name (EN)"), expand=True)
+    new_name_zh_field = ft.TextField(label=i18n.get("refine_manager_label_name_zh", "Name (ZH)"), expand=True)
+    new_instruction_field = ft.TextField(label=i18n.get("refine_manager_label_instruction", "System Instruction"), multiline=True, min_lines=3, expand=True)
 
     view = ft.Column([
         ft.Card(ft.Container(padding=20, content=ft.Column([
-            ft.Text("Add New Refine Task", size=18, weight=ft.FontWeight.BOLD),
+            ft.Text(i18n.get("refine_manager_add_title", "Add New Refine Task"), size=18, weight=ft.FontWeight.BOLD),
             ft.Row([new_name_field, new_name_zh_field]),
             new_instruction_field,
-            ft.ElevatedButton("Add Task", icon=ft.Icons.ADD, on_click=add_task)
+            ft.ElevatedButton(i18n.get("refine_manager_btn_add", "Add Task"), icon=ft.Icons.ADD, on_click=add_task)
         ]))),
         ft.Divider(),
-        ft.Text("Existing Refine Tasks", size=18, weight=ft.FontWeight.BOLD),
+        ft.Text(i18n.get("refine_manager_existing_title", "Existing Refine Tasks"), size=18, weight=ft.FontWeight.BOLD),
         task_list
     ], expand=True, scroll=ft.ScrollMode.AUTO)
 

@@ -52,7 +52,7 @@ def dashboard_page(page: ft.Page):
                             ft.IconButton(
                                 icon=ft.Icons.DELETE_OUTLINE,
                                 icon_color=ft.Colors.RED_400,
-                                tooltip=f"Reset {model_id}",
+                                tooltip=f"{i18n.get('dashboard_reset_tooltip', 'Reset')} {model_id}",
                                 on_click=lambda _, m=model_id: reset_model_usage(m)
                             )
                         ),
@@ -79,11 +79,11 @@ def dashboard_page(page: ft.Page):
             
         page.show_dialog(
             ft.AlertDialog(
-                title=ft.Text("Confirm Reset"),
-                content=ft.Text(f"Are you sure you want to clear all usage data for {model_id}?"),
+                title=ft.Text(i18n.get("dashboard_reset_confirm_title", "Confirm Reset")),
+                content=ft.Text(i18n.get("dashboard_reset_confirm_content", "Are you sure you want to clear all usage data for {model}?").format(model=model_id)),
                 actions=[
-                    ft.TextButton("Cancel", on_click=lambda _: page.pop_dialog()),
-                    ft.TextButton("Reset", on_click=confirm_reset),
+                    ft.TextButton(i18n.get("dialog_btn_cancel", "Cancel"), on_click=lambda _: page.pop_dialog()),
+                    ft.TextButton(i18n.get("dashboard_btn_reset", "Reset"), on_click=confirm_reset),
                 ]
             )
         )
@@ -97,7 +97,7 @@ def dashboard_page(page: ft.Page):
         model_data = next((item for item in summary if item['model_id'] == model_id), None)
         
         if not model_data:
-            calc_result.value = "No data for this model."
+            calc_result.value = i18n.get("dashboard_calc_no_data", "No data for this model.")
             page.update()
             return
             
@@ -109,9 +109,9 @@ def dashboard_page(page: ft.Page):
             fee = (model_data['total_input'] * in_price / 1_000_000) + \
                   (model_data['total_output'] * out_price / 1_000_000)
             
-            calc_result.value = f"Estimated Total Fee: ${fee:.4f} USD"
+            calc_result.value = f"{i18n.get('dashboard_calc_total_fee', 'Estimated Total Fee')}: ${fee:.4f} USD"
         except ValueError:
-            calc_result.value = "Invalid price input."
+            calc_result.value = i18n.get("dashboard_calc_invalid_input", "Invalid price input.")
         
         page.update()
 
@@ -151,43 +151,43 @@ def dashboard_page(page: ft.Page):
 
     usage_table = ft.DataTable(
         columns=[
-            ft.DataColumn(label=ft.Text("Model ID", weight=ft.FontWeight.BOLD)),
-            ft.DataColumn(label=ft.Text("Input Tokens", weight=ft.FontWeight.BOLD)),
-            ft.DataColumn(label=ft.Text("Output Tokens", weight=ft.FontWeight.BOLD)),
-            ft.DataColumn(label=ft.Text("Total Tokens", weight=ft.FontWeight.BOLD)),
-            ft.DataColumn(label=ft.Text("Requests", weight=ft.FontWeight.BOLD)),
-            ft.DataColumn(label=ft.Text("Actions", weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(label=ft.Text(i18n.get("dashboard_col_model", "Model ID"), weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(label=ft.Text(i18n.get("dashboard_col_input", "Input Tokens"), weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(label=ft.Text(i18n.get("dashboard_col_output", "Output Tokens"), weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(label=ft.Text(i18n.get("dashboard_col_total", "Total Tokens"), weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(label=ft.Text(i18n.get("dashboard_col_requests", "Requests"), weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(label=ft.Text(i18n.get("dashboard_col_actions", "Actions"), weight=ft.FontWeight.BOLD)),
         ],
         rows=[]
     )
 
     # Calculator Components
-    calc_model_dropdown = ft.Dropdown(label="Select Model", width=300)
+    calc_model_dropdown = ft.Dropdown(label=i18n.get("dashboard_calc_select_model", "Select Model"), width=300)
     calc_model_dropdown.on_change = calculate_fee
     
-    unified_checkbox = ft.Checkbox(label="Unified Price (Input = Output)", value=True, 
+    unified_checkbox = ft.Checkbox(label=i18n.get("dashboard_calc_unified_price", "Unified Price (Input = Output)"), value=True, 
                                    on_change=lambda e: (setattr(output_price_field, 'visible', not e.control.value), 
-                                                        setattr(input_price_field, 'label', "Price per 1M Tokens" if e.control.value else "Input Price per 1M"),
+                                                        setattr(input_price_field, 'label', i18n.get("dashboard_calc_price_per_1m", "Price per 1M Tokens") if e.control.value else i18n.get("dashboard_calc_input_price", "Input Price per 1M")),
                                                         calculate_fee(),
                                                         page.update()))
-    input_price_field = ft.TextField(label="Price per 1M Tokens", value="0", width=200, on_change=calculate_fee, suffix=ft.Text("USD"))
-    output_price_field = ft.TextField(label="Output Price per 1M", value="0", width=200, visible=False, on_change=calculate_fee, suffix=ft.Text("USD"))
-    calc_result = ft.Text("Estimated Total Fee: $0.0000 USD", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700)
+    input_price_field = ft.TextField(label=i18n.get("dashboard_calc_price_per_1m", "Price per 1M Tokens"), value="0", width=200, on_change=calculate_fee, suffix=ft.Text("USD"))
+    output_price_field = ft.TextField(label=i18n.get("dashboard_calc_output_price", "Output Price per 1M"), value="0", width=200, visible=False, on_change=calculate_fee, suffix=ft.Text("USD"))
+    calc_result = ft.Text(f"{i18n.get('dashboard_calc_total_fee', 'Estimated Total Fee')}: $0.0000 USD", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700)
 
     # Sub-tabs content
     usage_breakdown_content = ft.Column([
-        ft.Text("Usage by Model", size=18, weight=ft.FontWeight.BOLD),
+        ft.Text(i18n.get("dashboard_usage_by_model", "Usage by Model"), size=18, weight=ft.FontWeight.BOLD),
         ft.Column([usage_table], scroll=ft.ScrollMode.AUTO, expand=True)
     ], expand=True, spacing=10)
 
     fee_calculator_content = ft.Container(
         content=ft.Column([
-            ft.Text("Cost Estimator", size=18, weight=ft.FontWeight.BOLD),
+            ft.Text(i18n.get("dashboard_cost_estimator", "Cost Estimator"), size=18, weight=ft.FontWeight.BOLD),
             ft.Row([calc_model_dropdown, unified_checkbox]),
             ft.Row([input_price_field, output_price_field]),
             ft.Container(height=10),
             calc_result,
-            ft.Text("Note: Prices are usually quoted per 1 million tokens in USD.", size=12, italic=True)
+            ft.Text(i18n.get("dashboard_calc_note", "Note: Prices are usually quoted per 1 million tokens in USD."), size=12, italic=True)
         ], spacing=15),
         padding=20
     )
@@ -201,8 +201,8 @@ def dashboard_page(page: ft.Page):
             controls=[
                 ft.TabBar(
                     tabs=[
-                        ft.Tab(label="Usage Breakdown"),
-                        ft.Tab(label="Fee Calculator"),
+                        ft.Tab(label=i18n.get("dashboard_tab_usage", "Usage Breakdown")),
+                        ft.Tab(label=i18n.get("dashboard_tab_calculator", "Fee Calculator")),
                     ]
                 ),
                 ft.TabBarView(
@@ -221,19 +221,19 @@ def dashboard_page(page: ft.Page):
         content=ft.Column([
             ft.Row([
                 ft.Icon(ft.Icons.DASHBOARD, size=30, color=ft.Colors.BLUE_400),
-                ft.Text("Usage Dashboard", size=24, weight=ft.FontWeight.BOLD),
+                ft.Text(i18n.get("dashboard_title", "Usage Dashboard"), size=24, weight=ft.FontWeight.BOLD),
                 ft.VerticalDivider(),
-                ft.TextButton("Start Date", icon=ft.Icons.CALENDAR_MONTH, on_click=lambda _: page.show_dialog(start_date_picker)),
-                ft.TextButton("End Date", icon=ft.Icons.CALENDAR_MONTH, on_click=lambda _: page.show_dialog(end_date_picker)),
-                ft.IconButton(ft.Icons.CLOSE, tooltip="Clear Date Filter", on_click=lambda _: (setattr(start_date_picker, 'value', None), setattr(end_date_picker, 'value', None), load_usage_data())),
-                ft.IconButton(ft.Icons.REFRESH, on_click=load_usage_data)
+                ft.TextButton(i18n.get("dashboard_btn_start_date", "Start Date"), icon=ft.Icons.CALENDAR_MONTH, on_click=lambda _: page.show_dialog(start_date_picker)),
+                ft.TextButton(i18n.get("dashboard_btn_end_date", "End Date"), icon=ft.Icons.CALENDAR_MONTH, on_click=lambda _: page.show_dialog(end_date_picker)),
+                ft.IconButton(ft.Icons.CLOSE, tooltip=i18n.get("dashboard_clear_filter_tooltip", "Clear Date Filter"), on_click=lambda _: (setattr(start_date_picker, 'value', None), setattr(end_date_picker, 'value', None), load_usage_data())),
+                ft.IconButton(ft.Icons.REFRESH, on_click=load_usage_data, tooltip=i18n.get("home_history_btn_refresh_tooltip"))
             ]),
             ft.Divider(),
             ft.Row([
-                create_stat_card("Total Input Tokens", input_card, ft.Icons.ARROW_UPWARD),
-                create_stat_card("Total Output Tokens", output_card, ft.Icons.ARROW_DOWNWARD),
-                create_stat_card("Total Tokens Used", total_card, ft.Icons.FUNCTIONS),
-                create_stat_card("Total Requests", request_card, ft.Icons.HUB),
+                create_stat_card(i18n.get("dashboard_stat_input", "Total Input Tokens"), input_card, ft.Icons.ARROW_UPWARD),
+                create_stat_card(i18n.get("dashboard_stat_output", "Total Output Tokens"), output_card, ft.Icons.ARROW_DOWNWARD),
+                create_stat_card(i18n.get("dashboard_stat_total", "Total Tokens Used"), total_card, ft.Icons.FUNCTIONS),
+                create_stat_card(i18n.get("dashboard_stat_requests", "Total Requests"), request_card, ft.Icons.HUB),
             ], wrap=True, spacing=20),
             ft.Divider(),
             dashboard_tabs

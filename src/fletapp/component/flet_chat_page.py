@@ -250,7 +250,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
         messages_history.clear()
         uploaded_image_paths.clear()
         update_thumbnail_display()
-        logger_utils.log("Chat cleared.")
+        logger_utils.log(i18n.get("chat_log_cleared", "Chat cleared."))
         page.update()
 
     clear_button = ft.Button(content=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
@@ -282,7 +282,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                     page.update()
 
     async def handle_api_error(error_msg):
-        logger_utils.log(f"Chat API call failed: {error_msg}")
+        logger_utils.log(i18n.get("chat_log_failed", error=error_msg))
         if chat_history.controls and isinstance(chat_history.controls[-1], Message):
             last_bubble = chat_history.controls[-1].controls[1]
             if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
