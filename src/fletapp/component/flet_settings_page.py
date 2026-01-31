@@ -135,6 +135,16 @@ def settings_page(page: Page) -> Container:
                             ft.Text(f"{model['id']} ({model['series']})", size=12, color=ft.Colors.GREY_500),
                         ], expand=True, spacing=0),
                         ft.IconButton(
+                            icon=ft.Icons.ARROW_UPWARD,
+                            icon_size=18,
+                            on_click=lambda e, m=model: move_model(m, -1)
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_DOWNWARD,
+                            icon_size=18,
+                            on_click=lambda e, m=model: move_model(m, 1)
+                        ),
+                        ft.IconButton(
                             icon=ft.Icons.EDIT_OUTLINED,
                             icon_color=ft.Colors.BLUE_400,
                             on_click=lambda e, m=model: start_edit_model(m)
@@ -150,6 +160,17 @@ def settings_page(page: Page) -> Container:
                 model_list_view.update()
             except:
                 pass
+
+        def move_model(model, direction):
+            models = db.get_all_models()
+            idx = next(i for i, m in enumerate(models) if m["id"] == model["id"] and m["series"] == model["series"])
+            new_idx = idx + direction
+            if 0 <= new_idx < len(models):
+                models.insert(new_idx, models.pop(idx))
+                # Update order_id in DB
+                db.update_model_order([(m["id"], m["series"]) for m in models])
+                update_model_list()
+                page.pubsub.send_all("models_updated")
 
         def start_edit_model(model):
             editing_mode["active"] = True
@@ -245,7 +266,7 @@ def settings_page(page: Page) -> Container:
                     ft.Divider(),
                     model_list_view
                 ], tight=True, spacing=10),
-                width=700,
+                width=750,
             ),
             actions=[
                 ft.TextButton("Close", on_click=lambda _: page.pop_dialog()),

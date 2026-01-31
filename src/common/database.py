@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import json
+from typing import List, Any, Optional, Dict
 
 from common import logger_utils
 from common.config import DB_FILE, STORAGE_DIR
@@ -232,9 +233,18 @@ def export_all_data():
     c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models ORDER BY order_id")
     models = [dict(row) for row in c.fetchall()]
 
+    c.execute("SELECT model_id, input_price, output_price FROM model_prices")
+    model_prices = [dict(row) for row in c.fetchall()]
+
     conn.close()
 
-    return {"settings": settings, "prompts": prompts, "refine_tasks": refine_tasks, "models": models}
+    return {
+        "settings": settings, 
+        "prompts": prompts, 
+        "refine_tasks": refine_tasks, 
+        "models": models,
+        "model_prices": model_prices
+    }
 
 def import_all_data(data: dict):
     """Wipes and imports all settings and prompts from a dictionary."""
@@ -247,6 +257,7 @@ def import_all_data(data: dict):
         c.execute("DELETE FROM prompts")
         c.execute("DELETE FROM refine_tasks")
         c.execute("DELETE FROM models")
+        c.execute("DELETE FROM model_prices")
 
         settings_to_insert = [(item.get('key'), item.get('value')) for item in data.get("settings", [])]
         c.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", settings_to_insert)
@@ -268,6 +279,9 @@ def import_all_data(data: dict):
             order_id = item.get('order_id', i)
             models_to_insert.append((item.get('id'), item.get('series'), item.get('tags'), item.get('display_name'), item.get('is_paid', 0), order_id))
         c.executemany("INSERT INTO models (id, series, tags, display_name, is_paid, order_id) VALUES (?, ?, ?, ?, ?, ?)", models_to_insert)
+
+        prices_to_insert = [(item.get('model_id'), item.get('input_price'), item.get('output_price')) for item in data.get("model_prices", [])]
+        c.executemany("INSERT INTO model_prices (model_id, input_price, output_price) VALUES (?, ?, ?)", prices_to_insert)
 
         conn.commit()
         logger_utils.log(f"Successfully imported data.")
@@ -499,6 +513,15 @@ def delete_model(model_id, series):
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("DELETE FROM models WHERE id=? AND series=?", (model_id, series))
+    conn.commit()
+    conn.close()
+
+def update_model_order(ids_series: List[tuple]):
+    """Updates the order of models based on a list of (id, series) tuples."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    for i, (m_id, m_series) in enumerate(ids_series):
+        c.execute("UPDATE models SET order_id = ? WHERE id = ? AND series = ?", (i, m_id, m_series))
     conn.commit()
     conn.close()
 
