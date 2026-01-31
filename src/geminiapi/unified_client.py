@@ -97,9 +97,8 @@ def chat_completions(
     api_key, base_url = _get_api_credentials(model_info)
 
     if model_info["series"] == "google-genai":
-        genai_client = google_genai_client.genai.Client(api_key=api_key)
         return google_genai_client.call_google_chat(
-            genai_client=genai_client,
+            api_key=api_key,
             chat_session=chat_session,
             prompt_parts=prompt_parts,
             model_id=model_id,

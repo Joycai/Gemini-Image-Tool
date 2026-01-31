@@ -6,8 +6,8 @@ from typing import List, Any, Optional, Dict
 from PIL import Image
 from google import genai
 from google.genai import types
-from google.genai.chats import Chat
 from google.genai.errors import ClientError
+from google.genai.chats import Chat
 from google.genai.types import PIL_Image
 
 from common import logger_utils, i18n, database as db
@@ -71,13 +71,13 @@ def _build_contents(
 ) -> List[Any]:
     """Builds the contents list for GenAI API calls."""
     contents: List[Any] = []
-
+    
     if system_instruction:
         contents.append(system_instruction)
-
+        
     if prompt:
         contents.append(prompt)
-
+        
     if image_paths:
         logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
         for path in image_paths:
@@ -87,7 +87,7 @@ def _build_contents(
                 contents.append(img)
             except (IOError, OSError) as e:
                 logger_utils.log(i18n.get("api_log_skipImg", path=path, err=e))
-
+                
     return contents
 
 
@@ -107,6 +107,7 @@ def _execute_genai_call(
                 logger_utils.log(i18n.get("api_log_networkRetry", attempt=attempt + 1, max_retries=max_retries))
 
             response = call_func(*args, **kwargs)
+
             # Log token usage
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 u = response.usage_metadata
@@ -121,17 +122,15 @@ def _execute_genai_call(
                 if hasattr(response, "candidates") and response.candidates and response.candidates[0]:
                     cand = response.candidates[0]
                     if hasattr(cand, "finish_reason") and cand.finish_reason:
-                        reason = cand.finish_reason.name if hasattr(cand.finish_reason, "name") else str(
-                            cand.finish_reason)
+                        reason = cand.finish_reason.name if hasattr(cand.finish_reason, "name") else str(cand.finish_reason)
                         logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
                         raise ValueError(f"Request was blocked due to: {reason}")
-
-                if hasattr(response,
-                           "prompt_feedback") and response.prompt_feedback and response.prompt_feedback.block_reason:
+                
+                if hasattr(response, "prompt_feedback") and response.prompt_feedback and response.prompt_feedback.block_reason:
                     reason = response.prompt_feedback.block_reason.name
                     logger_utils.log(i18n.get("api_log_gemini_api_error", reason=reason))
                     raise ValueError(f"Request was blocked due to: {reason}")
-
+                
                 raise ValueError(i18n.get("api_error_noParts"))
 
             return response
@@ -139,20 +138,19 @@ def _execute_genai_call(
         except Exception as e:
             last_exception = e
             err_str = str(e)
-
+            
             # Non-retryable errors
             if any(code in err_str for code in ["401", "403"]) or "client has been closed" in err_str:
                 break
-
+                
             if isinstance(e, ClientError):
                 try:
                     details = e.details["error"]
-                    last_exception = ValueError(
-                        f"Gemini API error: {details['code']} - {details['status']} \n{details['message']}")
+                    last_exception = ValueError(f"Gemini API error: {details['code']} - {details['status']} \n{details['message']}")
                 except (KeyError, TypeError):
                     pass
                 break
-
+            
             if attempt < max_retries - 1:
                 time.sleep(2 * (attempt + 1))
             else:
@@ -206,7 +204,7 @@ def call_google_genai(
 
 
 def call_google_chat(
-        genai_client: genai.Client,
+        api_key: str,
         chat_session: Optional[Chat],
         prompt_parts: List[Any],
         model_id: str,
@@ -215,13 +213,19 @@ def call_google_chat(
         max_retries: int = 3
 ) -> Optional[tuple[Chat, List[Any]]]:
     """Calls Google GenAI Chat API."""
-    if genai_client is None:
+    if not api_key:
         msg = i18n.get("api_error_apiKey")
         logger_utils.log(msg)
         return None
 
     if not model_id:
         model_id = "gemini-1.5-pro-image-preview"
+
+    # Use existing client from session if available to prevent "client has been closed"
+    if chat_session and hasattr(chat_session, "_persistent_client"):
+        genai_client = chat_session._persistent_client
+    else:
+        genai_client = genai.Client(api_key=api_key)
 
     if chat_session is None:
         logger_utils.log(i18n.get("api_log_creatingChatSession"))
@@ -231,6 +235,8 @@ def call_google_chat(
                 response_modalities=['TEXT', 'IMAGE']
             )
         )
+        # Monkey-patch the session to keep the client alive
+        chat_session._persistent_client = genai_client
 
     image_config_dict: Dict[str, Any] = {}
     is_flash_model = "2.5" in model_id or "flash" in model_id
@@ -286,8 +292,8 @@ def refine_prompt(
         image_paths: Optional[List[str]] = None
 ) -> str:
     """Uses Google GenAI to refine and expand a simple image generation prompt."""
-    logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type) + " model: " + model_id)
-
+    logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type))
+    
     if not api_key:
         raise ValueError(i18n.get("api_error_apiKey"))
 
@@ -315,19 +321,19 @@ def refine_prompt(
             contents=contents,
             config=types.GenerateContentConfig(response_modalities=["TEXT"])
         )
-
+        
         # Access response.text safely
         if hasattr(response, "text") and response.text:
             logger_utils.log(i18n.get("logic_log_refineSuccess"))
             return response.text.strip()
-
+        
         # Fallback: check parts
         if response.candidates and response.candidates[0].content.parts:
             text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
             if text_parts:
                 logger_utils.log(i18n.get("logic_log_refineSuccessParts"))
                 return "".join(text_parts).strip()
-
+                
         raise ValueError(i18n.get("api_error_noParts"))
 
     except Exception as e:
