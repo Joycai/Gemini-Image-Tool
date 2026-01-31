@@ -53,6 +53,20 @@ def chat_page(page: Page) -> Dict[str, Any]:
                             on_double_tap=lambda e, p=part.src: open_chat_image_preview(p)
                         )
                     )
+                elif isinstance(part, Image.Image):
+                    # Handle PIL Image directly
+                    prefix = db.get_setting("file_prefix", "gemini_gen")
+                    filename = f"chat_out_{int(time.time() * 1000)}.png"
+                    temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
+                    part.save(temp_path)
+                    
+                    flet_img = ft.Image(src=temp_path, border_radius=ft.border_radius.all(10), width=400)
+                    content_controls.append(
+                        ft.GestureDetector(
+                            content=flet_img,
+                            on_double_tap=lambda e, p=temp_path: open_chat_image_preview(p)
+                        )
+                    )
 
             bubble_content = ft.Column(content_controls, tight=True, spacing=5)
 
@@ -124,8 +138,8 @@ def chat_page(page: Page) -> Dict[str, Any]:
         try:
             refined_text = await asyncio.to_thread(
                 unified_client.refine_prompt,
-                user_prompt=user_input.value,
-                model_id=model_id
+                model_id=model_id,
+                user_prompt=user_input.value
             )
             user_input.value = refined_text
             show_snackbar(page, "Prompt refined successfully!")
@@ -245,60 +259,26 @@ def chat_page(page: Page) -> Dict[str, Any]:
             # Handle Gemini result (tuple) vs OpenAI result (tuple)
             if isinstance(result, tuple):
                 if len(result) == 2:
-                    # Could be (session, parts) from Gemini or (messages, content) from OpenAI
+                    # Could be (session, parts) from Gemini or (messages, parts) from OpenAI
                     first, second = result
+                    
+                    # Remove "Thinking" message
+                    if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+                        last_bubble = chat_history.controls[-1].controls[1]
+                        if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                            chat_history.controls.pop()
+
                     if hasattr(first, "send_message"): # Gemini session
                         chat_session_state["session_obj"] = first
                         response_parts = second
-                        
-                        # Remove "Thinking" message
-                        if chat_history.controls and isinstance(chat_history.controls[-1], Message):
-                            last_bubble = chat_history.controls[-1].controls[1]
-                            if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
-                                chat_history.controls.pop()
-
-                        text_parts = [part for part in response_parts if isinstance(part, str)]
-                        image_parts = [part for part in response_parts if not isinstance(part, str)]
-
-                        if text_parts:
-                            chat_history.controls.append(Message(role="assistant", parts=["\n\n".join(text_parts)]))
-                            page.update()
-
-                        save_dir = db.get_setting("save_path", OUTPUT_DIR)
-                        if image_parts:
-                            if not os.path.isdir(save_dir):
-                                try:
-                                    os.makedirs(save_dir, exist_ok=True)
-                                except OSError as e:
-                                    logger_utils.log(f"Could not create save directory: {e}")
-                                    save_dir = None
-
-                            for i, img_part in enumerate(image_parts):
-                                if save_dir:
-                                    try:
-                                        filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
-                                        await asyncio.to_thread(img_part.save, filepath)
-                                        flet_image = ft.Image(src=filepath)
-                                        chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
-                                    except Exception as e:
-                                        chat_history.controls.append(
-                                            Message(role="assistant", parts=[f"[Error saving image: {e}]"]))
-                                else:
-                                    chat_history.controls.append(Message(role="assistant", parts=[
-                                        "[Image could not be displayed because save path is not set.]"]))
-                            page.update()
+                        chat_history.controls.append(Message(role="assistant", parts=response_parts))
                     else: # OpenAI messages
                         nonlocal messages_history
                         messages_history = first
-                        content = second
-                        
-                        if chat_history.controls and isinstance(chat_history.controls[-1], Message):
-                            last_bubble = chat_history.controls[-1].controls[1]
-                            if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
-                                chat_history.controls.pop()
-                        
-                        chat_history.controls.append(Message(role="assistant", parts=[content]))
-                        page.update()
+                        response_parts = second
+                        chat_history.controls.append(Message(role="assistant", parts=response_parts))
+                    
+                    page.update()
 
     async def handle_api_error(error_msg):
         logger_utils.log(f"Chat API call failed: {error_msg}")

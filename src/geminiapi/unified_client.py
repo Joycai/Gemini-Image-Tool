@@ -36,16 +36,14 @@ def generate_image(
     elif model_info["series"] == "openai":
         api_key = settings.get("openai_api_key")
         base_url = settings.get("openai_base_url")
-        # Note: openai_client.generate_image needs to be implemented/updated
-        # For now, we'll assume it exists or will be added in the next step
         return openai_client.call_openai_image(
             prompt=prompt,
             api_key=api_key,
             base_url=base_url,
             model_id=model_id,
-            # OpenAI (DALL-E) has different AR/Res handling, we'll need to map these
             aspect_ratio=aspect_ratio,
-            resolution=resolution
+            resolution=resolution,
+            image_paths=image_paths
         )
     
     return None
@@ -84,7 +82,8 @@ def chat_completions(
             api_key=api_key,
             base_url=base_url,
             model_id=model_id,
-            messages=messages
+            messages=messages,
+            prompt_parts=prompt_parts
         )
 
     return None
