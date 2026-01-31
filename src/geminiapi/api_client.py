@@ -133,6 +133,8 @@ def call_google_genai(
                 logger_utils.log(i18n.get("api_log_tokenUsage", input=getattr(u, "prompt_token_count", 0),
                                           output=getattr(u, "candidates_token_count", 0),
                                           total=getattr(u, "total_token_count", 0)))
+                # Record token usage
+                db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
 
             if not response.parts:
                 if response.candidates and response.candidates[0]:
@@ -221,6 +223,8 @@ def call_google_chat(
                 logger_utils.log(i18n.get("api_log_tokenUsage", input=u.prompt_token_count,
                                           output=u.candidates_token_count,
                                           total=u.total_token_count))
+                # Record token usage
+                db.add_token_usage(model_id, u.prompt_token_count, u.candidates_token_count)
 
             if not response.parts:
                 if response.prompt_feedback and response.prompt_feedback.block_reason:
@@ -299,6 +303,11 @@ def refine_prompt(
             )
         )
         
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            u = response.usage_metadata
+            # Record token usage
+            db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
+
         # Access response.text safely
         if hasattr(response, "text") and response.text:
             logger_utils.log(i18n.get("logic_log_refineSuccess"))
@@ -342,6 +351,11 @@ def ai_recognize_image(
             )
         )
         
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            u = response.usage_metadata
+            # Record token usage
+            db.add_token_usage(model_id, getattr(u, "prompt_token_count", 0), getattr(u, "candidates_token_count", 0))
+
         if hasattr(response, "text") and response.text:
             logger_utils.log(i18n.get("logic_log_aiRecognizeSuccess"))
             return response.text.strip()
