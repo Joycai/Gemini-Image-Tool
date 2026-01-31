@@ -18,9 +18,9 @@ from fletapp.component.common_component import show_snackbar
 
 @dataclass
 class State:
-    output_picker: ft.FilePicker | None = None
-    export_picker: ft.FilePicker | None = None
-    import_picker: ft.FilePicker | None = None
+    output_picker: ft.FilePicker = ft.FilePicker()
+    export_picker: ft.FilePicker = ft.FilePicker()
+    import_picker: ft.FilePicker = ft.FilePicker()
     last_save_path: str | None = None
 
 
@@ -28,6 +28,9 @@ state = State()
 
 
 def settings_page(page: Page) -> Container:
+    # --- Initialize Pickers ---
+    # Ensure pickers are added to the page overlay once
+
     # --- Google GenAI Controls ---
     google_paid_key_input = ft.TextField(
         label=i18n.get("settings_label_apiKey", "Paid API Key"),
@@ -115,13 +118,13 @@ def settings_page(page: Page) -> Container:
         def update_model_list():
             models = db.get_all_models()
             model_list_view.controls.clear()
-            for model in models:
+            for i, model in enumerate(models):
                 icons = []
                 if "Chat" in model["tags"]: icons.append(ft.Icon(ft.Icons.CHAT, size=16))
                 if "Image" in model["tags"]: icons.append(ft.Icon(ft.Icons.IMAGE, size=16))
                 
                 paid_badge = ft.Container(
-                    content=ft.Text("PAID", size=10, color="white", weight="bold"),
+                    content=ft.Text("PAID", size=10, color="white", weight=ft.FontWeight.BOLD),
                     bgcolor="orange",
                     padding=ft.padding.symmetric(horizontal=4, vertical=2),
                     border_radius=4,
@@ -130,11 +133,18 @@ def settings_page(page: Page) -> Container:
                 
                 model_list_view.controls.append(
                     ft.Row([
+                        ft.Text(f"{i+1}.", size=12, color=ft.Colors.GREY_400, width=25),
                         ft.Row(icons, spacing=4),
                         ft.Column([
                             ft.Row([ft.Text(model["display_name"], weight=ft.FontWeight.BOLD), paid_badge]),
                             ft.Text(f"{model['id']} ({model['series']})", size=12, color=ft.Colors.GREY_500),
                         ], expand=True, spacing=0),
+                        ft.IconButton(
+                            icon=ft.Icons.VERTICAL_ALIGN_TOP,
+                            icon_size=18,
+                            tooltip="Move to Top",
+                            on_click=lambda e, m=model: move_model(m, -999)
+                        ),
                         ft.IconButton(
                             icon=ft.Icons.ARROW_UPWARD,
                             icon_size=18,
@@ -144,6 +154,12 @@ def settings_page(page: Page) -> Container:
                             icon=ft.Icons.ARROW_DOWNWARD,
                             icon_size=18,
                             on_click=lambda e, m=model: move_model(m, 1)
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.FORMAT_LIST_NUMBERED,
+                            icon_size=18,
+                            tooltip="Move to Position",
+                            on_click=lambda e, m=model: open_move_to_dialog(m)
                         ),
                         ft.IconButton(
                             icon=ft.Icons.EDIT_OUTLINED,
@@ -162,16 +178,48 @@ def settings_page(page: Page) -> Container:
             except:
                 pass
 
-        def move_model(model, direction):
+        def move_model(model, direction, target_pos=None):
             models = db.get_all_models()
             idx = next(i for i, m in enumerate(models) if m["id"] == model["id"] and m["series"] == model["series"])
-            new_idx = idx + direction
-            if 0 <= new_idx < len(models):
+            
+            if target_pos is not None:
+                new_idx = max(0, min(len(models) - 1, target_pos - 1))
+            elif direction == -999:
+                new_idx = 0
+            else:
+                new_idx = idx + direction
+                
+            if 0 <= new_idx < len(models) and new_idx != idx:
                 models.insert(new_idx, models.pop(idx))
-                # Update order_id in DB
                 db.update_model_order([(m["id"], m["series"]) for m in models])
                 update_model_list()
                 page.pubsub.send_all("models_updated")
+
+        def open_move_to_dialog(model):
+            pos_input = ft.TextField(
+                label="Target Position",
+                value=str(next(i+1 for i, m in enumerate(db.get_all_models()) if m["id"] == model["id"] and m["series"] == model["series"])),
+                keyboard_type=ft.KeyboardType.NUMBER,
+                autofocus=True
+            )
+            
+            def confirm_move(e):
+                try:
+                    new_pos = int(pos_input.value)
+                    move_model(model, 0, target_pos=new_pos)
+                    page.pop_dialog()
+                except ValueError:
+                    pass
+
+            move_dlg = ft.AlertDialog(
+                title=ft.Text(f"Move '{model['display_name']}' to:"),
+                content=pos_input,
+                actions=[
+                    ft.TextButton("Cancel", on_click=lambda _: page.pop_dialog()),
+                    ft.ElevatedButton("Move", on_click=confirm_move)
+                ]
+            )
+            page.show_dialog(move_dlg)
 
         def start_edit_model(model):
             editing_mode["active"] = True
@@ -267,7 +315,7 @@ def settings_page(page: Page) -> Container:
                     ft.Divider(),
                     model_list_view
                 ], tight=True, spacing=10),
-                width=750,
+                width=850,
             ),
             actions=[
                 ft.TextButton("Close", on_click=lambda _: page.pop_dialog()),
@@ -389,9 +437,7 @@ def settings_page(page: Page) -> Container:
         actions=[ft.TextButton(i18n.get("dialog_btn_ok", "OK"), on_click=close_import_dialog)],
     )
 
-    async def export_btn_handler():
-        if state.export_picker is None:
-            state.export_picker = ft.FilePicker()
+    async def export_btn_handler(e):
         try:
             all_data = db.export_all_data()
             json_bytes = json.dumps(all_data, ensure_ascii=False).encode('utf-8')
@@ -399,32 +445,28 @@ def settings_page(page: Page) -> Container:
                                                                  allowed_extensions=["json"],
                                                                  src_bytes=json_bytes
                                                                  )
-            show_snackbar(page,
-                          i18n.get("settings_export_success", "Data successfully exported to {path}",
-                                   path=save_file_path))
+            if save_file_path:
+                show_snackbar(page,
+                              i18n.get("settings_export_success", "Data successfully exported to {path}",
+                                       path=save_file_path))
         except Exception as ex:
             show_snackbar(page, i18n.get("settings_export_error", "Error exporting data: {error}", error=ex),
                           is_error=True)
 
-    async def import_btn_handler():
-        if state.import_picker is None:
-            state.import_picker = ft.FilePicker()
+    async def import_btn_handler(e):
         files = await state.import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"])
-        try:
-            with open(files[0].path, "r", encoding="utf-8") as f:
-                data_to_import = json.load(f)
-            db.import_all_data(data_to_import)
-            page.show_dialog(import_dialog)
+        if files:
+            try:
+                with open(files[0].path, "r", encoding="utf-8") as f:
+                    data_to_import = json.load(f)
+                db.import_all_data(data_to_import)
+                page.show_dialog(import_dialog)
 
-        except Exception as ex:
-            show_snackbar(page, i18n.get("settings_import_error", "Error importing data: {error}", error=ex),
-                          is_error=True)
+            except Exception as ex:
+                show_snackbar(page, i18n.get("settings_import_error", "Error importing data: {error}", error=ex),
+                              is_error=True)
 
     async def pick_output_directory_btn_handler(e):
-        if state.output_picker is None:
-            state.output_picker = ft.FilePicker()
-            page.overlay.append(state.output_picker)
-            page.update()
         output_directory = await state.output_picker.get_directory_path()
         if output_directory:
             save_path_input.value = output_directory

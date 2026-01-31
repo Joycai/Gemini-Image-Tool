@@ -1,7 +1,8 @@
 import os
 import asyncio
 import time
-from typing import List, Any, Dict
+from dataclasses import dataclass, field
+from typing import List, Any, Dict, Optional
 
 import flet as ft
 from PIL import Image
@@ -16,12 +17,18 @@ from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewD
 from geminiapi import unified_client
 
 
-def chat_page(page: Page) -> Dict[str, Any]:
-    # --- State Management ---
-    chat_session_state: Dict[str, Any] = {"session_obj": None}
-    uploaded_image_paths: List[str] = []
-    messages_history: List[Dict[str, Any]] = []
+@dataclass
+class State:
+    file_picker: Optional[ft.FilePicker] = None
+    chat_session: Optional[Any] = None
+    uploaded_image_paths: List[str] = field(default_factory=list)
+    messages_history: List[Dict[str, Any]] = field(default_factory=list)
 
+
+state = State()
+
+
+def chat_page(page: Page) -> Dict[str, Any]:
     # --- Controls ---
     def open_chat_image_preview(image_path: str):
         image_preview_dialog = preview_dialog(
@@ -55,7 +62,6 @@ def chat_page(page: Page) -> Dict[str, Any]:
                     )
                 elif isinstance(part, Image.Image):
                     # Handle PIL Image directly
-                    prefix = db.get_setting("file_prefix", "gemini_gen")
                     filename = f"chat_out_{int(time.time() * 1000)}.png"
                     temp_path = os.path.abspath(os.path.join(OUTPUT_DIR, filename))
                     part.save(temp_path)
@@ -216,7 +222,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     def update_thumbnail_display():
         thumbnail_row.controls.clear()
-        for path in uploaded_image_paths:
+        for path in state.uploaded_image_paths:
             thumbnail_row.controls.append(
                 ft.GestureDetector(
                     on_double_tap=lambda e, p=path: remove_uploaded_image(p),
@@ -227,17 +233,20 @@ def chat_page(page: Page) -> Dict[str, Any]:
         thumbnail_row.update()
 
     def remove_uploaded_image(path_to_remove: str):
-        if path_to_remove in uploaded_image_paths:
-            uploaded_image_paths.remove(path_to_remove)
+        if path_to_remove in state.uploaded_image_paths:
+            state.uploaded_image_paths.remove(path_to_remove)
             update_thumbnail_display()
 
     async def upload_image_handler(e):
-        file_picker = ft.FilePicker()
-        files = await file_picker.pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE)
+        if not state.file_picker:
+            state.file_picker = ft.FilePicker()
+            page.update()
+            
+        files = await state.file_picker.pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE)
         if files:
             for f in files:
-                if f.path not in uploaded_image_paths:
-                    uploaded_image_paths.append(f.path)
+                if f.path not in state.uploaded_image_paths:
+                    state.uploaded_image_paths.append(f.path)
             update_thumbnail_display()
 
     upload_button = ft.IconButton(icon=ft.Icons.UPLOAD_FILE,
@@ -246,9 +255,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     def clear_chat_handler(e):
         chat_history.controls.clear()
-        chat_session_state["session_obj"] = None
-        messages_history.clear()
-        uploaded_image_paths.clear()
+        state.chat_session = None
+        state.messages_history.clear()
+        state.uploaded_image_paths.clear()
         update_thumbnail_display()
         logger_utils.log(i18n.get("chat_log_cleared", "Chat cleared."))
         page.update()
@@ -270,12 +279,11 @@ def chat_page(page: Page) -> Dict[str, Any]:
                             chat_history.controls.pop()
 
                     if hasattr(first, "send_message"): # Gemini session
-                        chat_session_state["session_obj"] = first
+                        state.chat_session = first
                         response_parts = second
                         chat_history.controls.append(Message(role="assistant", parts=response_parts))
                     else: # OpenAI messages
-                        nonlocal messages_history
-                        messages_history = first
+                        state.messages_history = first
                         response_parts = second
                         chat_history.controls.append(Message(role="assistant", parts=response_parts))
                     
@@ -298,7 +306,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     async def send_message_handler():
         prompt_text = text_encoder(user_input.value)
-        if not prompt_text and not uploaded_image_paths: return
+        if not prompt_text and not state.uploaded_image_paths: return
 
         if not model_selector.value:
             show_snackbar(page, "Please select a model.", is_error=True)
@@ -311,7 +319,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
         prompt_parts: List[Any] = []
         user_message_parts: List[Any] = []
 
-        for path in uploaded_image_paths:
+        for path in state.uploaded_image_paths:
             img = await asyncio.to_thread(Image.open, path)
             prompt_parts.append(img)
             user_message_parts.append(ft.Image(src=path, width=150, border_radius=ft.border_radius.all(5)))
@@ -319,12 +327,12 @@ def chat_page(page: Page) -> Dict[str, Any]:
         if prompt_text:
             prompt_parts.append(prompt_text)
             user_message_parts.append(prompt_text)
-            messages_history.append({"role": "user", "content": prompt_text})
+            state.messages_history.append({"role": "user", "content": prompt_text})
 
         chat_history.controls.append(Message(role="user", parts=user_message_parts))
         chat_history.controls.append(Message(role="assistant", parts=["🤔 Thinking..."]))
         user_input.value = ""
-        uploaded_image_paths.clear()
+        state.uploaded_image_paths.clear()
         update_thumbnail_display()
         page.update()
 
@@ -334,9 +342,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
             task_func=unified_client.chat_completions,
             kwargs={
                 "model_id": model_selector.value,
-                "messages": messages_history.copy(),
+                "messages": state.messages_history.copy(),
                 "prompt_parts": prompt_parts,
-                "chat_session": chat_session_state.get("session_obj"),
+                "chat_session": state.chat_session,
                 "aspect_ratio": ar_selector.value,
                 "resolution": res_selector.value,
             },
