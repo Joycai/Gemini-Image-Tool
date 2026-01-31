@@ -1,5 +1,5 @@
 import base64
-import os
+import re
 from io import BytesIO
 from typing import List, Optional, Any, Dict, Tuple
 import requests
@@ -15,6 +15,35 @@ def _pil_to_base64(pil_img: Image.Image) -> str:
     buffered = BytesIO()
     pil_img.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+
+# 2. 定义转换函数（仅在内存操作）
+def url_to_base64(url):
+    try:
+        # 清理 URL 中的标点
+        clean_url = url.strip('",.)')
+
+        # 发起下载请求
+        response = requests.get(clean_url)
+        response.raise_for_status()  # 检查是否成功 (200 OK)
+
+        # 获取二进制数据 (bytes)
+        image_bytes = response.content
+
+        # 转换为 Base64 bytes
+        b64_bytes = base64.b64encode(image_bytes)
+
+        # 解码为 UTF-8 字符串
+        b64_string = b64_bytes.decode('utf-8')
+
+        # 获取图片类型 (MIME type)，比如 image/png
+        mime_type = response.headers.get('Content-Type', 'image/png')
+
+        return b64_string, mime_type
+
+    except Exception as e:
+        print(f"转换失败: {e}")
+        return None, None
 
 def refine_prompt_openai(
     user_prompt: str,
@@ -134,15 +163,31 @@ def call_openai_chat(
             db.add_token_usage(model_id, u.prompt_tokens, u.completion_tokens)
 
         response_parts = []
+        message_obj = response.choices[0].message
         
         # Process text response
-        if response.choices[0].message.content:
-            content = response.choices[0].message.content
-            messages.append({"role": "assistant", "content": content})
-            response_parts.append(content)
+        if message_obj.content:
+            if isinstance(message_obj.content, str):
+                content = message_obj.content
+                messages.append({"role": "assistant", "content": content})
+                response_parts.append(content)
+            elif isinstance(message_obj.content, list):
+                # Handle list of parts in content
+                text_content = ""
+                for part in message_obj.content:
+                    if part.get("type") == "text":
+                        text_content += part.get("text", "")
+                    elif part.get("type") == "image":
+                        b64_data = part.get("image", {}).get("base64")
+                        if b64_data:
+                            img = Image.open(BytesIO(base64.b64decode(b64_data)))
+                            response_parts.append(img)
+                            logger_utils.log("✅ OpenAI Received Image (Multimodal Output)")
+                if text_content:
+                    messages.append({"role": "assistant", "content": text_content})
+                    response_parts.insert(0, text_content)
         
-        # Process image response (multimodal output)
-        message_obj = response.choices[0].message
+        # Process image response (multimodal output) - check other common locations
         if hasattr(message_obj, "data") and message_obj.data:
             for item in message_obj.data:
                 if item.get("type") == "image":
@@ -150,7 +195,7 @@ def call_openai_chat(
                     if b64_data:
                         img = Image.open(BytesIO(base64.b64decode(b64_data)))
                         response_parts.append(img)
-                        logger_utils.log("✅ OpenAI Received Image (Multimodal Output)")
+                        logger_utils.log("✅ OpenAI Received Image (Multimodal Output via data)")
 
         return messages, response_parts
 
@@ -172,24 +217,104 @@ def call_openai_image(
         raise ValueError("OpenAI API Key not configured.")
 
     # If it's a multimodal model (like gemini-3-pro-image-preview), use chat completions for image gen
-    if "image-preview" in model_id:
-        messages = []
-        content = [{"type": "text", "text": prompt}]
+    if "image" in model_id:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        
+        content = []
+        if prompt:
+            content.append({"type": "text", "text": prompt})
+            
         if image_paths:
             logger_utils.log(i18n.get("api_log_loadingImgs", count=len(image_paths)))
             for path in image_paths:
-                base64_image = _encode_image(path)
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                })
-        messages.append({"role": "user", "content": content})
+                try:
+                    base64_image = _encode_image(path)
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                    })
+                except Exception as e:
+                    logger_utils.log(f"Failed to encode image: {path}, error: {e}")
+
+        messages = [{"role": "user", "content": content}]
         
-        _, parts = call_openai_chat(api_key, base_url, model_id, messages)
-        for part in parts:
-            if isinstance(part, Image.Image):
-                return part
-        return None
+        try:
+            logger_utils.log(f"🚀 OpenAI Multimodal Image Request Sent | Model: {model_id}")
+            response = client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                extra_body={
+                    "response_modalities": ["text", "image"]
+                },
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+
+            final_usage = None
+            full_image_data = ""
+            full_content_data= ""
+            print("正在接收图片数据...", end="", flush=True)
+            for chunk in response:
+                # 检查是否有 usage 信息
+                # 在 OpenAI 协议中，最后一个 chunk 的 choices 列表通常为空，但包含 usage 字段
+                if chunk.usage is not None:
+                    final_usage = chunk.usage
+                if len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+
+                    # 判断是否有图片数据片段 (在 Gemini 3 协议中通常位于 delta.image 或特定扩展字段)
+                    if hasattr(delta, 'image_data'):
+                        full_image_data += delta.image_data
+                        print(".", end="", flush=True)
+
+                    # 如果你同时也请求了文字
+                    if delta.content:
+                        full_content_data += delta.content
+                        logger_utils.log(f"\n文本描述: {delta.content}")
+
+            logger_utils.log("\n传输完成！")
+
+            # 打印最终统计
+            if final_usage:
+                u = final_usage
+                logger_utils.log(i18n.get("api_log_tokenUsage", input=u.prompt_tokens,
+                                          output=u.completion_tokens,
+                                          total=u.total_tokens))
+                db.add_token_usage(model_id, u.prompt_tokens, u.completion_tokens)
+
+            # 处理图片
+            # --- 后处理：检查内容是否包含 URL 并下载 ---
+            # 使用正则提取类似 https://storage.googleapis.com... 的链接
+            url_pattern = r"(https?://storage\.googleapis\.com/[^\s)]+)"
+            urls = re.findall(url_pattern, full_content_data)
+
+            # 3. 执行转换
+            base64_images = []
+            if urls:
+                logger_utils.log(f"\n检测到 {len(urls)} 个图片链接，正在转换...")
+                for url in urls:
+                    b64_str, mime_type = url_to_base64(url)
+                    if b64_str:
+                        # 存入列表供后续使用
+                        base64_images.append({
+                            "base64": b64_str,
+                            "mime_type": mime_type,
+                            "data_uri": f"data:{mime_type};base64,{b64_str}"  # 前端可直接使用的格式
+                        })
+                        logger_utils.log(f"转换成功！Base64 长度: {len(b64_str)}")
+                        return  Image.open(BytesIO(base64.b64decode(b64_str)))
+            else:
+                logger_utils.log("未检测到 URL")
+
+            if full_image_data:
+                logger_utils.log("✅ OpenAI Received Image (Multimodal Output via content list)")
+                return Image.open(BytesIO(base64.b64decode(full_image_data)))
+
+            raise ValueError("OpenAI API returned no image in multimodal response.")
+
+        except Exception as e:
+            logger_utils.log(f"❌ OpenAI Multimodal Image Generation failed: {e}")
+            raise e
 
     # Standard DALL-E path
     client = OpenAI(api_key=api_key, base_url=base_url)

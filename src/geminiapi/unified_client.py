@@ -15,6 +15,12 @@ def generate_image(
     max_retries: int = 3
 ) -> Image.Image | None:
     """Unified interface for image generation."""
+    # We need to know the series to route correctly. 
+    # Since model_id might not be unique across series, we should ideally pass series too.
+    # For now, we'll try to find the model and assume the first match is correct, 
+    # or better, we can look at the context (e.g., if OpenAI API key is set and Google isn't).
+    # A better fix is to make the UI pass both ID and Series.
+
     model_info = db.get_model(model_id)
     if not model_info:
         logger_utils.log(f"Error: Model {model_id} not found in database.")

@@ -113,7 +113,7 @@ def settings_page(page: Page) -> Container:
                         ft.IconButton(
                             icon=ft.Icons.DELETE_OUTLINE,
                             icon_color=ft.Colors.RED_400,
-                            on_click=lambda e, m=model["id"]: remove_model(m)
+                            on_click=lambda e, m=model["id"], s=model["series"]: remove_model(m, s)
                         )
                     ])
                 )
@@ -137,8 +137,8 @@ def settings_page(page: Page) -> Container:
                 update_model_list()
                 page.pubsub.send_all("models_updated")
 
-        def remove_model(model_id):
-            db.delete_model(model_id)
+        def remove_model(model_id, series):
+            db.delete_model(model_id, series)
             update_model_list()
             page.pubsub.send_all("models_updated")
 
@@ -343,7 +343,7 @@ def settings_page(page: Page) -> Container:
         
         # Load all chat models for refine dropdown
         chat_models = db.get_models_by_type("chat")
-        refine_model_dropdown.options = [ft.dropdown.Option(key=m["id"], text=m["display_name"]) for m in chat_models]
+        refine_model_dropdown.options = [ft.dropdown.Option(key=m["id"], text=f"{m['display_name']} ({m['series']})") for m in chat_models]
         refine_model_dropdown.value = settings.get("refine_model_id", "")
         
         openai_api_key_input.value = settings.get("openai_api_key", "")

@@ -36,7 +36,8 @@ def init_db(conn):
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     # 6. Models table
     c.execute('''CREATE TABLE IF NOT EXISTS models
-                 (id TEXT PRIMARY KEY, series TEXT, type TEXT, display_name TEXT, order_id INTEGER)''')
+                 (id TEXT, series TEXT, type TEXT, display_name TEXT, order_id INTEGER,
+                  PRIMARY KEY (id, series))''')
     
     # Add default settings if needed
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
@@ -133,9 +134,22 @@ def migrate_db(conn):
     if not c.fetchone():
         logger_utils.log("Migrating database: Creating models table.")
         c.execute('''CREATE TABLE models
-                     (id TEXT PRIMARY KEY, series TEXT, type TEXT, display_name TEXT, order_id INTEGER)''')
+                     (id TEXT, series TEXT, type TEXT, display_name TEXT, order_id INTEGER,
+                      PRIMARY KEY (id, series))''')
         conn.commit()
         init_db(conn)
+    else:
+        # Check if primary key is correct (id, series)
+        c.execute("PRAGMA table_info(models)")
+        pk_columns = [row[1] for row in c.fetchall() if row[5] > 0]
+        if len(pk_columns) < 2:
+            logger_utils.log("Migrating database: Updating models table primary key.")
+            # SQLite doesn't support ALTER TABLE to change PK, need to recreate
+            c.execute("CREATE TABLE models_new (id TEXT, series TEXT, type TEXT, display_name TEXT, order_id INTEGER, PRIMARY KEY (id, series))")
+            c.execute("INSERT INTO models_new SELECT id, series, type, display_name, order_id FROM models")
+            c.execute("DROP TABLE models")
+            c.execute("ALTER TABLE models_new RENAME TO models")
+            conn.commit()
 
     # Check for max_history_len setting
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
@@ -441,11 +455,14 @@ def get_models_by_type(model_type):
     conn.close()
     return models
 
-def get_model(model_id):
+def get_model(model_id, series=None):
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE id=?", (model_id,))
+    if series:
+        c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE id=? AND series=?", (model_id, series))
+    else:
+        c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE id=?", (model_id,))
     row = c.fetchone()
     conn.close()
     return dict(row) if row else None
@@ -461,10 +478,10 @@ def save_model(model_id, series, model_type, display_name):
     conn.commit()
     conn.close()
 
-def delete_model(model_id):
+def delete_model(model_id, series):
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM models WHERE id=?", (model_id,))
+    c.execute("DELETE FROM models WHERE id=? AND series=?", (model_id, series))
     conn.commit()
     conn.close()
 
