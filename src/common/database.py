@@ -39,6 +39,10 @@ def init_db(conn):
                  (id TEXT, series TEXT, tags TEXT, display_name TEXT, is_paid INTEGER DEFAULT 0, order_id INTEGER,
                   PRIMARY KEY (id, series))''')
     
+    # 7. Model Prices table
+    c.execute('''CREATE TABLE IF NOT EXISTS model_prices
+                 (model_id TEXT PRIMARY KEY, input_price REAL, output_price REAL)''')
+    
     # Add default settings
     default_settings = [
         ("language", "en"),
@@ -53,7 +57,6 @@ def init_db(conn):
     c.executemany("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", default_settings)
     
     # Add default models
-    # Tags: Image, Chat
     default_models = [
         ("gemini-2.0-flash-exp", "google-genai", "Image,Chat", "Gemini 2.0 Flash Exp", 0, 0),
         ("gemini-1.5-flash", "google-genai", "Chat", "Gemini 1.5 Flash", 0, 1),
@@ -149,19 +152,13 @@ def migrate_db(conn):
 
         if needs_recreate:
             logger_utils.log("Migrating database: Updating models table schema (type -> tags, adding is_paid).")
-            # SQLite recreation pattern
             c.execute("CREATE TABLE models_new (id TEXT, series TEXT, tags TEXT, display_name TEXT, is_paid INTEGER DEFAULT 0, order_id INTEGER, PRIMARY KEY (id, series))")
             
-            # Try to migrate data from old table
             c.execute("SELECT * FROM models")
             old_rows = c.fetchall()
-            # Map old columns to new ones. Old schema was (id, series, type, display_name, order_id)
-            # New schema is (id, series, tags, display_name, is_paid, order_id)
             for row in old_rows:
                 m_id, m_series, m_type, m_display, m_order = row
-                # Convert type to tag (capitalize first letter)
                 m_tag = m_type.capitalize() if m_type else "Chat"
-                # Default is_paid based on some heuristics or just 0
                 m_paid = 1 if "pro" in m_id.lower() or "dall-e" in m_id.lower() or "gpt-4" in m_id.lower() else 0
                 c.execute("INSERT INTO models_new (id, series, tags, display_name, is_paid, order_id) VALUES (?, ?, ?, ?, ?, ?)",
                           (m_id, m_series, m_tag, m_display, m_paid, m_order))
@@ -170,7 +167,15 @@ def migrate_db(conn):
             c.execute("ALTER TABLE models_new RENAME TO models")
             conn.commit()
 
-    # 6. Check for new settings
+    # 6. Check for model_prices table
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='model_prices'")
+    if not c.fetchone():
+        logger_utils.log("Migrating database: Creating model_prices table.")
+        c.execute('''CREATE TABLE model_prices
+                     (model_id TEXT PRIMARY KEY, input_price REAL, output_price REAL)''')
+        conn.commit()
+
+    # 7. Check for new settings
     new_defaults = [
         ("recognition_model_id", "gemini-1.5-flash"),
         ("google_use_paid_for_all", "0"),
@@ -181,9 +186,6 @@ def migrate_db(conn):
         if not c.fetchone():
             c.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, val))
     
-    # Handle API key migration if necessary
-    # Current: api_key (google paid), refine_api_key (google free)
-    # We will keep these names but map them in get_all_settings for clarity
     conn.commit()
 
 
@@ -289,6 +291,7 @@ def clear_all_data():
         c.execute("DELETE FROM refine_tasks")
         c.execute("DELETE FROM token_usage")
         c.execute("DELETE FROM models")
+        c.execute("DELETE FROM model_prices")
         conn.commit()
         init_db(conn)
         logger_utils.log("Successfully cleared all data from the database.")
@@ -464,7 +467,6 @@ def get_models_by_tag(tag):
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # Use LIKE for comma-separated tags
     c.execute("SELECT id, series, tags, display_name, is_paid, order_id FROM models WHERE tags LIKE ? ORDER BY order_id", (f'%{tag}%',))
     models = [dict(row) for row in c.fetchall()]
     conn.close()
@@ -499,6 +501,33 @@ def delete_model(model_id, series):
     c.execute("DELETE FROM models WHERE id=? AND series=?", (model_id, series))
     conn.commit()
     conn.close()
+
+# --- Model Price related ---
+def save_model_price(model_id, input_price, output_price):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO model_prices (model_id, input_price, output_price) VALUES (?, ?, ?)",
+              (model_id, input_price, output_price))
+    conn.commit()
+    conn.close()
+
+def get_model_price(model_id):
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT input_price, output_price FROM model_prices WHERE model_id=?", (model_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else {"input_price": 0.0, "output_price": 0.0}
+
+def get_all_model_prices():
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM model_prices")
+    prices = {row['model_id']: {"input": row['input_price'], "output": row['output_price']} for row in c.fetchall()}
+    conn.close()
+    return prices
 
 # --- Prompt History related ---
 def add_prompt_history(content):
@@ -562,14 +591,25 @@ def get_token_usage_summary(start_date=None, end_date=None):
     conn.close()
     return summary
 
-def clear_token_usage(model_id=None):
-    """Clears token usage data, optionally for a specific model."""
+def clear_token_usage(model_id=None, before_date=None):
+    """Clears token usage data, optionally for a specific model or before a date."""
     conn = get_db_connection()
     c = conn.cursor()
+    
+    query = "DELETE FROM token_usage WHERE 1=1"
+    params = []
+    
     if model_id:
-        c.execute("DELETE FROM token_usage WHERE model_id=?", (model_id,))
-    else:
-        c.execute("DELETE FROM token_usage")
+        query += " AND model_id=?"
+        params.append(model_id)
+        # Also delete price config if model is cleared
+        c.execute("DELETE FROM model_prices WHERE model_id=?", (model_id,))
+        
+    if before_date:
+        query += " AND timestamp < ?"
+        params.append(before_date)
+        
+    c.execute(query, params)
     conn.commit()
     conn.close()
 

@@ -24,14 +24,14 @@ dev = [
 [tool.flet]
 product = "Gemini-Image-Tool"
 company = "Joycai"
-copyright = "Copyright (C) 2025 by Joycai"
+copyright = "Copyright (C) 2026 by Joycai"
 app.path = "src"
 app.module = "main"
 
 [tool.flet.app.boot_screen]
-show = false
+show = true
 message = "Preparing the app for its first launch…"
 
 [tool.flet.app.startup_screen]
-show = false
+show = true
 message = "Starting up the app…"
