@@ -60,7 +60,11 @@ MODEL_SELECTOR_DEFAULT = "gemini-3-pro-image-preview"
 LLM_MODEL_SELECTOR_CHOICES = [
     "gemini-3-flash-preview",
     "gemini-2.5-pro",
-    "gemini-2.5-flash"
+    "gemini-2.5-flash",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "o1-preview",
+    "o1-mini"
 ]
 LLM_MODEL_SELECTOR_DEFAULT = "gemini-3-flash-preview"
 

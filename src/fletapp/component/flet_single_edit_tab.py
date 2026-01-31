@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 import flet as ft
 # Custom imports
 from common import database as db, logger_utils, i18n
-from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR, VALID_IMAGE_EXTENSIONS
+from common.config import AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR, VALID_IMAGE_EXTENSIONS
 from common.image_util import get_image_details
 from common.job_manager import job_manager, Job
 from common.text_encoder import text_encoder
@@ -16,7 +16,7 @@ from flet import MainAxisAlignment
 from flet import Page, BoxFit, Alignment, FilePickerFileType
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_gallery_component import local_gallery_component
-from geminiapi import api_client
+from geminiapi import unified_client
 
 # Ensure OUTPUT_DIR exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -48,8 +48,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
                                        padding=0, controls=[], expand=True)
     
     model_selector_dropdown = ft.Dropdown(label=i18n.get("home_control_model_label"),
-                                          options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
-                                          value=MODEL_SELECTOR_CHOICES[0], expand=2)
+                                          options=[], expand=2)
     
     ratio_dropdown = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                                  options=[ft.dropdown.Option(key=value, text=text) for text, value in
@@ -124,11 +123,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             return
         
         settings = db.get_all_settings()
-        api_key = settings.get("refine_api_key") or settings.get("api_key")
-        model_id = settings.get("refine_model_id", "gemini-3-flash-preview")
+        model_id = settings.get("refine_model_id")
         
-        if not api_key:
-            show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
+        if not model_id:
+            show_snackbar(page, "Refine model not configured in settings.", is_error=True)
             return
 
         refine_button.disabled = True
@@ -137,9 +135,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
         try:
             refined_text = await asyncio.to_thread(
-                api_client.refine_prompt,
+                unified_client.refine_prompt,
                 user_prompt=prompt_input.value,
-                api_key=api_key,
                 model_id=model_id,
                 task_type=task_type,
                 image_paths=state.selected_images_paths
@@ -169,6 +166,13 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     # --- Functions ---
 
+    def refresh_models_dropdown():
+        image_models = db.get_models_by_type("image")
+        model_selector_dropdown.options = [ft.dropdown.Option(key=m["id"], text=m["display_name"]) for m in image_models]
+        if image_models and not model_selector_dropdown.value:
+            model_selector_dropdown.value = image_models[0]["id"]
+        model_selector_dropdown.update()
+
     def refresh_prompts_dropdown():
         titles = db.get_all_prompt_titles()
         prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
@@ -176,6 +180,9 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def on_prompts_update(topic: str):
         refresh_prompts_dropdown()
+
+    def on_models_update(topic: str):
+        refresh_models_dropdown()
 
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
@@ -297,9 +304,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         page.update()
 
     async def send_prompt_handler(e, disable_ui: bool = True):
-        api_key = db.get_all_settings().get("api_key")
-        if not api_key:
-            show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
+        if not model_selector_dropdown.value:
+            show_snackbar(page, "Please select a model.", is_error=True)
             return
         if not prompt_input.value and not state.selected_images_paths:
             show_snackbar(page, i18n.get("logic_warn_promptEmpty"), is_error=True)
@@ -309,11 +315,10 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         job = Job(
             id=f"single_edit_{int(time.time() * 1000)}",
             name=f"Single Edit: {prompt_input.value[:20]}..." if prompt_input.value else "Single Edit (Image only)",
-            task_func=api_client.call_google_genai,
+            task_func=unified_client.generate_image,
             kwargs={
                 "prompt": text_encoder(prompt_input.value),
                 "image_paths": state.selected_images_paths.copy(),
-                "api_key": api_key,
                 "model_id": model_selector_dropdown.value,
                 "aspect_ratio": ratio_dropdown.value,
                 "resolution": resolution_dropdown.value,
@@ -355,9 +360,11 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     def initialize():
         page.pubsub.subscribe(on_prompts_update)
-        page.pubsub.subscribe(on_refine_tasks_updated) # Subscribe to refine task updates
+        page.pubsub.subscribe(on_refine_tasks_updated)
+        page.pubsub.subscribe(on_models_update)
         logger_utils.subscribe(on_log_update)
         refresh_prompts_dropdown()
+        refresh_models_dropdown()
         if state.file_picker is None:
             state.file_picker = ft.FilePicker()
         last_prompt = db.get_setting("last_prompt", "")

@@ -12,6 +12,7 @@ from google.genai.types import PIL_Image
 from common import logger_utils, i18n, database as db
 from common.config import MODEL_SELECTOR_DEFAULT
 from common.prompts import REFINE_TASKS
+from geminiapi.openai_client import refine_prompt_openai
 
 # [新增] 模型配置字典，方便未來擴展
 MODEL_CONFIGS = {
@@ -264,12 +265,8 @@ def refine_prompt(
         task_type: str = "cosplay_photo",
         image_paths: Optional[List[str]] = None
 ) -> str:
-    """Uses Gemini to refine and expand a simple image generation prompt based on task type."""
-    if not api_key:
-        raise ValueError(i18n.get("api_error_apiKey"))
-
+    """Uses Gemini or OpenAI to refine and expand a simple image generation prompt based on task type."""
     logger_utils.log(i18n.get("logic_log_refiningPrompt", task=task_type))
-    client = genai.Client(api_key=api_key)
     
     # Try to get instruction from database first
     db_task = db.get_refine_task(task_type)
@@ -279,6 +276,32 @@ def refine_prompt(
         # Fallback to hardcoded defaults
         task_config = REFINE_TASKS.get(task_type, REFINE_TASKS["cosplay_photo"])
         system_instruction = task_config["system_instruction"]
+
+    # Check if it's an OpenAI model
+    is_openai = any(m in model_id.lower() for m in ["gpt-", "o1-"])
+    
+    if is_openai:
+        openai_api_key = db.get_setting("openai_api_key")
+        if not openai_api_key:
+            openai_api_key = api_key # Fallback to passed key if it might be OpenAI key
+        
+        if not openai_api_key:
+             raise ValueError("OpenAI API Key not configured.")
+
+        openai_base_url = db.get_setting("openai_base_url", "https://api.openai.com/v1")
+        return refine_prompt_openai(
+            user_prompt=user_prompt,
+            api_key=openai_api_key,
+            base_url=openai_base_url,
+            model_id=model_id,
+            system_instruction=system_instruction,
+            image_paths=image_paths
+        )
+
+    if not api_key:
+        raise ValueError(i18n.get("api_error_apiKey"))
+
+    client = genai.Client(api_key=api_key)
     
     contents = [system_instruction]
     

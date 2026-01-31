@@ -12,7 +12,7 @@ from flet import Container
 from flet import Page
 
 from common import database as db, i18n, logger_utils
-from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR, MODEL_SELECTOR_CHOICES, LLM_MODEL_SELECTOR_CHOICES
+from common.config import UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR
 from fletapp.component.common_component import show_snackbar
 
 
@@ -41,8 +41,17 @@ def settings_page(page: Page) -> Container:
     
     refine_model_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_refineModel", "Refine Agent Model"),
-        options=[ft.dropdown.Option(model) for model in LLM_MODEL_SELECTOR_CHOICES],
+        options=[],
     )
+
+    openai_api_key_input = ft.TextField(
+        label="OpenAI API Key",
+        password=True,
+        can_reveal_password=True)
+    
+    openai_base_url_input = ft.TextField(
+        label="OpenAI Base URL",
+        value="https://api.openai.com/v1")
 
     lang_dropdown = ft.Dropdown(
         label=i18n.get("settings_label_language"),
@@ -60,12 +69,113 @@ def settings_page(page: Page) -> Container:
         keyboard_type=ft.KeyboardType.NUMBER
     )
 
+    # --- Model Management Dialog ---
+    def open_model_manager(e):
+        current_models = db.get_all_models()
+        
+        model_list_view = ft.ListView(expand=True, spacing=10, height=400)
+        
+        new_model_id = ft.TextField(label="Model ID", expand=True)
+        new_model_series = ft.Dropdown(
+            label="Series",
+            options=[
+                ft.dropdown.Option("google-genai"),
+                ft.dropdown.Option("openai")
+            ],
+            value="openai",
+            width=150
+        )
+        new_model_type = ft.Dropdown(
+            label="Type",
+            options=[
+                ft.dropdown.Option("chat"),
+                ft.dropdown.Option("image")
+            ],
+            value="chat",
+            width=100
+        )
+        new_model_display = ft.TextField(label="Display Name", expand=True)
+
+        def update_model_list():
+            models = db.get_all_models()
+            model_list_view.controls.clear()
+            for model in models:
+                type_icon = ft.Icons.CHAT if model["type"] == "chat" else ft.Icons.IMAGE
+                series_color = ft.Colors.BLUE if model["series"] == "google-genai" else ft.Colors.GREEN
+                
+                model_list_view.controls.append(
+                    ft.Row([
+                        ft.Icon(type_icon, size=20),
+                        ft.Column([
+                            ft.Text(model["display_name"], weight=ft.FontWeight.BOLD),
+                            ft.Text(f"{model['id']} ({model['series']})", size=12, color=ft.Colors.GREY_500),
+                        ], expand=True, spacing=0),
+                        ft.IconButton(
+                            icon=ft.Icons.DELETE_OUTLINE,
+                            icon_color=ft.Colors.RED_400,
+                            on_click=lambda e, m=model["id"]: remove_model(m)
+                        )
+                    ])
+                )
+            try:
+                model_list_view.update()
+            except:
+                pass
+
+        def add_model(e):
+            if new_model_id.value and new_model_display.value:
+                db.save_model(
+                    new_model_id.value,
+                    new_model_series.value,
+                    new_model_type.value,
+                    new_model_display.value
+                )
+                new_model_id.value = ""
+                new_model_display.value = ""
+                new_model_id.update()
+                new_model_display.update()
+                update_model_list()
+                page.pubsub.send_all("models_updated")
+
+        def remove_model(model_id):
+            db.delete_model(model_id)
+            update_model_list()
+            page.pubsub.send_all("models_updated")
+
+        update_model_list()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Manage AI Models"),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Row([new_model_id, new_model_display]),
+                    ft.Row([new_model_series, new_model_type, ft.ElevatedButton("Add", icon=ft.Icons.ADD, on_click=add_model)]),
+                    ft.Divider(),
+                    model_list_view
+                ], tight=True, spacing=10),
+                width=600,
+            ),
+            actions=[
+                ft.TextButton("Close", on_click=lambda _: page.pop_dialog()),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        page.show_dialog(dlg)
+
+    manage_models_btn = ft.ElevatedButton(
+        "Manage All Models",
+        icon=ft.Icons.SETTINGS_SUGGEST,
+        on_click=open_model_manager
+    )
+
     # --- Save Settings Logic ---
     def save_settings_handler(e):
         try:
             db.save_setting("api_key", api_key_input.value or "")
             db.save_setting("refine_api_key", refine_api_key_input.value or "")
-            db.save_setting("refine_model_id", refine_model_dropdown.value or "gemini-2.0-flash")
+            db.save_setting("refine_model_id", refine_model_dropdown.value or "")
+            db.save_setting("openai_api_key", openai_api_key_input.value or "")
+            db.save_setting("openai_base_url", openai_base_url_input.value or "https://api.openai.com/v1")
             db.save_setting("save_path", save_path_input.value or "outputs")
             db.save_setting("file_prefix", file_prefix_input.value or "gemini_gen")
             db.save_setting("language", lang_dropdown.value or "en")
@@ -190,13 +300,16 @@ def settings_page(page: Page) -> Container:
             show_snackbar(page, i18n.get("settings_import_error", "Error importing data: {error}", error=ex),
                           is_error=True)
 
-    async def pick_output_directory_btn_handler():
+    async def pick_output_directory_btn_handler(e):
         if state.output_picker is None:
             state.output_picker = ft.FilePicker()
+            page.overlay.append(state.output_picker)
+            page.update()
         output_directory = await state.output_picker.get_directory_path()
         if output_directory:
             save_path_input.value = output_directory
             db.save_setting("save_path", output_directory)
+            save_path_input.update()
 
     # --- UI Layout ---
     pick_output_directory_btn = ft.Button(
@@ -227,13 +340,24 @@ def settings_page(page: Page) -> Container:
         settings = db.get_all_settings()
         api_key_input.value = settings.get("api_key", "")
         refine_api_key_input.value = settings.get("refine_api_key", "")
-        refine_model_dropdown.value = settings.get("refine_model_id", "gemini-2.0-flash")
+        
+        # Load all chat models for refine dropdown
+        chat_models = db.get_models_by_type("chat")
+        refine_model_dropdown.options = [ft.dropdown.Option(key=m["id"], text=m["display_name"]) for m in chat_models]
+        refine_model_dropdown.value = settings.get("refine_model_id", "")
+        
+        openai_api_key_input.value = settings.get("openai_api_key", "")
+        openai_base_url_input.value = settings.get("openai_base_url", "https://api.openai.com/v1")
         save_path_input.value = settings.get("save_path", "outputs")
         file_prefix_input.value = settings.get("file_prefix", "gemini_gen")
         lang_dropdown.value = settings.get("language", "en")
         max_history_input.value = settings.get("max_history_len", "20")
         page.update()
 
+    def on_models_updated(topic: str):
+        load_initial_settings()
+
+    page.pubsub.subscribe(on_models_updated)
     threading.Timer(0.1, load_initial_settings).start()
 
     return ft.Container(
@@ -242,8 +366,15 @@ def settings_page(page: Page) -> Container:
                 ft.Text(i18n.get("settings_title"), size=24, weight=ft.FontWeight.BOLD),
                 lang_dropdown,
                 ft.Divider(),
-                ft.Text("General API Settings", size=18, weight=ft.FontWeight.BOLD),
+                ft.Text("Google Gemini API Settings", size=18, weight=ft.FontWeight.BOLD),
                 ft.Row(controls=[api_key_input, ft.Container(expand=True)]),
+                ft.Divider(),
+                ft.Text("OpenAI API Settings", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row(controls=[openai_api_key_input, ft.Container(expand=True)]),
+                openai_base_url_input,
+                ft.Divider(),
+                ft.Text("Model Management", size=18, weight=ft.FontWeight.BOLD),
+                manage_models_btn,
                 ft.Divider(),
                 ft.Text("Refine Agent Settings", size=18, weight=ft.FontWeight.BOLD),
                 ft.Row(controls=[refine_api_key_input, ft.Container(expand=True)]),

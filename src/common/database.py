@@ -34,6 +34,9 @@ def init_db(conn):
                   output_tokens INTEGER, 
                   total_tokens INTEGER, 
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    # 6. Models table
+    c.execute('''CREATE TABLE IF NOT EXISTS models
+                 (id TEXT PRIMARY KEY, series TEXT, type TEXT, display_name TEXT, order_id INTEGER)''')
     
     # Add default settings if needed
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("language", "en"))
@@ -42,6 +45,21 @@ def init_db(conn):
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("max_history_len", "20"))
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("refine_model_id", "gemini-3-flash-preview"))
     
+    # Add default models
+    default_models = [
+        ("gemini-2.5-flash-image", "google-genai", "image", "Gemini 2.5 Flash Image", 0),
+        ("gemini-3-pro-image-preview", "google-genai", "image", "Gemini 3 Pro Image Preview", 1),
+        ("gemini-3-flash-preview", "google-genai", "chat", "Gemini 3 Flash Preview", 2),
+        ("gemini-2.5-pro", "google-genai", "chat", "Gemini 2.5 Pro", 3),
+        ("gemini-2.5-flash", "google-genai", "chat", "Gemini 2.5 Flash", 4),
+        ("gpt-4o", "openai", "chat", "GPT-4o", 5),
+        ("gpt-4o-mini", "openai", "chat", "GPT-4o Mini", 6),
+        ("o1-preview", "openai", "chat", "o1 Preview", 7),
+        ("o1-mini", "openai", "chat", "o1 Mini", 8),
+        ("dall-e-3", "openai", "image", "DALL-E 3", 9)
+    ]
+    c.executemany("INSERT OR IGNORE INTO models (id, series, type, display_name, order_id) VALUES (?, ?, ?, ?, ?)", default_models)
+
     # Add default refine tasks
     default_tasks = [
         ("cosplay_photo", "Cosplay Photo", "Cosplay 照片", 
@@ -110,6 +128,15 @@ def migrate_db(conn):
                       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
         conn.commit()
 
+    # Check for models table
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
+    if not c.fetchone():
+        logger_utils.log("Migrating database: Creating models table.")
+        c.execute('''CREATE TABLE models
+                     (id TEXT PRIMARY KEY, series TEXT, type TEXT, display_name TEXT, order_id INTEGER)''')
+        conn.commit()
+        init_db(conn)
+
     # Check for max_history_len setting
     c.execute("SELECT value FROM settings WHERE key='max_history_len'")
     if not c.fetchone():
@@ -166,9 +193,12 @@ def export_all_data():
     c.execute("SELECT id, name, name_zh, system_instruction, order_id FROM refine_tasks ORDER BY order_id")
     refine_tasks = [dict(row) for row in c.fetchall()]
 
+    c.execute("SELECT id, series, type, display_name, order_id FROM models ORDER BY order_id")
+    models = [dict(row) for row in c.fetchall()]
+
     conn.close()
 
-    return {"settings": settings, "prompts": prompts, "refine_tasks": refine_tasks}
+    return {"settings": settings, "prompts": prompts, "refine_tasks": refine_tasks, "models": models}
 
 def import_all_data(data: dict):
     """Wipes and imports all settings and prompts from a dictionary."""
@@ -183,6 +213,7 @@ def import_all_data(data: dict):
         c.execute("DELETE FROM settings")
         c.execute("DELETE FROM prompts")
         c.execute("DELETE FROM refine_tasks")
+        c.execute("DELETE FROM models")
 
         # Insert new settings
         settings_to_insert = [(item.get('key'), item.get('value')) for item in data.get("settings", [])]
@@ -201,6 +232,13 @@ def import_all_data(data: dict):
             order_id = item.get('order_id', i)
             refine_tasks_to_insert.append((item.get('id'), item.get('name'), item.get('name_zh'), item.get('system_instruction'), order_id))
         c.executemany("INSERT INTO refine_tasks (id, name, name_zh, system_instruction, order_id) VALUES (?, ?, ?, ?, ?)", refine_tasks_to_insert)
+
+        # Insert new models
+        models_to_insert = []
+        for i, item in enumerate(data.get("models", [])):
+            order_id = item.get('order_id', i)
+            models_to_insert.append((item.get('id'), item.get('series'), item.get('type'), item.get('display_name'), order_id))
+        c.executemany("INSERT INTO models (id, series, type, display_name, order_id) VALUES (?, ?, ?, ?, ?)", models_to_insert)
 
         # Commit transaction
         conn.commit()
@@ -224,6 +262,7 @@ def clear_all_data():
         c.execute("DELETE FROM prompt_history")
         c.execute("DELETE FROM refine_tasks")
         c.execute("DELETE FROM token_usage")
+        c.execute("DELETE FROM models")
         conn.commit()
         # After clearing, re-initialize with default values
         init_db(conn)
@@ -261,7 +300,9 @@ def get_all_settings():
         "max_history_len": get_setting("max_history_len", "20"),
         "last_prompt": get_setting("last_prompt", ""),
         "refine_api_key": get_setting("refine_api_key", ""),
-        "refine_model_id": get_setting("refine_model_id", "gemini-3-flash-preview")
+        "refine_model_id": get_setting("refine_model_id", "gemini-3-flash-preview"),
+        "openai_api_key": get_setting("openai_api_key", ""),
+        "openai_base_url": get_setting("openai_base_url", "https://api.openai.com/v1")
     }
 
 # --- Prompt related ---
@@ -378,6 +419,52 @@ def update_refine_task_order(ids):
     c = conn.cursor()
     for i, task_id in enumerate(ids):
         c.execute("UPDATE refine_tasks SET order_id = ? WHERE id = ?", (i, task_id))
+    conn.commit()
+    conn.close()
+
+# --- Model related ---
+def get_all_models():
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, series, type, display_name, order_id FROM models ORDER BY order_id")
+    models = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return models
+
+def get_models_by_type(model_type):
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE type=? ORDER BY order_id", (model_type,))
+    models = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return models
+
+def get_model(model_id):
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, series, type, display_name, order_id FROM models WHERE id=?", (model_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def save_model(model_id, series, model_type, display_name):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT MAX(order_id) FROM models")
+    max_order = c.fetchone()[0]
+    new_order = (max_order or 0) + 1
+    c.execute("INSERT OR REPLACE INTO models (id, series, type, display_name, order_id) VALUES (?, ?, ?, ?, ?)", 
+              (model_id, series, model_type, display_name, new_order))
+    conn.commit()
+    conn.close()
+
+def delete_model(model_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM models WHERE id=?", (model_id,))
     conn.commit()
     conn.close()
 

@@ -8,19 +8,19 @@ from PIL import Image
 from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
 
 from common import database as db, i18n, logger_utils
-from common.config import MODEL_SELECTOR_CHOICES, AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
+from common.config import AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
 from common.job_manager import job_manager, Job
 from common.text_encoder import text_encoder
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewDialogData
-from geminiapi import api_client
+from geminiapi import unified_client
 
 
 def chat_page(page: Page) -> Dict[str, Any]:
     # --- State Management ---
     chat_session_state: Dict[str, Any] = {"session_obj": None}
-    genai_client = None  # Persistent client instance
     uploaded_image_paths: List[str] = []
+    messages_history: List[Dict[str, Any]] = []
 
     # --- Controls ---
     def open_chat_image_preview(image_path: str):
@@ -89,8 +89,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                                 on_click=lambda e: asyncio.create_task(send_message_handler()))
     
     model_selector = ft.Dropdown(label=i18n.get("home_control_model_label"),
-                                 options=[ft.dropdown.Option(model) for model in MODEL_SELECTOR_CHOICES],
-                                 value=MODEL_SELECTOR_CHOICES[0], expand=2)
+                                 options=[], expand=2)
     ar_selector = ft.Dropdown(label=i18n.get("home_control_ratio_label"),
                               options=[ft.dropdown.Option(key=value, text=text) for text, value in
                                        i18n.get_translated_choices(AR_SELECTOR_CHOICES)], value=AR_SELECTOR_CHOICES[0],
@@ -112,11 +111,10 @@ def chat_page(page: Page) -> Dict[str, Any]:
             return
         
         settings = db.get_all_settings()
-        api_key = settings.get("refine_api_key") or settings.get("api_key")
-        model_id = settings.get("refine_model_id", "gemini-2.0-flash")
+        model_id = settings.get("refine_model_id")
         
-        if not api_key:
-            show_snackbar(page, i18n.get("api_error_apiKey"), is_error=True)
+        if not model_id:
+            show_snackbar(page, "Refine model not configured.", is_error=True)
             return
 
         refine_button.disabled = True
@@ -125,9 +123,8 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
         try:
             refined_text = await asyncio.to_thread(
-                api_client.refine_prompt,
+                unified_client.refine_prompt,
                 user_prompt=user_input.value,
-                api_key=api_key,
                 model_id=model_id
             )
             user_input.value = refined_text
@@ -148,6 +145,13 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     # --- Functions ---
 
+    def refresh_models_dropdown():
+        chat_models = db.get_models_by_type("chat")
+        model_selector.options = [ft.dropdown.Option(key=m["id"], text=m["display_name"]) for m in chat_models]
+        if chat_models and not model_selector.value:
+            model_selector.value = chat_models[0]["id"]
+        model_selector.update()
+
     def refresh_prompts_dropdown():
         titles = db.get_all_prompt_titles()
         prompt_dropdown.options = [ft.dropdown.Option(title) for title in titles]
@@ -155,6 +159,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     def on_prompts_update(topic: str):
         refresh_prompts_dropdown()
+
+    def on_models_update(topic: str):
+        refresh_models_dropdown()
 
     def load_prompt_handler(e):
         selected_title = prompt_dropdown.value
@@ -223,10 +230,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
                                   tooltip=i18n.get("chat_btn_pick_images_tooltip", "select Images"))
 
     def clear_chat_handler(e):
-        nonlocal genai_client
         chat_history.controls.clear()
         chat_session_state["session_obj"] = None
-        genai_client = None
+        messages_history.clear()
         uploaded_image_paths.clear()
         update_thumbnail_display()
         logger_utils.log("Chat cleared.")
@@ -236,46 +242,63 @@ def chat_page(page: Page) -> Dict[str, Any]:
 
     async def handle_api_success(result):
         if result:
-            updated_chat_obj, response_parts = result
-            chat_session_state["session_obj"] = updated_chat_obj
+            # Handle Gemini result (tuple) vs OpenAI result (tuple)
+            if isinstance(result, tuple):
+                if len(result) == 2:
+                    # Could be (session, parts) from Gemini or (messages, content) from OpenAI
+                    first, second = result
+                    if hasattr(first, "send_message"): # Gemini session
+                        chat_session_state["session_obj"] = first
+                        response_parts = second
+                        
+                        # Remove "Thinking" message
+                        if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+                            last_bubble = chat_history.controls[-1].controls[1]
+                            if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                                chat_history.controls.pop()
 
-            # Remove "Thinking" message
-            if chat_history.controls and isinstance(chat_history.controls[-1], Message):
-                last_bubble = chat_history.controls[-1].controls[1]
-                if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
-                    chat_history.controls.pop()
+                        text_parts = [part for part in response_parts if isinstance(part, str)]
+                        image_parts = [part for part in response_parts if not isinstance(part, str)]
 
-            text_parts = [part for part in response_parts if isinstance(part, str)]
-            image_parts = [part for part in response_parts if not isinstance(part, str)]
+                        if text_parts:
+                            chat_history.controls.append(Message(role="assistant", parts=["\n\n".join(text_parts)]))
+                            page.update()
 
-            if text_parts:
-                chat_history.controls.append(Message(role="assistant", parts=["\n\n".join(text_parts)]))
-                page.update()
+                        save_dir = db.get_setting("save_path", OUTPUT_DIR)
+                        if image_parts:
+                            if not os.path.isdir(save_dir):
+                                try:
+                                    os.makedirs(save_dir, exist_ok=True)
+                                except OSError as e:
+                                    logger_utils.log(f"Could not create save directory: {e}")
+                                    save_dir = None
 
-            save_dir = db.get_setting("save_path", OUTPUT_DIR)
-            if image_parts:
-                if not os.path.isdir(save_dir):
-                    try:
-                        os.makedirs(save_dir, exist_ok=True)
-                    except OSError as e:
-                        logger_utils.log(f"Could not create save directory: {e}")
-                        save_dir = None
-
-                for i, img_part in enumerate(image_parts):
-                    if save_dir:
-                        try:
-                            filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
-                            # Save image in thread
-                            await asyncio.to_thread(img_part.save, filepath)
-                            flet_image = ft.Image(src=filepath)
-                            chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
-                        except Exception as e:
-                            chat_history.controls.append(
-                                Message(role="assistant", parts=[f"[Error saving image: {e}]"]))
-                    else:
-                        chat_history.controls.append(Message(role="assistant", parts=[
-                            "[Image could not be displayed because save path is not set.]"]))
-                page.update()
+                            for i, img_part in enumerate(image_parts):
+                                if save_dir:
+                                    try:
+                                        filepath = os.path.join(save_dir, f"chat_{int(time.time() * 1000)}_{i}.png")
+                                        await asyncio.to_thread(img_part.save, filepath)
+                                        flet_image = ft.Image(src=filepath)
+                                        chat_history.controls.append(Message(role="assistant", parts=[flet_image]))
+                                    except Exception as e:
+                                        chat_history.controls.append(
+                                            Message(role="assistant", parts=[f"[Error saving image: {e}]"]))
+                                else:
+                                    chat_history.controls.append(Message(role="assistant", parts=[
+                                        "[Image could not be displayed because save path is not set.]"]))
+                            page.update()
+                    else: # OpenAI messages
+                        nonlocal messages_history
+                        messages_history = first
+                        content = second
+                        
+                        if chat_history.controls and isinstance(chat_history.controls[-1], Message):
+                            last_bubble = chat_history.controls[-1].controls[1]
+                            if isinstance(last_bubble, ft.Container) and last_bubble.content.controls[0].value == "🤔 Thinking...":
+                                chat_history.controls.pop()
+                        
+                        chat_history.controls.append(Message(role="assistant", parts=[content]))
+                        page.update()
 
     async def handle_api_error(error_msg):
         logger_utils.log(f"Chat API call failed: {error_msg}")
@@ -293,19 +316,12 @@ def chat_page(page: Page) -> Dict[str, Any]:
         page.update()
 
     async def send_message_handler():
-        nonlocal genai_client
-
         prompt_text = text_encoder(user_input.value)
         if not prompt_text and not uploaded_image_paths: return
 
-        api_key = db.get_all_settings().get("api_key")
-        if not api_key:
-            chat_history.controls.append(Message(role="assistant", parts=[i18n.get("api_error_apiKey")]))
-            page.update()
+        if not model_selector.value:
+            show_snackbar(page, "Please select a model.", is_error=True)
             return
-
-        if genai_client is None:
-            genai_client = api_client.genai.Client(api_key=api_key)
 
         user_input.disabled = True
         send_button.disabled = True
@@ -315,7 +331,6 @@ def chat_page(page: Page) -> Dict[str, Any]:
         user_message_parts: List[Any] = []
 
         for path in uploaded_image_paths:
-            # Open images in thread pool
             img = await asyncio.to_thread(Image.open, path)
             prompt_parts.append(img)
             user_message_parts.append(ft.Image(src=path, width=150, border_radius=ft.border_radius.all(5)))
@@ -323,6 +338,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
         if prompt_text:
             prompt_parts.append(prompt_text)
             user_message_parts.append(prompt_text)
+            messages_history.append({"role": "user", "content": prompt_text})
 
         chat_history.controls.append(Message(role="user", parts=user_message_parts))
         chat_history.controls.append(Message(role="assistant", parts=["🤔 Thinking..."]))
@@ -331,16 +347,15 @@ def chat_page(page: Page) -> Dict[str, Any]:
         update_thumbnail_display()
         page.update()
 
-        # Create and add job to queue
         job = Job(
             id=f"chat_{int(time.time() * 1000)}",
             name=f"Chat: {prompt_text[:20]}..." if prompt_text else "Chat (Image only)",
-            task_func=api_client.call_google_chat,
+            task_func=unified_client.chat_completions,
             kwargs={
-                "genai_client": genai_client,
-                "chat_session": chat_session_state.get("session_obj"),
-                "prompt_parts": prompt_parts,
                 "model_id": model_selector.value,
+                "messages": messages_history.copy(),
+                "prompt_parts": prompt_parts,
+                "chat_session": chat_session_state.get("session_obj"),
                 "aspect_ratio": ar_selector.value,
                 "resolution": res_selector.value,
             },
@@ -355,7 +370,9 @@ def chat_page(page: Page) -> Dict[str, Any]:
     # --- Initialization function to be called after mount ---
     def initialize():
         page.pubsub.subscribe(on_prompts_update)
+        page.pubsub.subscribe(on_models_update)
         refresh_prompts_dropdown()
+        refresh_models_dropdown()
 
     view = ft.Container(
         content=ft.Column([

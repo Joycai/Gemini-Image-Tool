@@ -14,6 +14,7 @@
     "home_assets_label_dirPath": "Directory Path",
     "home_assets_btn_browse": "Browse",
     "home_assets_btn_browse_tooltip": "Browse a Directory",
+    "home_assets_btn_browse_tooltip": "Browse a Directory",
     "home_assets_btn_refresh_tooltip": "Refresh the Gallery",
     "home_assets_label_columns": "Columns",
     "home_assets_label_source": "Source",
@@ -101,6 +102,8 @@
 
     "settings_title": "Settings",
     "settings_label_apiKey": "Google API Key",
+    "settings_label_openaiApiKey": "OpenAI API Key",
+    "settings_label_openaiBaseUrl": "OpenAI Base URL",
     "settings_label_refineApiKey": "Refine Agent API Key",
     "settings_label_refineModel": "Refine Agent Model",
     "settings_label_savePath": "Auto Save Path",
