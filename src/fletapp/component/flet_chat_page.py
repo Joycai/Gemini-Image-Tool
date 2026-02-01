@@ -19,7 +19,6 @@ from geminiapi import unified_client
 
 @dataclass
 class State:
-    file_picker: Optional[ft.FilePicker] = None
     chat_session: Optional[Any] = None
     uploaded_image_paths: List[str] = field(default_factory=list)
     messages_history: List[Dict[str, Any]] = field(default_factory=list)
@@ -238,11 +237,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
             update_thumbnail_display()
 
     async def upload_image_handler(e):
-        if not state.file_picker:
-            state.file_picker = ft.FilePicker()
-            page.update()
-            
-        files = await state.file_picker.pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE)
+        files = await ft.FilePicker().pick_files(allow_multiple=True, file_type=ft.FilePickerFileType.IMAGE)
         if files:
             for f in files:
                 if f.path not in state.uploaded_image_paths:
@@ -263,6 +258,12 @@ def chat_page(page: Page) -> Dict[str, Any]:
         page.update()
 
     clear_button = ft.Button(content=i18n.get("chat_btn_clear"), on_click=clear_chat_handler, icon=ft.Icons.CLEAR_ALL)
+
+    async def handle_api_start():
+        user_input.disabled = True
+        send_button.disabled = True
+        progress_ring.visible = True
+        page.update()
 
     async def handle_api_success(result):
         if result:
@@ -312,10 +313,6 @@ def chat_page(page: Page) -> Dict[str, Any]:
             show_snackbar(page, "Please select a model.", is_error=True)
             return
 
-        user_input.disabled = True
-        send_button.disabled = True
-        progress_ring.visible = True
-
         prompt_parts: List[Any] = []
         user_message_parts: List[Any] = []
 
@@ -348,6 +345,7 @@ def chat_page(page: Page) -> Dict[str, Any]:
                 "aspect_ratio": ar_selector.value,
                 "resolution": res_selector.value,
             },
+            on_start=handle_api_start,
             on_success=handle_api_success,
             on_error=handle_api_error,
             on_finally=handle_api_finally

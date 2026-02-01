@@ -31,6 +31,10 @@ class Job:
     on_error: Optional[Callable] = None
     on_finally: Optional[Callable] = None
 
+    def clear_payload(self):
+        """Clears large data from kwargs to save memory after job completion."""
+        self.kwargs = {}
+
 class JobManager:
     def __init__(self):
         self.queue = asyncio.Queue()
@@ -84,6 +88,8 @@ class JobManager:
             except asyncio.CancelledError:
                 pass
         self._worker_task = None
+        self.current_job = None
+        self._current_thread = None
 
     async def _worker_loop(self):
         try:
@@ -94,6 +100,7 @@ class JobManager:
                 if job.id in self._cancelled_ids:
                     job.status = "cancelled"
                     job.finished_at = time.time()
+                    job.clear_payload()
                     self._cancelled_ids.remove(job.id)
                     self.queue.task_done()
                     self._notify()
@@ -119,29 +126,28 @@ class JobManager:
                         finally:
                             self._current_thread = None
 
-                    thread_task = asyncio.to_thread(thread_wrapper)
+                    # Create tasks for the thread and the interrupt event
+                    thread_task = asyncio.create_task(asyncio.to_thread(thread_wrapper))
+                    interrupt_task = asyncio.create_task(self._interrupt_event.wait())
                     
                     done, pending = await asyncio.wait(
-                        [asyncio.create_task(thread_task), asyncio.create_task(self._interrupt_event.wait())],
+                        [thread_task, interrupt_task],
                         return_when=asyncio.FIRST_COMPLETED
                     )
 
                     for task in pending:
                         task.cancel()
 
-                    if self._interrupt_event.is_set():
+                    if interrupt_task in done:
                         job.status = "cancelled"
                         job.error = "Interrupted by user"
-                    else:
-                        # Get result from the thread task
-                        # We need to find which one in 'done' is the thread_task
                         result = None
-                        for t in done:
-                            if t.get_coro().__name__ != 'wait': # Rough check to find the thread task
-                                try:
-                                    result = await t
-                                except Exception as e:
-                                    raise e
+                    else:
+                        # Thread task completed
+                        try:
+                            result = await thread_task
+                        except Exception as e:
+                            raise e
 
                         if job.status != "cancelled":
                             job.status = "success"
@@ -163,6 +169,7 @@ class JobManager:
                         await self._maybe_await(job.on_error, str(e))
                 finally:
                     job.finished_at = time.time()
+                    job.clear_payload() # Release memory
                     await self._maybe_await(job.on_finally)
                     self.queue.task_done()
                     self.current_job = None
@@ -215,6 +222,10 @@ class JobManager:
 
     def get_all_jobs(self) -> List[Job]:
         return self.history
+
+    def clear_history(self):
+        self.history = []
+        self._notify()
 
 # Global instance
 job_manager = JobManager()

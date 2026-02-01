@@ -18,9 +18,6 @@ from fletapp.component.common_component import show_snackbar
 
 @dataclass
 class State:
-    output_picker: ft.FilePicker = ft.FilePicker()
-    export_picker: ft.FilePicker = ft.FilePicker()
-    import_picker: ft.FilePicker = ft.FilePicker()
     last_save_path: str | None = None
 
 
@@ -28,9 +25,6 @@ state = State()
 
 
 def settings_page(page: Page) -> Container:
-    # --- Initialize Pickers ---
-    # Ensure pickers are added to the page overlay once
-
     # --- Google GenAI Controls ---
     google_paid_key_input = ft.TextField(
         label=i18n.get("settings_label_apiKey", "Paid API Key"),
@@ -124,7 +118,7 @@ def settings_page(page: Page) -> Container:
                 if "Image" in model["tags"]: icons.append(ft.Icon(ft.Icons.IMAGE, size=16))
                 
                 paid_badge = ft.Container(
-                    content=ft.Text("PAID", size=10, color="white", weight=ft.FontWeight.BOLD),
+                    content=ft.Text("PAID", size=10, color="white", weight="bold"),
                     bgcolor="orange",
                     padding=ft.padding.symmetric(horizontal=4, vertical=2),
                     border_radius=4,
@@ -441,10 +435,11 @@ def settings_page(page: Page) -> Container:
         try:
             all_data = db.export_all_data()
             json_bytes = json.dumps(all_data, ensure_ascii=False).encode('utf-8')
-            save_file_path = await state.export_picker.save_file(file_name=f"g_ai_edit_backup_{int(time.time())}.json",
-                                                                 allowed_extensions=["json"],
-                                                                 src_bytes=json_bytes
-                                                                 )
+            save_file_path = await ft.FilePicker().save_file(
+                file_name=f"g_ai_edit_backup_{int(time.time())}.json",
+                allowed_extensions=["json"],
+                src_bytes=json_bytes
+            )
             if save_file_path:
                 show_snackbar(page,
                               i18n.get("settings_export_success", "Data successfully exported to {path}",
@@ -454,7 +449,7 @@ def settings_page(page: Page) -> Container:
                           is_error=True)
 
     async def import_btn_handler(e):
-        files = await state.import_picker.pick_files(allow_multiple=False, allowed_extensions=["json"])
+        files = await ft.FilePicker().pick_files(allow_multiple=False, allowed_extensions=["json"])
         if files:
             try:
                 with open(files[0].path, "r", encoding="utf-8") as f:
@@ -467,7 +462,7 @@ def settings_page(page: Page) -> Container:
                               is_error=True)
 
     async def pick_output_directory_btn_handler(e):
-        output_directory = await state.output_picker.get_directory_path()
+        output_directory = await ft.FilePicker().get_directory_path()
         if output_directory:
             save_path_input.value = output_directory
             db.save_setting("save_path", output_directory)

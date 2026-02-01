@@ -25,7 +25,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 @dataclass
 class State:
     selected_images_paths: List[str] | None = None
-    file_picker: ft.FilePicker | None = None
     last_save_path: str | None = None
     gallery_visible: bool = True
 
@@ -335,15 +334,15 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
 
     async def download_image_handler(e):
         if api_task_state["status"] == "success" and api_task_state["result_image_path"]:
-            if state.file_picker is None:
-                state.file_picker = ft.FilePicker()
             temp_file_path = api_task_state["result_image_path"]
             with open(temp_file_path, 'rb') as f:
                 file_bytes = f.read()
-            saved_path = await state.file_picker.save_file(file_name=os.path.basename(temp_file_path),
-                                              allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS],
-                                              src_bytes=file_bytes,
-                                              file_type=FilePickerFileType.IMAGE)
+            saved_path = await ft.FilePicker().save_file(
+                file_name=os.path.basename(temp_file_path),
+                allowed_extensions=[ext.strip('.') for ext in VALID_IMAGE_EXTENSIONS],
+                src_bytes=file_bytes,
+                file_type=FilePickerFileType.IMAGE
+            )
             if saved_path:
                 show_snackbar(page, f"{i18n.get('logic_info_saveSuccess', 'Saved to')}: {saved_path}")
         else:
@@ -367,8 +366,6 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
         logger_utils.subscribe(on_log_update)
         refresh_prompts_dropdown()
         refresh_models_dropdown()
-        if state.file_picker is None:
-            state.file_picker = ft.FilePicker()
         last_prompt = db.get_setting("last_prompt", "")
         if last_prompt:
             prompt_input.value = last_prompt

@@ -17,7 +17,6 @@ from geminiapi import unified_client
 
 @dataclass
 class State:
-    file_picker: ft.FilePicker | None = None
     current_directory: str | None = None
     selected_paths: Set[str] = field(default_factory=set)
     expanded_paths: Set[str] = field(default_factory=set)
@@ -383,9 +382,7 @@ def local_gallery_component(page: Page, expand: Union[None, bool, int],
             pass
 
     async def open_directory_picker(e: ft.Event[ft.Button]):
-        if not state.file_picker:
-            state.file_picker = ft.FilePicker()
-        pick_directory = await state.file_picker.get_directory_path(initial_directory=state.current_directory)
+        pick_directory = await ft.FilePicker().get_directory_path(initial_directory=state.current_directory)
         if pick_directory:
             db.save_setting("last_dir", pick_directory)
             state.current_directory = pick_directory
