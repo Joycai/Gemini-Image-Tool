@@ -1,5 +1,7 @@
 import flet as ft
+
 from common import database as db, i18n
+
 
 def prompt_history_page(page: ft.Page, on_prompt_select: callable = None):
     

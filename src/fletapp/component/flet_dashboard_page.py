@@ -1,6 +1,9 @@
-import flet as ft
 from datetime import datetime, timedelta
+
+import flet as ft
+
 from common import database as db, i18n
+
 
 def dashboard_page(page: ft.Page):
     

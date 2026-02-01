@@ -1,9 +1,12 @@
-import flet as ft
-import time
 import base64
+import time
 from io import BytesIO
-from common.job_manager import job_manager, Job
+
+import flet as ft
+
 from common import i18n
+from common.job_manager import job_manager, Job
+
 
 def queue_page(page: ft.Page):
     

@@ -3,6 +3,7 @@ from PIL import Image
 from common import logger_utils
 from common.config import AR_SELECTOR_CHOICES
 
+
 def get_image_details(image_path: str) -> str:
     """
     Gets the closest aspect ratio and resolution for an image.

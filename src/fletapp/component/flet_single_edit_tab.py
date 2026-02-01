@@ -6,14 +6,14 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 
 import flet as ft
+from flet import Page, BoxFit, Alignment, FilePickerFileType
+
 # Custom imports
 from common import database as db, logger_utils, i18n
 from common.config import AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR, VALID_IMAGE_EXTENSIONS
 from common.image_util import get_image_details
 from common.job_manager import job_manager, Job
 from common.text_encoder import text_encoder
-from flet import MainAxisAlignment
-from flet import Page, BoxFit, Alignment, FilePickerFileType
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_gallery_component import local_gallery_component
 from geminiapi import unified_client

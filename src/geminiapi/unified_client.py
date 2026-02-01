@@ -1,11 +1,19 @@
-import os
 from typing import List, Any, Optional, Dict, Tuple
 from PIL import Image
 
-from common import logger_utils, i18n, database as db
+from common import logger_utils, database as db
 from geminiapi import google_genai_client
 from geminiapi import openai_client
 from geminiapi import gemini_rest_client
+from typing import List, Any, Optional, Dict, Tuple
+
+from PIL import Image
+
+from common import logger_utils, database as db
+from geminiapi import gemini_rest_client
+from geminiapi import google_genai_client
+from geminiapi import openai_client
+
 
 def _get_api_credentials(model_info: Dict[str, Any]) -> Tuple[str, Optional[str]]:
     """Helper to get the correct API key and base URL based on model and settings."""

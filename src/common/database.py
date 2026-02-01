@@ -1,7 +1,6 @@
 import os
 import sqlite3
-import json
-from typing import List, Any, Optional, Dict
+from typing import List
 
 from common import logger_utils
 from common.config import DB_FILE, STORAGE_DIR

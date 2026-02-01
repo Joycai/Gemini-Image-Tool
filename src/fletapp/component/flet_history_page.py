@@ -1,7 +1,7 @@
+import asyncio
 import os
 import platform
 import subprocess
-import asyncio
 
 import flet as ft
 from flet import Container, BoxFit
@@ -11,8 +11,8 @@ from common import database as db, i18n, logger_utils
 from common.config import VALID_IMAGE_EXTENSIONS, OUTPUT_DIR
 from common.image_util import get_image_details
 from common.prompts import AI_RECOGNIZE_TASKS
-from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
 from fletapp.component.common_component import show_snackbar
+from fletapp.component.flet_image_preview_dialog import PreviewDialogData, preview_dialog
 from geminiapi import unified_client
 
 

@@ -1,10 +1,12 @@
 import base64
-import os
-import requests
 from io import BytesIO
-from typing import List, Optional, Any, Dict
+from typing import List, Optional
+
+import requests
 from PIL import Image
-from common import logger_utils, i18n, database as db
+
+from common import logger_utils, i18n
+
 
 def _encode_image(image_path: str) -> str:
     with open(image_path, "rb") as image_file:
@@ -89,15 +91,13 @@ def call_generate_image(
 
         data = response.json()
 
-        if "candidates" in data and data["candidates"]:
-            candidate = data["candidates"][0]
-            if "content" in candidate and "parts" in candidate["content"]:
-                for part in candidate["content"]["parts"]:
-                    if "inline_data" in part:
-                        img_data = part["inline_data"]["data"]
-                        return Image.open(BytesIO(base64.b64decode(img_data)))
-                    if "text" in part:
-                        logger_utils.log(f"API returned text: {part['text']}")
+        for candidate in data.get("candidates", []):
+            for part in candidate.get("content", {}).get("parts", []):
+                img_data = part.get("inline_data", {}).get("data") or part.get("inlineData", {}).get("data")
+                if img_data:
+                    return Image.open(BytesIO(base64.b64decode(img_data)))
+                if "text" in part:
+                    logger_utils.log(f"API returned text: {part['text']}")
 
         logger_utils.log(f"Error: No image data in response. Full response: {data}")
         return None

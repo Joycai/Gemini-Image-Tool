@@ -1,9 +1,9 @@
+import asyncio
 import json
 import os
 import platform
 import shutil
 import subprocess
-import threading
 import time
 from dataclasses import dataclass
 
@@ -523,13 +523,22 @@ def settings_page(page: Page) -> Container:
         file_prefix_input.value = settings.get("file_prefix", "gemini_gen")
         lang_dropdown.value = settings.get("language", "en")
         max_history_input.value = settings.get("max_history_len", "20")
-        page.update()
+        try:
+            page.update()
+        except:
+            pass
 
     def on_models_updated(topic: str):
         load_initial_settings()
 
     page.pubsub.subscribe(on_models_updated)
-    threading.Timer(0.1, load_initial_settings).start()
+    
+    # Use asyncio.create_task instead of threading.Timer for initialization
+    async def delayed_init():
+        await asyncio.sleep(0.1)
+        load_initial_settings()
+    
+    asyncio.create_task(delayed_init())
 
     return ft.Container(
         content=ft.Column(

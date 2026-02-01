@@ -1,5 +1,7 @@
 import flet as ft
+
 from common import i18n, database as db
+
 
 def refine_manager_tab(page: ft.Page):
     def create_task_item(task_data, on_delete, on_update_order):

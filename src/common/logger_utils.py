@@ -18,6 +18,9 @@ def unsubscribe(callback: Callable[[str], None]):
     if callback in _callbacks:
         _callbacks.remove(callback)
 
+def clear_callbacks():
+    """清空所有回调，用于程序退出时清理"""
+    _callbacks.clear()
 
 def log(message):
     """
@@ -43,7 +46,8 @@ def log(message):
         try:
             callback(all_logs)
         except Exception as e:
-            print(f"Error in log callback: {e}")
+            # Silently fail if callback is no longer valid
+            pass
 
 
 def get_logs():
@@ -57,5 +61,8 @@ def clear_logs():
     _LOG_BUFFER.clear()
     # 通知订阅者日志已清空
     for callback in _callbacks:
-        callback("")
+        try:
+            callback("")
+        except:
+            pass
     return ""

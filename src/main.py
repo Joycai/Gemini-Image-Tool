@@ -1,6 +1,5 @@
 import os
 import sys
-import asyncio
 
 import flet as ft
 
@@ -18,6 +17,7 @@ from fletapp.component.flet_queue_page import queue_page
 from fletapp.component.flet_prompt_history_page import prompt_history_page
 from fletapp.component.flet_refine_manager_tab import refine_manager_tab
 from fletapp.component.flet_dashboard_page import dashboard_page
+
 
 async def main(page: ft.Page):
     i18n.load_language()
@@ -55,7 +55,7 @@ async def main(page: ft.Page):
     prompt_manager_component = prompt_manager_tab(page)
 
     main_tabs = ft.Tabs(
-        selected_index=1, # Default to Single Edit
+        selected_index=1,  # Default to Single Edit
         animation_duration=300,
         length=9,
         content=ft.Column(
@@ -63,33 +63,15 @@ async def main(page: ft.Page):
             controls=[
                 ft.TabBar(
                     tabs=[
-                        ft.Tab(
-                            label="Dashboard",
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_home", "Single Edit"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_chat"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_prompt_manager", "Prompt Manager"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_prompt_history", "Prompt History"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_history"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_queue", "Queue"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_refine_manager", "Refine Manager"),
-                        ),
-                        ft.Tab(
-                            label=i18n.get("app_tab_settings"),
-                        ),
+                        ft.Tab(label="Dashboard"),
+                        ft.Tab(label=i18n.get("app_tab_home", "Single Edit")),
+                        ft.Tab(label=i18n.get("app_tab_chat")),
+                        ft.Tab(label=i18n.get("app_tab_prompt_manager", "Prompt Manager")),
+                        ft.Tab(label=i18n.get("app_tab_prompt_history", "Prompt History")),
+                        ft.Tab(label=i18n.get("app_tab_history")),
+                        ft.Tab(label=i18n.get("app_tab_queue", "Queue")),
+                        ft.Tab(label=i18n.get("app_tab_refine_manager", "Refine Manager")),
+                        ft.Tab(label=i18n.get("app_tab_settings")),
                     ]
                 ),
                 ft.TabBarView(
@@ -118,15 +100,6 @@ async def main(page: ft.Page):
     chat_component["init"]()
     prompt_manager_component["init"]()
 
-    # --- Cleanup on Disconnect ---
-    async def on_disconnect(e):
-        print("Cleaning up before exit...")
-        await job_manager.stop_worker()
-        job_manager.set_page(None)
 
-    page.on_disconnect = on_disconnect
-
-
-if __name__ == "__main__":
-    os.environ["PYTHONUTF8"] = "1"
-    ft.run(main)
+os.environ["PYTHONUTF8"] = "1"
+ft.run(main)

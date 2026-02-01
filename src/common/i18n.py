@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from common import database as db, logger_utils
+from common import database as db
 
 # 全局变量存储翻译字典
 _TRANSLATIONS = {}

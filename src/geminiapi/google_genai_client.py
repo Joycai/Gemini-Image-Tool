@@ -6,8 +6,8 @@ from typing import List, Any, Optional, Dict
 from PIL import Image
 from google import genai
 from google.genai import types
-from google.genai.errors import ClientError
 from google.genai.chats import Chat
+from google.genai.errors import ClientError
 from google.genai.types import PIL_Image
 
 from common import logger_utils, i18n, database as db
