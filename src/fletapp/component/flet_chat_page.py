@@ -10,7 +10,7 @@ from flet import Page, BoxFit, MarkdownExtensionSet, MarkdownCodeTheme
 
 from common import database as db, i18n, logger_utils
 from common.config import AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR
-from common.job_manager import job_manager, Job
+from common.job_manager import Job
 from common.text_encoder import text_encoder
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_image_preview_dialog import preview_dialog, PreviewDialogData
@@ -28,6 +28,9 @@ state = State()
 
 
 def chat_page(page: Page) -> Dict[str, Any]:
+    # Get job_manager from session
+    job_manager = page.session.store.get("job_manager")
+
     # --- Controls ---
     def open_chat_image_preview(image_path: str):
         image_preview_dialog = preview_dialog(
@@ -350,7 +353,8 @@ def chat_page(page: Page) -> Dict[str, Any]:
             on_error=handle_api_error,
             on_finally=handle_api_finally
         )
-        await job_manager.add_job(job)
+        if job_manager:
+            await job_manager.add_job(job)
 
     user_input.on_submit = lambda e: asyncio.create_task(send_message_handler())
 

@@ -76,7 +76,7 @@ def generate_image(
             image_paths=image_paths
         )
     elif model_info["series"] == "gemini_rest_api":
-        return gemini_rest_client.call_generate_image(
+        return gemini_rest_client.call_generate_streaming(
             prompt=prompt,
             image_paths=image_paths,
             api_key=api_key,

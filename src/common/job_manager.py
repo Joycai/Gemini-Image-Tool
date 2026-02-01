@@ -226,6 +226,3 @@ class JobManager:
     def clear_history(self):
         self.history = []
         self._notify()
-
-# Global instance
-job_manager = JobManager()

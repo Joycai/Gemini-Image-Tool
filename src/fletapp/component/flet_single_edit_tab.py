@@ -12,7 +12,7 @@ from flet import Page, BoxFit, Alignment, FilePickerFileType
 from common import database as db, logger_utils, i18n
 from common.config import AR_SELECTOR_CHOICES, RES_SELECTOR_CHOICES, OUTPUT_DIR, VALID_IMAGE_EXTENSIONS
 from common.image_util import get_image_details
-from common.job_manager import job_manager, Job
+from common.job_manager import Job
 from common.text_encoder import text_encoder
 from fletapp.component.common_component import show_snackbar
 from fletapp.component.flet_gallery_component import local_gallery_component
@@ -33,6 +33,9 @@ state = State()
 
 
 def single_edit_tab(page: Page) -> Dict[str, Any]:
+    # Get job_manager from session
+    job_manager = page.session.store.get("job_manager")
+
     if state.selected_images_paths is None:
         state.selected_images_paths = []
 
@@ -107,7 +110,7 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
     interrupt_button = ft.ElevatedButton(
         content=ft.Text(i18n.get("home_control_btn_interrupt")),
         icon=ft.Icons.STOP_CIRCLE,
-        on_click=lambda _: job_manager.interrupt_current_job(),
+        on_click=lambda _: job_manager.interrupt_current_job() if job_manager else None,
         expand=True,
         style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_700),
         visible=False
@@ -329,7 +332,8 @@ def single_edit_tab(page: Page) -> Dict[str, Any]:
             on_error=handle_api_error,
             on_finally=handle_api_finally
         )
-        await job_manager.add_job(job)
+        if job_manager:
+            await job_manager.add_job(job)
         show_snackbar(page, i18n.get("logic_info_taskSubmitted"))
 
     async def download_image_handler(e):

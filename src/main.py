@@ -7,7 +7,7 @@ import flet as ft
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from common import i18n, database as db
-from common.job_manager import job_manager
+from common.job_manager import JobManager
 from fletapp.component.flet_single_edit_tab import single_edit_tab
 from fletapp.component.flet_settings_page import settings_page
 from fletapp.component.flet_history_page import history_page
@@ -21,7 +21,12 @@ from fletapp.component.flet_dashboard_page import dashboard_page
 
 async def main(page: ft.Page):
     i18n.load_language()
+    
+    # Initialize JobManager for this session
+    job_manager = JobManager()
     job_manager.set_page(page)
+    # Store in session for access by components
+    page.session.store.set("job_manager", job_manager)
 
     page.title = i18n.get("app_title")
     page.vertical_alignment = ft.MainAxisAlignment.START

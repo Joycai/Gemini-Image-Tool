@@ -5,10 +5,12 @@ from io import BytesIO
 import flet as ft
 
 from common import i18n
-from common.job_manager import job_manager, Job
+from common.job_manager import Job
 
 
 def queue_page(page: ft.Page):
+    # Get job_manager from session
+    job_manager = page.session.store.get("job_manager")
     
     def format_time(timestamp):
         if not timestamp:
@@ -77,7 +79,7 @@ def queue_page(page: ft.Page):
                         preview_img.save(buffered, format="PNG")
                         img_str = base64.b64encode(buffered.getvalue()).decode()
                         images_row.controls.append(
-                            ft.Image(src_base64=img_str, width=80, height=80, fit=ft.BoxFit.COVER, border_radius=5)
+                            ft.Image(src_base_64=img_str, width=80, height=80, fit=ft.BoxFit.COVER, border_radius=5)
                         )
                     except:
                         pass
@@ -173,14 +175,14 @@ def queue_page(page: ft.Page):
                 icon=ft.Icons.CANCEL_OUTLINED,
                 icon_color=ft.Colors.RED_400,
                 tooltip=i18n.get("queue_btn_cancel_tooltip"),
-                on_click=lambda _: job_manager.cancel_job(job.id)
+                on_click=lambda _: job_manager.cancel_job(job.id) if job_manager else None
             )
         elif job.status == "running":
             action_btn = ft.IconButton(
                 icon=ft.Icons.STOP_CIRCLE_OUTLINED,
                 icon_color=ft.Colors.RED_600,
                 tooltip=i18n.get("queue_btn_interrupt_tooltip"),
-                on_click=lambda _: job_manager.interrupt_current_job()
+                on_click=lambda _: job_manager.interrupt_current_job() if job_manager else None
             )
         else:
             action_btn = ft.Container() # Empty container for finished jobs
@@ -223,6 +225,8 @@ def queue_page(page: ft.Page):
     )
 
     def refresh_ui():
+        if not job_manager:
+            return
         jobs = job_manager.get_all_jobs()
         # Show newest first
         job_table.rows = [create_job_row(j) for j in reversed(jobs)]
@@ -232,10 +236,11 @@ def queue_page(page: ft.Page):
         except:
             pass
 
-    queue_count_text = ft.Text(i18n.get("queue_jobs_count", count=job_manager.get_queue_size()), size=20, weight=ft.FontWeight.BOLD)
+    queue_count_text = ft.Text(i18n.get("queue_jobs_count", count=job_manager.get_queue_size() if job_manager else 0), size=20, weight=ft.FontWeight.BOLD)
     
     # Subscribe to job manager updates
-    job_manager.subscribe(refresh_ui)
+    if job_manager:
+        job_manager.subscribe(refresh_ui)
 
     # Main layout
     view = ft.Container(
